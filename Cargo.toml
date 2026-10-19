@@ -7,7 +7,7 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.99"
 license = "Apache-2.0"
-author = "xakepp35"
+authors = ["xakepp35@gmail.com"]
 
 [workspace.dependencies]
 ssk-sim = { path = "crates/ssk-sim" }
