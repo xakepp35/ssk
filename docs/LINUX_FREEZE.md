@@ -93,3 +93,27 @@ This is receiver age, not sender capture age or one-way network latency.
 If it regularly exceeds the prediction horizon, the next task is compact motion
 updates/packet scheduling rather than unbounded prediction or more game packets.
 No automated tests, stress runs or live post-fix LAN session were performed.
+
+## Second reported freeze — later the same morning
+
+The owner reported another freeze while the release-build task was outstanding.
+The journal confirms the preceding boot ended at 06:47:53 MSK and the next boot
+started at 06:55:39 (uptime reports kernel start 06:55:29). These journal bounds
+are not an exact freeze timestamp. The agent had started only a Linux release
+build with two Cargo jobs, and had not launched SSK or a stress scenario.
+Whether the owner separately launched a game is awaiting clarification.
+
+The preceding boot contains **231,225** USB submission errors for the same
+USB 1-4 audio path, 06:20:02–06:33:19: 229,260 on URB #0, 1,964 on #8 and one
+on #7, all error -16. No matching Xid, OOM-kill, kernel panic, lockup, hardware
+error, general-protection-fault or kernel BUG record was found in the searched
+kernel journal. No warning-or-higher entries were found after 06:45. The gap
+between the USB errors and the last journal entry still prevents causal proof.
+
+The interrupted build's /tmp log disappeared after reboot; no successful release
+completion can be claimed. Existing Linux/Windows executable timestamps are
+06:08–06:13, before E1/E2, so **the distributed packages do not yet contain these
+fixes**. No Cargo/rustc/game build or game process remains. Do not restart builds
+or launch a reproduction automatically while the incident is unresolved.
+The next action is to establish whether the repeat occurred during compilation
+alone or after a separate game launch, and whether network/audio stayed alive.

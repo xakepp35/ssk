@@ -128,8 +128,10 @@ MSVC script and live cross-platform match remain unverified.
   canonical AI/combat/ownership and wire rate remain unchanged.
 - [x] E2 — Record read-only journal findings; real --no-audio/audio.enabled
   switch that skips native audio initialization, plus startup stage messages.
-- [ ] E3 — Rebuild Linux/Windows packages. No automatic GUI/freeze reproduction
-  or heavy workloads; manual cross-platform follow-up remains separate.
+- [ ] E3 — Rebuild Linux/Windows packages after incident clarification. The
+  Linux build was interrupted by another reported workstation freeze/reboot;
+  do not retry automatically. Existing packages predate E1/E2. No automatic
+  GUI/freeze reproduction or heavy workloads; manual follow-up stays separate.
 
 E1/E2 compile evidence: cargo check passed; no GUI or freeze reproduction.
 Receiver HUD now distinguishes local/remote stewardship and completed-image age.

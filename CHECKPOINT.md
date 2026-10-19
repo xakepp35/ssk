@@ -44,7 +44,7 @@ executable, root ssk.yml and PLAY.md. Linux config host; Windows config join
 to 192.168.50.155:4202, both 1600×1000. No examples directory or bundled DLL.
 MSVC script also requests static CRT; it has not been run. No automated tests,
 manual new-client/Windows runtime or live Linux↔Windows match performed.
-No active game/server/build/swarm. No push. Owner's pre-existing Cargo.toml
+No active game/server/build/swarm; prior release artifacts predate E1/E2. No push. Owner's pre-existing Cargo.toml
 change to authors was preserved and excluded from these implementation commits.
 
 ## Historical measurements / open work
@@ -68,9 +68,21 @@ Canonical game rules remain unchanged. cargo check passes; no runtime replay.
 E2 adds --no-audio/audio.enabled with truly lazy native audio creation,
 startup markers and docs/LINUX_FREEZE.md; default audio remains enabled.
 Final cargo check --locked -p ssk --jobs 2 passed (1.71s); no tests/GUI.
-HUD shows local/remote steward and completed-image receiver age. E3 builds
-pending. No game/server/load process. Preserve owner's Cargo authors edit.
+HUD shows local/remote steward and completed-image receiver age.
+E1 commit ba34ebd; E2 commit e2d50e0. Linux release rebuild (2 jobs) was
+interrupted by a second owner-reported freeze/reboot. /tmp build log lost;
+no release success or updated package claimed. Existing binaries are old.
+E3 pending; do not restart builds or games automatically pending clarification.
+No game/server/build/load process. Preserve owner's Cargo authors edit.
 
 Read-only previous-boot journal: 110127 Focusrite USB errors 06:00:22–06:11:55,
 re-enumerated 06:11:56; last SSK terminal activity 06:15:25 then reboot 06:17:42.
 No searched Xid/OOM/lockup record; no causal conclusion or system changes.
+
+Second incident: prior boot ended 06:47:53, new journal boot 06:55:39 MSK.
+231225 USB audio submission errors 06:20:02–06:33:19, all -16; no matching
+Xid/OOM/panic/lockup/hardware fault in searched kernel records. Cause unknown.
+Agent had started only a 2-job build, never a GUI/stress run. Asked owner whether
+he separately launched the game, which binary/audio mode, or froze during build
+alone; answer pending. Next action: incorporate that answer and choose focused
+read-only diagnosis before any further load. See docs/LINUX_FREEZE.md.
