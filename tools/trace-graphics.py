@@ -14,6 +14,8 @@ import time
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_TIMEOUT_SECONDS = 20
+DEFAULT_DURATION_SECONDS = 10
+MAX_DURATION_SECONDS = 120
 STOP_GRACE_SECONDS = 2
 MAX_TRACE_BYTES = 16 * 1024 * 1024
 READ_CHUNK_BYTES = 64 * 1024
@@ -73,7 +75,16 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, default=ROOT / "target/release/ssk")
     parser.add_argument("--strace", type=Path)
+    parser.add_argument("--duration-secs", type=int, default=DEFAULT_DURATION_SECONDS)
+    parser.add_argument("--simulation", choices=("off", "worker"), default="off")
+    device = parser.add_mutually_exclusive_group()
+    device.add_argument("--graphics", choices=("software", "hardware"))
+    device.add_argument("--gpu-index", type=int)
     args = parser.parse_args()
+    if not 1 <= args.duration_secs <= MAX_DURATION_SECONDS:
+        parser.error(f"duration-secs must be 1..{MAX_DURATION_SECONDS}")
+    if args.gpu_index is not None and args.gpu_index < 0:
+        parser.error("gpu-index must be nonnegative")
     if platform.system() != "Linux":
         parser.error("Linux-only; no native window will be started")
     tracer = args.strace or shutil.which("strace")
@@ -93,7 +104,11 @@ def main():
         "-e", f"raw={RAW_SYSCALLS}",
         str(binary), "graphics-probe",
         "--log", str(folder / "stages.log"),
+        "--duration-secs", str(args.duration_secs), "--simulation", args.simulation,
     ]
+    command += (["--gpu-index", str(args.gpu_index)] if args.gpu_index is not None
+                else ["--graphics", args.graphics or "software"])
+    timeout = args.duration_secs + DEFAULT_TIMEOUT_SECONDS
     metadata = {
         "command": command,
         "kernel": platform.release(),
@@ -104,11 +119,11 @@ def main():
             "WAYLAND_SOCKET", "WGPU_POWER_PREF",
             "VK_DRIVER_FILES", "VK_ICD_FILENAMES",
         )},
-        "limits": {"seconds": DEFAULT_TIMEOUT_SECONDS, "trace_bytes": MAX_TRACE_BYTES},
-        "note": "No SSK game/audio/network. ptrace; no --seccomp-bpf. Buffers/ioctls raw.",
+        "limits": {"seconds": timeout, "trace_bytes": MAX_TRACE_BYTES},
+        "note": "Static scene; optional offline worker; no audio/network. ptrace; no --seccomp-bpf. Buffers/ioctls raw.",
     }
     synced_file(folder / "metadata.json", json.dumps(metadata, indent=2) + "\n")
-    print(f"Graphics-only probe; {DEFAULT_TIMEOUT_SECONDS}s / {MAX_TRACE_BYTES // (1024 * 1024)}MiB cap.")
+    print(f"Explicit probe; {timeout}s / {MAX_TRACE_BYTES // (1024 * 1024)}MiB capture cap.")
     print(f"Logs: {folder}", flush=True)
     fd = os.open(folder / "syscalls.log", os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_DSYNC, FILE_MODE)
     process = None
@@ -119,7 +134,7 @@ def main():
         # have their own synced file. stdout is local and synchronous as well.
         process = subprocess.Popen(command, cwd=ROOT, stdout=fd, stderr=subprocess.PIPE,
                                    start_new_session=True, bufsize=0)
-        deadline = time.monotonic() + DEFAULT_TIMEOUT_SECONDS
+        deadline = time.monotonic() + timeout
         with selectors.DefaultSelector() as selector:
             selector.register(process.stderr, selectors.EVENT_READ)
             while True:

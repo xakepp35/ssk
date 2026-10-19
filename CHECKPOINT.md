@@ -48,6 +48,10 @@ panic flags off; prepared arm/restore script never armed. Vulkan removes GLX,
 but does not establish the cause or prove freeze resolution. No GUI started.
 
 ## Active processes / exact next action
+Current approved work: PLAN L1–L6. L1 implemented/compiled (four jobs); next L2
+capture/runbook, L3 stable GPU identity/presentation. No GUI launched or approved
+for automatic execution. No active build/collector/game. Hardware repair open.
+
 Current Linux four-job release/package completed in 1m33s (K below). No active
 build, game or diagnostic collector. Windows rebuild deferred while freeze
 repair is the sole priority. No push or GUI launch.
@@ -103,3 +107,11 @@ enumeration run. K4 attended acceptance and hardware failure identification
 remain release blockers. Async request submitted for one 10-second CPU Vulkan
 launch with independent kernel stacks: AGENTS bans automatic GUI launches.
 Until explicit approval, no dependent launch/capture. No active processes.
+
+## L1 / approved plan implementation
+Timed probe default10s/max120s; --simulation off|worker reuses production Game
+clock/handoff/stop with offline play enabled, static identical graphics, no net/
+audio/profile. Summary reports callbacks/world ticks/overloads/exit reason;
+callbacks never assert actual presentation. Trace wrapper explicitly defaults
+software and takes graphics/index/simulation/duration; finite time/byte cap.
+Focused cargo check passed; no tests or GUI/probe/runtime acceptance.

@@ -95,54 +95,148 @@ pub(crate) fn log_ready(
     }
 }
 
-/// Uses exactly the client's window/device/painter path, without a game, profile,
-/// network or audio. Only run by explicit operator command after hard freezes.
-pub fn graphics_probe(window: &WindowConfig) -> std::io::Result<()> {
+/// Explicitly timed diagnostics. Graphics are identical with and without the
+/// real offline game worker; no profile, identity, socket or audio is opened.
+pub struct ProbeOptions {
+    pub duration: std::time::Duration,
+    pub simulation: bool,
+    pub seed: u64,
+}
+
+pub fn graphics_probe(window: &WindowConfig, options: ProbeOptions) -> std::io::Result<()> {
+    use std::{cell::RefCell, rc::Rc, time::Duration};
+    if options.duration.is_zero() || options.duration > Duration::from_secs(PROBE_MAX_SECONDS) {
+        return Err(std::io::Error::other(
+            "Probe duration must be 1..=PROBE_MAX_SECONDS",
+        ));
+    }
     let graphics_thread = crate::graphics_thread::GraphicsThread::enter()?;
     tracing::info!(name:"ssk.probe.begin",backend="vulkan",width=window.width,height=window.height,
-        "Graphics-only probe; no SSK game/network/audio");
+        duration_ms=options.duration.as_millis() as u64,simulation=options.simulation,
+        logic_hz=ssk_sim::TICK_PER_SEC,"Timed static scene; no SSK network/audio/profile");
+    let report = Rc::new(RefCell::new(ProbeReport::default()));
+    let app_report = report.clone();
+    let window = window.clone();
     let initializing =
         tracing::debug_span!("ssk.probe.graphics.initialize", watchdog = true).entered();
-    eframe::run_native(
+    let result = eframe::run_native(
         "SSK Vulkan probe",
-        native_options(window),
+        native_options(&window),
         Box::new(move |cc| {
             drop(initializing);
             log_ready(cc, &graphics_thread);
+            // Reuse production clock, bounded channels, stop/join and World::step.
+            // The rendered scene does not consume or display simulation contents.
+            let game = options.simulation.then(|| {
+                let (game, _) = crate::game::Game::start(
+                    &crate::Options {
+                        seed: options.seed,
+                        class: None,
+                        window,
+                        audio: crate::AudioConfig { enabled: false },
+                        play: true,
+                        online: false,
+                        connect: None,
+                        network: ssk_net::Config::default(),
+                    },
+                    ssk_sim::ShipClass::Cadet,
+                );
+                game
+            });
             Ok(Box::new(Probe {
-                frames: 0,
+                report: app_report,
+                game,
+                started: std::time::Instant::now(),
+                sampled: std::time::Instant::now(),
+                duration: options.duration,
                 graphics_thread,
             }))
         }),
-    )
-    .map_err(|error| std::io::Error::other(error.to_string()))?;
-    tracing::info!(name:"ssk.probe.end","Vulkan event loop and teardown returned");
+    );
+    let report = report.borrow();
+    tracing::info!(name:"ssk.probe.end",reason=if result.is_err() { "graphics_error" } else { report.reason },
+        update_callbacks=report.callbacks,elapsed_ms=report.elapsed_ms,
+        world_tick=report.world_tick,overloads=report.overloads,error=%report.error,
+        "Event loop and teardown returned; callback count is not proof of presentation");
+    result.map_err(|error| std::io::Error::other(error.to_string()))?;
+    if !report.error.is_empty() {
+        return Err(std::io::Error::other(report.error.clone()));
+    }
     Ok(())
 }
+struct ProbeReport {
+    callbacks: u64,
+    elapsed_ms: u64,
+    world_tick: u64,
+    overloads: u64,
+    reason: &'static str,
+    error: String,
+}
+impl Default for ProbeReport {
+    fn default() -> Self {
+        Self {
+            callbacks: 0,
+            elapsed_ms: 0,
+            world_tick: 0,
+            overloads: 0,
+            reason: "window_closed",
+            error: String::new(),
+        }
+    }
+}
 struct Probe {
-    frames: u32,
+    report: std::rc::Rc<std::cell::RefCell<ProbeReport>>,
+    game: Option<crate::game::Game>,
+    started: std::time::Instant,
+    sampled: std::time::Instant,
+    duration: std::time::Duration,
     graphics_thread: crate::graphics_thread::GraphicsThread,
 }
 impl eframe::App for Probe {
     fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
         self.graphics_thread.assert_current();
-        if self.frames > 0 {
-            tracing::debug!(name:"ssk.probe.frame.returned","Event loop called update after the first queued frame");
+        let mut report = self.report.borrow_mut();
+        report.callbacks += 1;
+        report.elapsed_ms = self.started.elapsed().as_millis() as u64;
+        if let Some(frame) = self.game.as_ref().and_then(|game| game.take_frame()) {
+            report.world_tick = frame.world.tick;
+            report.overloads = frame.overloads;
+            if !frame.error.is_empty() {
+                report.reason = "simulation_error";
+                report.error = frame.error;
+            }
+        }
+        let painter = ctx.layer_painter(egui::LayerId::background());
+        painter.rect_filled(ctx.content_rect(), 0., SPACE_COLOR.egui());
+        painter.text(
+            ctx.content_rect().center(),
+            egui::Align2::CENTER_CENTER,
+            "SSK / wgpu / Vulkan",
+            egui::FontId::proportional(RESULT_SCORE_FONT),
+            palette::SKYBLUE.egui(),
+        );
+        if report.callbacks == 1 {
+            tracing::debug!(name:"ssk.probe.frame.queued","First probe frame queued; presentation follows update");
+        }
+        if self.sampled.elapsed().as_secs_f64() >= OBSERVATION_SAMPLE_SECONDS {
+            tracing::debug!(name:"ssk.probe.progress",kind="metric",update_callbacks=report.callbacks,
+                elapsed_ms=report.elapsed_ms,world_tick=report.world_tick,overloads=report.overloads,
+                "Main-thread callback progress; not GPU completion");
+            self.sampled = std::time::Instant::now();
+        }
+        if !report.error.is_empty() || self.started.elapsed() >= self.duration {
+            if report.error.is_empty() {
+                report.reason = "duration_elapsed";
+            }
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         } else {
-            let painter = ctx.layer_painter(egui::LayerId::background());
-            painter.rect_filled(ctx.content_rect(), 0., SPACE_COLOR.egui());
-            painter.text(
-                ctx.content_rect().center(),
-                egui::Align2::CENTER_CENTER,
-                "SSK / wgpu / Vulkan",
-                egui::FontId::proportional(RESULT_SCORE_FONT),
-                palette::SKYBLUE.egui(),
-            );
-            tracing::debug!(name:"ssk.probe.frame.queued","First Vulkan probe frame queued; presentation follows update");
             ctx.request_repaint();
         }
-        self.frames += 1;
+    }
+    fn on_exit(&mut self) {
+        self.graphics_thread.assert_current();
+        // Join before the graphics owner/painter is dropped, as in the client.
+        self.game.take();
     }
     fn clear_color(&self, _: &egui::Visuals) -> [f32; 4] {
         [SPACE_COLOR.r, SPACE_COLOR.g, SPACE_COLOR.b, 1.]

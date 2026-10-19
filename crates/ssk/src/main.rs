@@ -58,10 +58,15 @@ enum Command {
     InitConfig,
     /// Read-only host/process snapshot and exit; no graphics, game or network.
     Doctor,
-    /// Initialize only graphics, clear one frame, then exit; no game/network/audio.
+    /// Timed static Vulkan scene; optional offline simulation, never network/audio.
     GraphicsProbe {
         #[arg(long)]
         log: Option<std::path::PathBuf>,
+        #[arg(long, default_value_t = ssk_client::constants::PROBE_DEFAULT_SECONDS,
+            value_parser = clap::value_parser!(u64).range(1..=ssk_client::constants::PROBE_MAX_SECONDS))]
+        duration_secs: u64,
+        #[arg(long, value_enum, default_value_t = ProbeSimulation::Off)]
+        simulation: ProbeSimulation,
     },
     Bench {
         #[arg(long, default_value_t = ssk_client::constants::BENCH_DEFAULT_PLAYERS)]
@@ -102,6 +107,12 @@ enum LogSync {
 enum Graphics {
     Hardware,
     Software,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum ProbeSimulation {
+    Off,
+    Worker,
 }
 
 impl Cli {
@@ -219,8 +230,19 @@ fn run(cli: Cli) -> anyhow::Result<()> {
     }
     let network = app.network;
     match command {
-        Command::GraphicsProbe { .. } => {
-            ssk_client::diagnostics::graphics_probe(&app.window)?;
+        Command::GraphicsProbe {
+            duration_secs,
+            simulation,
+            ..
+        } => {
+            ssk_client::diagnostics::graphics_probe(
+                &app.window,
+                ssk_client::diagnostics::ProbeOptions {
+                    duration: std::time::Duration::from_secs(duration_secs),
+                    simulation: matches!(simulation, ProbeSimulation::Worker),
+                    seed: network.seed,
+                },
+            )?;
             Ok(())
         }
         Command::Server => ssk_net::run_node(network),

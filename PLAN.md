@@ -310,3 +310,24 @@ incident log hash unchanged. Installed loader1.4.341.0 and Mesa26.0.8 support
 the chosen ICD path; no package/system changes. No active build/collector/game.
 K4 is open; explicit request for one attended 10-second software-only launch
 with kernel-stack capture submitted because AGENTS prohibits automatic GUI.
+
+## L: approved freeze investigation and hardware repair
+
+- [x] L1 — Timed static Vulkan probe (1–120s, default10s), optional production
+  offline 360Hz worker, no network/audio/profile. Same drawing in both modes;
+  explicit exit reason/progress, bounded production handoff. Trace wrapper has
+  explicit graphics/index/simulation/duration controls and bounded capture.
+- [ ] L2 — Independent capture/runbook and Windows timestamped liveness monitor.
+- [ ] L3 — Stable GPU identity, strict presentation selection and render pacing.
+- [ ] L4 — Four-job Linux build/package, fingerprint, attended capture readiness.
+- [ ] L5 — Owner-attended comparisons: CPU graphics -> hardware graphics ->
+  same hardware plus worker -> offline game -> network -> audio. Start10s;
+  first freeze stops the sequence. Never automatically retry or start GUI.
+- [ ] L6 — Evidence-selected repair and hardware acceptance:10starts x60s,
+  30min local play including resize/focus/move/exit,15min Windows LAN.
+
+Each complete step commits PLAN/CHECKPOINT. Keep GPU/kernel/VPN/monitor state
+fixed during comparisons. Software is diagnostic containment, not release
+acceptance. Driver/kernel changes or panic capture require a separate reviewed
+step with rollback. No automated tests or stress loops. See operator runbook
+when L2 is complete. L1 focused four-job cargo check passed; no GUI launched.
