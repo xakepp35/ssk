@@ -397,3 +397,7 @@ cannot identify the previous freeze. Final KMS ppoll/NVIDIA idle. Capture and
 root report persisted under runtime; visual confirmation/remote liveness absent.
 Next controlled change: add actual offline360Hz worker on SAME physical GPU,
 static scene/FIFO/ICD/layer policy unchanged. Not hardware acceptance.
+
+L5 next prepared gpu-worker: same static scene/GPU/FIFO/ICD/layers, only actual
+offline360Hz Game worker enabled. Durable session and checkpoint saved before
+launch. Runtime one-shot helper refuses repeated/elevated/cross-boot starts.

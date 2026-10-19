@@ -15,12 +15,14 @@ kernel/driver/VPN/display/service/watchdog changes. After reboot read
 runtime/freeze-sessions/current.json and the pointed session.json/app.ndjson/
 console.ndjson, compare boot ID and preserve previous-boot evidence BEFORE
 any new launch. A start without finish is not itself proof of a host freeze.
-Current prepared session: runtime/freeze-sessions/20261019T232806Z.
-Stage gpu-graphics:10s static scene, primary PCI0000:65:00.0, FIFO, simulation
-off/no net/audio. NVIDIA-only ICD and implicit layers disabled in child only,
-matching CPU isolation policy. No root game. Next: independent120s root stacks,
-wait for durable-ready, ONE launch, review. Remote observer absent, human visual
-confirmation of CPU window still pending. No collector/game active at preparation.
+Current prepared session: runtime/freeze-sessions/20261019T233145Z.
+Stage gpu-worker:10s static scene, same primary PCI0000:65:00.0/FIFO, actual
+360Hz offline worker enabled. NVIDIA-only ICD/implicit layers off unchanged.
+Network/audio disabled. CPU and GPU-without-worker scenes completed. Next:
+independent120s root capture then exactly one launch via ignored runtime helper
+runtime/freeze-sessions/run-one.py (checks prepared/current boot/nonroot,
+never retries;35s wall timeout records hung PID without killing it). No active
+collector/game at preparation. Remote observer/human visual confirmation absent.
 
 ## Latest completed hardware scene
 Session runtime/freeze-sessions/20261019T232806Z:10.701s/exit0,1388callbacks,
