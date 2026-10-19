@@ -73,7 +73,9 @@ pkexec /usr/bin/python3 /home/a/github.com/xakepp35/ssk/tools/freeze-stacks.py \
 ```
 
 The summary reports a torn final record and the timestamp of the last successful
-thread sample separately from later sampling failures. Inspect summary and app
+thread sample separately from later sampling failures. Use `--pid APP_PID` with `--summary-file` to aggregate the application
+stacks during its lifetime (preserving TIDs), instead of only after-exit display
+stacks. Inspect summary and app
 end record, and compare the Windows ICMP timeline.
 Record run, build, stage, boot, actual adapter, present mode, visible behaviour
 and exit result in an incident note under runtime, not in git.

@@ -5,6 +5,7 @@ Run before an attended session via graphical Polkit. No GPU/NVML/ioctl calls,
 SysRq, network listeners, service changes or automatic crash/reboot commands.
 """
 import argparse
+from collections import Counter
 import datetime
 import hashlib
 import json
@@ -23,6 +24,8 @@ MAX_THREAD_SCAN = 256
 MAX_STACK_BYTES = 4096
 MAX_FILE_BYTES = 16 * 1024 * 1024
 HASH_CHUNK_BYTES = 1024 * 1024
+MAX_SUMMARY_STACKS = 6
+MAX_SUMMARY_FRAMES = 12
 SESSION_STAGES = ("cpu-graphics", "gpu-graphics", "gpu-worker", "offline", "network", "audio")
 TARGETS = ("ssk", "gnome-shell", "Xwayland", "nvidia-modeset", "sing-box", "pipewire", "wireplumber")
 
@@ -88,10 +91,13 @@ def main():
     parser.add_argument("--seconds", type=int, default=DEFAULT_SECONDS)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--summary-file", type=Path, help="Read a bounded capture and print only the final display stacks")
+    parser.add_argument("--pid", type=int, help="With summary-file, aggregate this process's stacks across the capture")
     parser.add_argument("--stage", choices=SESSION_STAGES)
     parser.add_argument("--binary", type=Path, help="Optional build fingerprint; never executed")
     parser.add_argument("--app-config", type=Path, help="Optional config hash; contents are never captured")
     args = parser.parse_args()
+    if args.pid is not None and (not args.summary_file or args.pid <= 0):
+        parser.error("pid must be positive and used with summary-file")
     if sys.platform != "linux" or os.geteuid() != 0:
         parser.error("Use pkexec /usr/bin/python3 /absolute/tools/freeze-stacks.py --output-dir /absolute/directory")
     if args.summary_file:
@@ -122,14 +128,30 @@ def main():
                              if isinstance(row.get("sample"), dict) and "threads" in row["sample"]), None)
         threads = last_threads["sample"]["threads"] if last_threads else []
         selected = [row for row in threads if "KMS" in str(row["thread"]) or str(row["process"]).startswith("nvidia-modeset") or "D (" in row["state"]]
+        process_samples = [record for record in records
+                           if any(thread["pid"] == args.pid for thread in record.get("sample", {}).get("threads", []))] if args.pid else []
+        process_threads = [thread for record in process_samples
+                           for thread in record["sample"]["threads"] if thread["pid"] == args.pid]
+        signatures = Counter((thread["tid"], thread["thread"], thread["state"], str(thread["wchan"]),
+                              str(thread["kernel_stack"])) for thread in process_threads)
+        process_summary = {"pid": args.pid, "samples_present": len(process_samples),
+                           "first_ms": process_samples[0]["ts_unix_ms"] if process_samples else None,
+                           "last_ms": process_samples[-1]["ts_unix_ms"] if process_samples else None,
+                           "observations": len(process_threads),
+                           "stack_read_errors": sum(isinstance(thread["kernel_stack"], dict) for thread in process_threads),
+                           "common_stacks": [{"tid": key[0], "is_main": key[0] == args.pid,
+                                              "thread": key[1], "state": key[2], "wchan": key[3],
+                                              "kernel_stack": key[4].splitlines()[:MAX_SUMMARY_FRAMES], "observations": count}
+                                             for key, count in signatures.most_common(MAX_SUMMARY_STACKS)]} if args.pid else None
         print(json.dumps({"records": len(records), "first_ms": records[0]["ts_unix_ms"],
                           "last_ms": records[-1]["ts_unix_ms"], "threads": len(threads),
                           "boot_id": records[0]["boot_id"], "session": records[0].get("session"),
                           "partial_tail_ignored": partial_tail,
                           "last_thread_sample_ms": last_threads["ts_unix_ms"] if last_threads else None,
                           "sample_errors": sum("sample_error" in row.get("sample", {}) or "sample_exit" in row.get("sample", {}) for row in records),
+                          "process": process_summary,
                           "stack_read_errors": sum(isinstance(row["kernel_stack"], dict) for row in threads),
-                          "display_or_blocked": [{**row, "kernel_stack": str(row["kernel_stack"]).splitlines()[:12]} for row in selected]}, indent=2))
+                          "display_or_blocked": [{**row, "kernel_stack": str(row["kernel_stack"]).splitlines()[:MAX_SUMMARY_FRAMES]} for row in selected]}, indent=2))
         return
     if not args.output_dir:
         parser.error("output-dir is required for collection")

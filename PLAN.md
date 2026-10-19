@@ -372,3 +372,13 @@ experiments, with stop at first freeze and reboot recovery from saved session.
 First cpu-graphics10s scene, independent120s procfs collector; remote Windows
 observer not attached. Before launch persist session/build/config/boot/command
 and update checkpoint. No implicit driver/kernel/watchdog/VPN changes or retry.
+
+L5 cpu-graphics:2026-10-20 02:24:37.853–02:24:48.297MSK, exit0/10.444s,
+actual Wayland/Vulkan/Mesa llvmpipe CPU/FIFO,837update callbacks, duration_elapsed,
+world_tick0/overloads0/no ERROR.120kernel samples,0sampling errors;11samples
+contain SSK/93thread observations/0stack-read errors. Final KMS ppoll/NVIDIA
+idle. No matching new kernel fault entry. Visual confirmation still pending;
+no remote observer. This is a short software baseline, not hardware acceptance.
+Capture/session: runtime/freeze-sessions/20261019T232406Z. Summary now supports
+--pid to inspect the application's stacks during its lifetime, not just final
+after-exit display stacks; preserve TIDs so same-named threads aren't merged.

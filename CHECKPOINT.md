@@ -17,11 +17,22 @@ Before any resumed action read runtime/freeze-sessions/current.json and the
 session.json/app.ndjson/console.ndjson there; inspect boot ID and preserve
 previous boot evidence. Prepared session: runtime/freeze-sessions/20261019T232406Z.
 Current stage cpu-graphics (software Vulkan/FIFO, simulation off, no net/audio).
-Status prepared, game not started. Next: root read-only collector via Polkit,
+CPU stage finished successfully; game not running. Next: root read-only collector via Polkit,
 wait for durable-ready, one launch, bounded readout. Remote Windows observer is
 not attached; no claim about remote liveness. No kernel/driver changes authorized.
 If session has a start without a finish, don't rerun; correlate with owner report
 and boot change first. L5/L6 and hardware freeze remain open.
+
+## L5 runtime evidence / current stage
+CPU session runtime/freeze-sessions/20261019T232406Z finished: exit0/10.444s,
+Wayland/Vulkan/Mesa llvmpipe/Cpu/FIFO,837update callbacks, duration_elapsed,
+world_tick0/overloads0/no ERROR.120kernel samples/0sample errors;11SSK samples,
+93thread observations/0stack-read errors, final KMS ppoll/NVIDIA idle. No matched
+new kernel fault. Five optional-display-extension warnings; rendering proceeds.
+Human visual confirmation pending; remote observer absent. Collector has exited.
+No long-term stability or hardware fix claim. Next: one hardware graphics-only
+10s scene on confirmed GNOME PCI0000:65:00.0, same FIFO, with implicit layers
+disabled as in CPU baseline, separate durable session/root capture. No auto retry.
 
 ## Completed current work
 - 50efcb3/L1: timed probe1–120s/default10s; --simulation off|worker reuses actual
