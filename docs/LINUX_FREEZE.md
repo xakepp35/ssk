@@ -1,5 +1,13 @@
 # Linux hard-freeze investigation — 2026-10-19
 
+## Current repair: main-thread audit and isolated software Vulkan
+
+All product work is paused for the freeze. See
+[GRAPHICS_THREAD_AUDIT.md](GRAPHICS_THREAD_AUDIT.md) for the historical vsync
+change, actual eframe/winit ownership chain, bounded nonblocking frame handoff,
+surface recovery, and the explicit Lavapipe-only Linux workaround. Hardware
+Vulkan root cause/runtime acceptance remain open; no automatic GUI was launched.
+
 ## Fourth incident: Vulkan/Wayland, 11:50:11–11:50:15 MSK
 
 Owner launched `dist/ssk-linux-x64/ssk`, controlled the ship for approximately

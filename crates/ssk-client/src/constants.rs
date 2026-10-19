@@ -1,5 +1,6 @@
 //! Presentation, process and bounded client queue defaults. Gameplay lives in ssk-sim.
 pub const GAME_COMMAND_CAPACITY: usize = 4;
+pub const GAME_HANDOFF_CAPACITY: usize = 1;
 pub const MAX_RENDER_DELTA: f32 = 0.1;
 pub const DEFAULT_WIDTH: i32 = 1600;
 pub const DEFAULT_HEIGHT: i32 = 1000;

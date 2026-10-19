@@ -45,6 +45,7 @@ unexpected = [name for name in imports if name.lower() not in system
 if not imports or unexpected:
     raise SystemExit(f'Non-system Windows DLL imports or missing import table: {unexpected}')
 config = Path('ssk.yml').read_text().replace('mode: host\n', 'mode: join\n', 1)
+config = config.replace('adapter: software\n', 'adapter: hardware\n', 1)
 (root/'ssk.yml').write_text(config)
 with ZipFile('dist/ssk-windows-gnu.zip','w',ZIP_DEFLATED) as z:
     for name in ['ssk.exe', 'ssk.yml', 'PLAY.md']:

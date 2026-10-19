@@ -253,7 +253,7 @@ I2: README/LAN and freeze history distinguish new Vulkan behavior from old
 incident evidence; graphics trace wrapper matches the new probe CLI. All build
 scripts default to four jobs. Linux release build in progress; no GUI/tests.
 
-## J: freeze after the owner's Vulkan/Wayland launch (current priority)
+## J: freeze after the owner's Vulkan/Wayland launch
 
 - [x] J1 — Analyze the supplied NDJSON through bounded queries, fingerprint the
   executable, correlate journal/rsyslog/existing metrics and inspect primary
@@ -276,3 +276,27 @@ J3 needs evidence not present in the supplied application log or healthy baselin
 
 I3 status: Linux four-job release/package completed in 4m34s, then owner reported
 this freeze. Windows packaging is deferred while J is the active priority.
+
+## K: repair the unusable Linux client (only current priority)
+
+- [x] K1 — Audit the original worker split and actual window/event/render call
+  chain against winit/eframe documentation. Enforce one main-thread owner;
+  replace blocking shared-frame mutex with bounded nonblocking handoff, move
+  network initialization out of the window callback, fix Outdated recovery and
+  remove blocking shutdown-command enqueue.
+- [x] K2 — Add explicit hardware/software adapter policy and indexes. For the
+  affected Linux package select only Lavapipe before any graphics/thread startup
+  through a fresh process exec and Vulkan loader ICD filtering. Reject elevated
+  execution/missing software device instead of hardware fallback. Preserve
+  wgpu/Vulkan and 360/60 Hz, native Wayland, FIFO; Windows package stays hardware.
+- [ ] K3 — Four-job focused compilation, Linux release/package. Record actual
+  evidence; do not launch GUI, stress or automated tests after hard freezes.
+- [ ] K4 — Attended runtime acceptance of software containment and diagnosis/
+  repair of hardware Vulkan trigger. Product release remains blocked until a
+  usable stable client is demonstrated; compilation alone cannot close this.
+
+K1/K2: docs/GRAPHICS_THREAD_AUDIT.md records exact requirements and code paths.
+The main-thread rule was already obeyed. 741d1d9 also enabled vsync (0 -> 1),
+so the timing correlation cannot isolate the simulation worker. Actual GUI
+blocking and surface recovery weaknesses repaired; full-host causation unproven.
+Initial four-job cargo check passed in 1.95s. No GUI/system changes/tests.

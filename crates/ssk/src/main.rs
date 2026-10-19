@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand, ValueEnum};
 mod config;
 mod constants;
+mod graphics_process;
 mod observation;
 
 #[derive(Parser)]
@@ -18,6 +19,12 @@ struct Cli {
     /// Skip native audio initialization (useful when diagnosing a USB/audio freeze).
     #[arg(long, global = true)]
     no_audio: bool,
+    /// Vulkan device policy; software isolates Mesa Lavapipe on Linux.
+    #[arg(long, global = true, value_enum, conflicts_with = "gpu_index")]
+    graphics: Option<Graphics>,
+    /// Explicit Vulkan adapter index (see adapter_candidate logs); selects hardware.
+    #[arg(long, global = true)]
+    gpu_index: Option<usize>,
     /// NDJSON destination override (startup-log is a compatibility alias).
     #[arg(long, alias = "startup-log", global = true)]
     log_file: Option<std::path::PathBuf>,
@@ -91,8 +98,49 @@ enum LogSync {
     Flush,
 }
 
+#[derive(Clone, Copy, ValueEnum)]
+enum Graphics {
+    Hardware,
+    Software,
+}
+
+impl Cli {
+    fn apply_graphics(&self, window: &mut ssk_client::WindowConfig) {
+        if let Some(mode) = self.graphics {
+            window.adapter = match mode {
+                Graphics::Hardware => ssk_client::GraphicsAdapter::Hardware,
+                Graphics::Software => ssk_client::GraphicsAdapter::Software,
+            };
+            if matches!(mode, Graphics::Software) {
+                window.adapter_index = None;
+            }
+        }
+        if let Some(index) = self.gpu_index {
+            window.adapter = ssk_client::GraphicsAdapter::Hardware;
+            window.adapter_index = Some(index);
+        }
+    }
+}
+
 fn main() -> std::process::ExitCode {
     let cli = Cli::parse();
+    // Vulkan driver discovery is process-global. Apply an isolated driver in a
+    // fresh exec before the logger or any library can create threads. Never use
+    // unsafe set_var in an already multithreaded process.
+    let graphics_bootstrap = if matches!(
+        &cli.command,
+        None | Some(
+            Command::Play | Command::Host | Command::Online { .. } | Command::GraphicsProbe { .. }
+        )
+    ) {
+        (|| -> anyhow::Result<()> {
+            let mut app = config::Config::load(cli.config.as_deref())?;
+            cli.apply_graphics(&mut app.window);
+            graphics_process::prepare(&app.window)
+        })()
+    } else {
+        Ok(())
+    };
     let file = cli.log_file.clone().or_else(|| match &cli.command {
         Some(Command::GraphicsProbe { log, .. }) => log.clone(),
         _ => None,
@@ -120,7 +168,12 @@ fn main() -> std::process::ExitCode {
     };
     let _session =
         tracing::info_span!("ssk.process.run", version = env!("CARGO_PKG_VERSION")).entered();
-    tracing::info!(name:"ssk.process.begin",version=env!("CARGO_PKG_VERSION"),"Process entry before application config");
+    tracing::info!(name:"ssk.process.begin",version=env!("CARGO_PKG_VERSION"),"Structured process startup");
+    if let Err(error) = graphics_bootstrap {
+        tracing::error!(name:"ssk.graphics.bootstrap.failed",error=%format!("{error:#}"),
+            "Graphics driver isolation failed before window/device creation");
+        return std::process::ExitCode::FAILURE;
+    }
     match run(cli) {
         Ok(()) => {
             tracing::info!(name:"ssk.process.end",success=true,"Process work completed");
@@ -145,6 +198,7 @@ fn run(cli: Cli) -> anyhow::Result<()> {
         return Ok(());
     }
     let mut app = config::Config::load(cli.config.as_deref())?;
+    cli.apply_graphics(&mut app.window);
     if cli.no_audio {
         app.audio.enabled = false;
     }

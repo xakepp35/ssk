@@ -7,6 +7,11 @@ window:
   width: 1600
   height: 1000
   fullscreen: false
+  # software = isolated CPU Vulkan on Linux; hardware = native GPU Vulkan.
+  # Linux incident package uses software; Windows packaging selects hardware.
+  # --graphics hardware or --gpu-index N explicitly selects the GPU path.
+  adapter: software
+  adapter_index: null
 audio:
   # Set false (or pass --no-audio) to skip opening the audio device entirely.
   enabled: true

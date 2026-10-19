@@ -1,8 +1,8 @@
 # SSK checkpoint
 
 ## Current objective / instructions
-Owner prioritized wgpu/Vulkan migration and four Cargo jobs; further logging
-coverage (H3/H4) paused. Three libraries + binary, Rust 1.99/edition2024.
+Owner's sole priority: repair Linux freeze; other product work and further
+logging coverage (H3/H4) paused. Four Cargo jobs. Three libraries + binary, Rust 1.99/edition2024.
 Small complete steps, PLAN/CHECKPOINT in each commit, no push. No automated
 tests, GUI/probe/stress/crash launches or driver/VPN/kernel changes this phase.
 Normal development needs no root. Watchdog arming remains unapplied/unapproved.
@@ -75,5 +75,25 @@ Private file runtime/freeze-stacks/kernel-stacks-20261019T165840Z-641629.ndjson.
 --summary-file supports bounded final-stack extraction. Collector has finished;
 no active collector/build/game. Needs owner-approved attended incident capture;
 do not start SSK or arm panic automatically. No root system settings changed.
-Next J3: get independent liveness and KMS/nvidia-modeset/SSK stacks during an
-incident. Additional logging expansion and Windows build remain deferred.
+J3 incident capture is still available. Current implementation work is K below.
+Additional logging expansion and Windows build remain deferred.
+
+## K: thread audit and repair (active)
+docs/GRAPHICS_THREAD_AUDIT.md records primary docs/history. 741d1d9 introduced
+the worker AND enabled vsync (swap_interval0->1). No window/render move off main,
+affinity, RT scheduling or worker graphics use found. New !Send/!Sync graphics
+owner verifies Linux main TID and creation/update/exit/drop. Replaced shared frame
+mutex with capacity-one nonblocking request/frame/control channels. CPU/network
+snapshot work stays in worker; network identity/socket initialization moved out
+of window callback. Stop is atomic/unpark instead of blocking send; orderly join
+remains. Outdated surface now reconfigures like Lost. 360/60 timing unchanged.
+Root ssk.yml now adapter: software; Linux bootstrap execs before logger/threads
+with only system Lavapipe ICD, implicit layers off, four CPU render workers.
+Elevated/secure execution and missing CPU device fail without hardware fallback.
+--graphics hardware/software or --gpu-index N; indexes aren't stable PCI IDs.
+Windows packaging explicitly adapter: hardware (not rebuilt yet). Mesa Lavapipe
+manifest already exists; nothing installed, no driver/kernel/VPN changes.
+Four-job cargo check passed1.95s. Full-host cause and software FPS/stability still
+unproven. No GUI/tests/probe/enumeration run. Next: finish focused check and
+four-job Linux release/package, commit K1-K3; K4 attended runtime acceptance and
+hardware failure identification remain release blockers.

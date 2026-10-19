@@ -2,6 +2,17 @@ pub const DEFAULT_CONFIG_FILE: &str = "ssk.yml";
 pub const DEFAULT_LAN_SERVER: &str = "192.168.50.155:4202";
 pub const MAX_CONFIG_BYTES: u64 = 64 * 1024;
 
+#[cfg(target_os = "linux")]
+pub mod graphics {
+    pub const SOFTWARE_THREADS: &str = "4";
+    pub const LAVAPIPE_MANIFESTS: &[&str] = &[
+        "/usr/share/vulkan/icd.d/lvp_icd.json",
+        "/usr/share/vulkan/icd.d/lvp_icd.x86_64.json",
+        "/etc/vulkan/icd.d/lvp_icd.json",
+        "/etc/vulkan/icd.d/lvp_icd.x86_64.json",
+    ];
+}
+
 pub mod observation {
     pub const SCHEMA: &str = "ssk.obs/1";
     pub const LOG_DIR: &str = "runtime/logs";

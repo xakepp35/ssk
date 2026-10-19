@@ -91,6 +91,16 @@ multiply encounters. Do not erase known visible content just because a replaceme
 image is delayed. Never claim runtime continuity from compilation alone.
 
 ## Graphics migration priority
+Owner's current sole priority is repairing the Linux freeze; other product work
+is paused. Read docs/GRAPHICS_THREAD_AUDIT.md. Root/Linux incident config selects
+isolated software Vulkan (Lavapipe), Windows packaging explicitly selects hardware.
+Do not present software containment or compilation as proof that hardware Vulkan
+is repaired. Keep window/device/event/paint ownership on the process main thread;
+GraphicsThread is !Send/!Sync. UI-to-simulation exchange uses bounded nonblocking
+channels; no shared world/status mutex across native graphics callbacks. Software
+ICD selection happens before threads through exec, never unsafe environment
+mutation after threads start; missing CPU driver must fail without GPU fallback.
+
 Owner paused further observability coverage in favor of native wgpu graphics.
 Use Vulkan and native Wayland on Wayland sessions; no OpenGL/GLX fallback.
 Preserve monitor-driven rendering and independent 360 Hz simulation. Four Cargo

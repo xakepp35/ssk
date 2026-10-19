@@ -6,11 +6,12 @@ use std::time::Instant;
 pub mod bench;
 mod config;
 pub mod constants;
-pub use config::{AudioConfig, WindowConfig};
+pub use config::{AudioConfig, GraphicsAdapter, WindowConfig};
 pub mod diagnostics;
 mod effects;
 mod game;
 mod graphics;
+mod graphics_thread;
 mod online;
 mod profile;
 mod render;
@@ -27,6 +28,7 @@ pub struct Options {
     pub network: ssk_net::Config,
 }
 pub fn launch(options: Options) -> std::io::Result<()> {
+    let graphics_thread = graphics_thread::GraphicsThread::enter()?;
     let mut profile = profile::Profile::load();
     profile.width = options.window.width;
     profile.height = options.window.height;
@@ -40,8 +42,8 @@ pub fn launch(options: Options) -> std::io::Result<()> {
         diagnostics::native_options(&options.window),
         Box::new(move |cc| {
             drop(initializing);
-            diagnostics::log_ready(cc);
-            Ok(Box::new(ClientApp::new(options, profile)))
+            diagnostics::log_ready(cc, &graphics_thread);
+            Ok(Box::new(ClientApp::new(options, profile, graphics_thread)))
         }),
     )
     .map_err(|error| std::io::Error::other(error.to_string()))?;
@@ -105,6 +107,7 @@ fn draw_ship(canvas: &Canvas, ship: &Ship, camera: V2, alpha: f32, color: Color)
     }
 }
 struct ClientApp {
+    graphics_thread: graphics_thread::GraphicsThread,
     options: Options,
     profile: profile::Profile,
     class: ssk_sim::ShipClass,
@@ -129,7 +132,12 @@ struct ClientApp {
     max_frame_ms: f64,
 }
 impl ClientApp {
-    fn new(options: Options, mut profile: profile::Profile) -> Self {
+    fn new(
+        options: Options,
+        mut profile: profile::Profile,
+        graphics_thread: graphics_thread::GraphicsThread,
+    ) -> Self {
+        graphics_thread.assert_current();
         let class = options
             .class
             .unwrap_or(ssk_sim::ShipClass::ALL[profile.class]);
@@ -143,6 +151,7 @@ impl ClientApp {
         tracing::debug!(name:"ssk.client.render.begin",progress_id="ssk.client.render.sample",progress_active=true,
             "Vulkan client ready to render");
         Self {
+            graphics_thread,
             options,
             profile,
             class,
@@ -170,6 +179,7 @@ impl ClientApp {
 }
 impl eframe::App for ClientApp {
     fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
+        self.graphics_thread.assert_current();
         let frame_started = std::time::Instant::now();
         let frame_dt = frame_started.duration_since(self.last_frame).as_secs_f32();
         self.last_frame = frame_started;
@@ -535,6 +545,7 @@ impl eframe::App for ClientApp {
         self.first_frame = false;
     }
     fn on_exit(&mut self) {
+        self.graphics_thread.assert_current();
         tracing::debug!(name:"ssk.client.render.end",progress_id="ssk.client.render.sample",progress_active=false,"Render loop exiting");
         drop(self.game.take());
         if let Err(error) = self.profile.save() {

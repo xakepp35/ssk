@@ -13,6 +13,7 @@ try {
     New-Item -ItemType Directory -Force $bundle | Out-Null
     Copy-Item 'target/x86_64-pc-windows-msvc/release/ssk.exe' "$bundle/ssk.exe"
     $config = (Get-Content 'ssk.yml' -Raw) -replace '(?m)^mode: host\s*$', 'mode: join'
+    $config = $config -replace '(?m)^  adapter: software\s*$', '  adapter: hardware'
     [System.IO.File]::WriteAllText((Join-Path $PWD "$bundle/ssk.yml"), $config)
     Copy-Item 'docs/LAN.md' "$bundle/PLAY.md"
     Add-Type -AssemblyName System.IO.Compression.FileSystem
