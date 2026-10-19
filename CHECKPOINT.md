@@ -1,144 +1,86 @@
 # SSK checkpoint
 
-## Current objective / instructions
-Owner's sole priority: repair Linux freeze; other product work and further
-logging coverage (H3/H4) paused. Four Cargo jobs. Three libraries + binary, Rust 1.99/edition2024.
-Small complete steps, PLAN/CHECKPOINT in each commit, no push. No automated
-tests, GUI/probe/stress/crash launches or driver/VPN/kernel changes this phase.
-Normal development needs no root. Watchdog arming remains unapplied/unapproved.
+## Objective and rules
+Sole priority: identify and repair whole-Ubuntu freeze. Approved investigation
+is PLAN L1–L6 / docs/FREEZE_RUNBOOK.md. Other product work and expanded logging
+are paused. One complete step/commit with PLAN/CHECKPOINT; no push. Four Cargo
+jobs, targets sequential. No automated tests, GUI/probe/stress/crash launches
+without attended owner authorization. No driver/kernel/VPN/service changes.
+No active build, game, collector or other mutation driver.
 
-## Current implementation
-Offline alpha and UDP/QUIC duel/PvPvE through B15 implemented; owner's earlier
-Linux↔Windows match exposed remote NPC jerkiness. Smoothing/sector retention
-fixes compile, but have no subsequent manual acceptance. 64–128 performance
-not proven. Rules ID `ssk-rules-4-inertial`; snapshot v2; update both peers.
-Simulation TICK_PER_SEC=360, TICK_PER_PACKET=6, render independent. Physics and
-CombatGuard in ssk-sim, network only transport/discovery/routing/identity/codecs.
-Flight: nose-relative inertial thrust, limited shortest-angle mouse steering;
-scout thrust x4/turn x2, full tank shield at 0.5 E/damage; stats/AI/UI aligned.
-Nearby terrain retention/prefetch, rebase before cursor, 1320 depth stars.
-Root ssk.yml: host, 1600x1000; Windows package: join 192.168.50.155:4202.
-F2/Esc menu/class, F3 invite, F11 fullscreen. Separate machine identities.
+## Next action / pending input
+L1–L4 implemented/compiled/packaged. L5 waits for owner presence and explicit
+approval for exactly ONE10s software Vulkan probe (--simulation off, no net/
+audio), independent120s kernel capture. Async request submitted2026-10-20;
+no answer yet. Silence is not approval. AGENTS prohibits automatic GUI launches.
+Before launching, follow FREEZE_RUNBOOK: Windows ICMP observer with successful
+baseline if laptop available; root collector via graphical Polkit, wait for
+First sample persisted; collector ready. Never retry after first freeze.
+If approved, collect/inspect CPU baseline before choosing a hardware stage.
+Hardware release blockers J3/K4/L5/L6 remain open. CPU success is not a GPU fix.
 
-## Completed current phase
-- b93c1c0: subsystem tracing checkpoint; four-job cargo check passed. H3 remains
-  incomplete. tools/observe.py is an unexecuted unfinished draft (fcntl Windows
-  portability, journal-exit loop and bounds need fixes before advertising it).
-- 6bb3caa / I1: replaced Macroquad/Miniquad/OpenGL with eframe/egui0.33.3,
-  winit0.30.13 and wgpu27.0.1. Vulkan/std/WGSL only. Newest eframe0.37 conflicts
-  with current libp2p wasm dependency pins; kept network untouched.
-  Owned Canvas wraps egui Painter/input, preserving menu/effects/depth stars,
-  clipboard/fullscreen/DPI coordinates. Winit prefers native Wayland, X11 only
-  without a Wayland display. FIFO/2 frames in flight. Independent 360 Hz worker
-  and lazy quad-snd native audio. Probe uses same wgpu path, no game/net/audio.
-  Four-job cargo check passed, latest 1.24s. No runtime graphics acceptance.
-- I2: README/LAN/freeze docs and bounded trace wrapper updated for Vulkan probe;
-  obsolete --native/GLX/EGL flags removed. Build defaults are four jobs for
-  Linux, cross Windows and native MSVC. No Vulkan SDK required; driver required.
+## Completed current work
+- 50efcb3/L1: timed probe1–120s/default10s; --simulation off|worker reuses actual
+  offline Game/360Hz clock/channels/stop with identical static graphics. No
+  network/audio/profile. End reason/callback/tick/overload counters; callbacks
+  never prove presentation. Worker early exit becomes a failed probe.
+- 9108e2b/L2 and03741aa: bounded independent procfs stack capture, first sample
+  boot/kernel/stage/build/config hashes, durable-ready marker; summary handles
+  torn final record and reports last successful stacks vs sampling errors.
+  Windows freeze-liveness.ps1 sends/logs1Hz ICMP120s/default, persists on laptop;
+  ICMP loss alone cannot establish kernel lockup. No services/listeners changed.
+- 6619f4e/L3: optional Vulkan deviceUUID/PCI on already enumerated adapters,
+  read-only HAL properties guarded by Vulkan1.1 and PCI extension. Explicit
+  --gpu-pci / --gpu-uuid / --gpu-index mutually exclusive and fail without a
+  matching compatible card. Strict --present-mode fifo|mailbox support check;
+  FIFO monitor/vsync normal, Mailbox finite idle redraw requests default60Hz
+  (--mailbox-repaint-hz), native input may repaint sooner. No new dependency
+  version; direct ash0.38 was already locked. Root software config retained.
+- fb5436b: README/PLAY/audit aligned; obsolete strace-first procedure removed.
+- L4: locked four-job cargo check passed0.90s; Linux four-job release/package
+  completed1m31s. Embedded revision v0.1.0-alpha.1-49-g6619f4ef6db1.
+  target/release/ssk == dist/ssk-linux-x64/ssk SHA256:
+  afb4fcfcf3c30f64c7904f99902a6a9e0952b26acea269b0f4dc60df23d294ce
+  dist/ssk-linux-x64.tar.gz SHA256:
+  5cbccc3e36a10a020c6407e5acdbeae1e2a5ec48cb5738bebc77d195fbb3d474
+  Archive only ssk/ssk.yml/PLAY.md, software/FIFO. Clap probe --help printed
+  without initializing logger/window/GPU; Python py_compile passed for capture/
+  trace tools. No automated tests, GUI or runtime acceptance. Windows archive
+  remains old; PowerShell script not executed. No GPU enumeration/API probe.
 
-## Freeze evidence / limits
-See docs/LINUX_FREEZE.md for detailed preserved evidence. Three reported hard
-freezes, one without starting game during a 2-job build. First two preceding
-boots had heavy Focusrite USB errors; latest prefreeze boot had none. No matched
-Xid/panic/OOM/lockup, pstore/vmcore absent. Old first marker preceded GLX context;
-SSK game/net/audio had not started. Current GNOME Wayland, dual RTX3090Ti,
-NVIDIA615.71.09/kernel7.0.0-38, mixed four monitors; v2rayN TUN gvisor MTU9000.
-No proven cause or driver/VPN changes. Kdump loaded, watchdog enabled, lockup
-panic flags off; prepared arm/restore script never armed. Vulkan removes GLX,
-but does not establish the cause or prove freeze resolution. No GUI started.
+## Thread audit / prior repairs
+741d1d9 introduced the worker AND enabled VSync0->1. Window/device/event/render
+already obeyed main-thread requirement; no graphics handle moved to worker,
+affinity/RT/fork/io_uring/eBPF found. db478c3 enforces !Send/!Sync owner and
+main-TID checks, removes shared world/status mutex from graphics callbacks in
+favour of capacity-one nonblocking handoff, moves network startup into worker,
+uses atomic/unpark stop, reconfigures Outdated like Lost. Full-host causation
+not established. Software bootstrap execs before threads with only Lavapipe ICD,
+implicit layers disabled, four CPU workers; elevated/missing CPU fails without
+GPU fallback. GNOME compositor still uses GPU. No settings/packages changed.
 
-## Active processes / exact next action
-Current approved work: PLAN L1–L6. L1/L2/L3 implemented; next L4 final
-four-job build/package, then attended CPU baseline if explicitly authorized. No GUI launched or approved
-for automatic execution. No active build/collector/game. Hardware repair open.
+## Incident and workstation evidence
+Detailed evidence: docs/LINUX_FREEZE.md and docs/GRAPHICS_THREAD_AUDIT.md.
+User log ab0e7f...:75records/92,467bytes,2026-10-19 11:50:11.781–15.265MSK,
+Vulkan/Wayland/NVIDIA615.71.09,128–141FPS,360Hz, no overload/panic/game peers.
+DRM wait snapshots are followed by frames, not captured permanent deadlock.
+No matching Xid/OOM/panic/lockup/vmcore. Journal stops before game; IO pressure
+predates it. One earlier freeze without game; older USB errors absent latest.
+Dual RTX3090Ti, kernel7.0.0-38, GNOME Wayland, mixed4monitors, v2rayN TUN. On
+current boot journal reconfirmed card2 primary, sysfs PCI0000:65:00.0; card1
+PCI0000:17:00.0. This is not the old application's selected physical GPU proof.
+SSH inactive; kdump loaded/watchdogs enabled/panic flags off; arm/restore tool
+never armed. Earlier healthy1s root stack baseline had8threads/zero errors,
+KMS ppoll/NVIDIA idle; no incident captured. No root-cause/runtime fix claim.
 
-Current Linux four-job release/package completed in 1m33s (K below). No active
-build, game or diagnostic collector. Windows rebuild deferred while freeze
-repair is the sole priority. No push or GUI launch.
-Observability contract/sink remains in docs/OBSERVABILITY.md; resume extra
-coverage only after owner requests it. No independent diagnostic driver active.
-
-## Latest incident / J (current priority)
-Owner's dist launch at 11:50:11.781, log ends 11:50:15.265 after 3.484 s;
-boot52421155 -> boot92b301b4 at11:52:05. J1/J2 saved in docs/LINUX_FREEZE.md.
-75 NDJSON records queried via jq, no full dump. Actual Vulkan/Wayland/NVIDIA
-615.71.09 confirmed; revision de14d7a and current dist/target binary hashes match.
-128–141 FPS, 360 ticks/s, max step286us/lag1865us, no overload/panic/admitted
-peers/game datagrams. Discovery/control and audio were active, not exonerated.
-RSS400MiB, available83.66GiB, logger no I/O errors/max completed write4473us.
-I/O PSI full62–63% predates game. DRM main-thread waits are followed by frames,
-so they do not identify a deadlock. One optional Vulkan-extension warning only.
-Journal tail11:49:18, rsyslog11:49:49; Loki has no new fault stack. Historical
-GPU metrics last11:50:01:48/66C, memory12.5/13.8GB, no measured prior exhaustion.
-Same-driver upstream NVIDIA1392 and GNOME1289 support a graphics hypothesis,
-but no matching local stack/root cause. SSH inactive, kdump loaded, panic flags0.
-Prepared tools/freeze-stacks.py reads bounded root procfs kernel stacks, no GPU
-calls/settings/SysRq/application launch. One-second Polkit baseline succeeded
-at19:58:40:8 threads, zero read errors; KMS idle ppoll/NVIDIA idle _main_loop.
-Private file runtime/freeze-stacks/kernel-stacks-20261019T165840Z-641629.ndjson.
---summary-file supports bounded final-stack extraction. Collector has finished;
-no active collector/build/game. Needs owner-approved attended incident capture;
-do not start SSK or arm panic automatically. No root system settings changed.
-J3 incident capture is still available. Current implementation work is K below.
-Additional logging expansion and Windows build remain deferred.
-
-## K: thread audit and repair (active)
-docs/GRAPHICS_THREAD_AUDIT.md records primary docs/history. 741d1d9 introduced
-the worker AND enabled vsync (swap_interval0->1). No window/render move off main,
-affinity, RT scheduling or worker graphics use found. New !Send/!Sync graphics
-owner verifies Linux main TID and creation/update/exit/drop. Replaced shared frame
-mutex with capacity-one nonblocking request/frame/control channels. CPU/network
-snapshot work stays in worker; network identity/socket initialization moved out
-of window callback. Stop is atomic/unpark instead of blocking send; orderly join
-remains. Outdated surface now reconfigures like Lost. 360/60 timing unchanged.
-Root ssk.yml now adapter: software; Linux bootstrap execs before logger/threads
-with only system Lavapipe ICD, implicit layers off, four CPU render workers.
-Elevated/secure execution and missing CPU device fail without hardware fallback.
---graphics hardware/software or --gpu-index N; indexes aren't stable PCI IDs.
-Windows packaging explicitly adapter: hardware (not rebuilt yet). Mesa Lavapipe
-manifest already exists; nothing installed, no driver/kernel/VPN changes.
-K1/K2 committed db478c3. Final four-job cargo check passed0.52s. Linux release/
-package passed1m33s, revision v0.1.0-alpha.1-45-gdb478c33b704. target/dist SHA256
-5eb7d11808ef90d26ed1b1990cef91b783f5646588aefec3c617fa61298432a3.
-Archive only ssk/ssk.yml/PLAY.md; software config included; old incident log
-hash unchanged. Installed loader1.4.341.0/Mesa26.0.8; no packages installed.
-Full-host cause and software FPS/stability still unproven. No GUI/tests/probe/
-enumeration run. K4 attended acceptance and hardware failure identification
-remain release blockers. Async request submitted for one 10-second CPU Vulkan
-launch with independent kernel stacks: AGENTS bans automatic GUI launches.
-Until explicit approval, no dependent launch/capture. No active processes.
-
-## L1 / approved plan implementation
-Timed probe default10s/max120s; --simulation off|worker reuses production Game
-clock/handoff/stop with offline play enabled, static identical graphics, no net/
-audio/profile. Summary reports callbacks/world ticks/overloads/exit reason;
-callbacks never assert actual presentation. Trace wrapper explicitly defaults
-software and takes graphics/index/simulation/duration; finite time/byte cap.
-Focused cargo check passed; no tests or GUI/probe/runtime acceptance.
-
-L2: docs/FREEZE_RUNBOOK.md gives attended single-launch sequence/stop gates,
-120s procfs capture and Windows ICMP observer, evidence branches and hardware
-acceptance. Collector first sample adds stage/kernel/build/config hashes; never
-executes binary or dumps config. tools/freeze-liveness.ps1 writes/flushes1Hz
-ICMP to laptop, bounded1–900s; no service/firewall changes. Neither collector
-nor Windows script launched in this step; PowerShell runtime not verified.
-
-L3: log optional deviceUUID/PCI on already enumerated Vulkan adapters; guard
-properties2 by instance/device Vulkan1.1 and PCI pNext by advertised extension.
---gpu-uuid / --gpu-pci / --gpu-index choose one compatible hardware device or
-fail. --present-mode fifo|mailbox checks actual surface support before device
-creation, no fallback. Mailbox idle repaint cadence default60Hz, finite delayed
-requests; native input may repaint earlier. FIFO monitor/vsync unaffected.
-Root software config stays containment. Worker early exit is a failed probe.
-No GUI/enumeration/runtime acceptance; no driver/kernel/VPN/service changes.
-
-L2 follow-up: collector readiness is printed after first durable sample; summary
-handles torn final record and last successful stacks vs later sampling errors.
-Python py_compile completed for collector/trace wrapper, artifacts under target.
-No runtime collector or GUI. Linux four-job release build is active; see tools
-build-linux.sh. Windows observer implementation not runtime-verified.
-
-README/LAN/audit/freeze docs aligned with new controls; no stale strace-first
-procedure. Package guide points to FREEZE_RUNBOOK in checkout. Release build
-still active; no runtime comparisons/GUI. Next: finish package/hash, record
-build evidence, request exactly one attended CPU-only10s capture session.
+## Game implementation to preserve
+Three libraries+binary, Rust1.99/edition2024. TICK_PER_SEC360/TICK_PER_PACKET6,
+60game datagrams/s; render independent. Model/physics/CombatGuard in ssk-sim.
+Offline alpha and LAN/PvPvE through B15 implemented;128-player performance and
+NPC smoothing after owner's Linux/Windows match unverified. Rules
+ssk-rules-4-inertial, snapshotv2. Inertial nose-relative thrust/finite steering,
+scout tractionx4/turnx2, full tank shield0.5E/damage, retained sectors/rebases,
+1320 depth stars. Root config host1600x1000/software; Windows joins
+192.168.50.155:4202/hardware; F2/Esc menu, F3invite, F11fullscreen. Separate keys.
+Observability contract docs/OBSERVABILITY.md; tools/observe.py is unfinished,
+unexecuted draft (fcntl portability/journal exit loop/bounds); do not advertise.

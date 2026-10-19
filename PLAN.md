@@ -320,7 +320,7 @@ with kernel-stack capture submitted because AGENTS prohibits automatic GUI.
 - [x] L2 — Independent capture/runbook and Windows timestamped liveness monitor.
 - [x] L3 — Stable PCI/deviceUUID identity and selection; strict FIFO/Mailbox
   surface support, finite Mailbox idle redraws, FIFO monitor-driven unchanged.
-- [ ] L4 — Four-job Linux build/package, fingerprint, attended capture readiness.
+- [x] L4 — Four-job Linux build/package, fingerprint, attended capture readiness.
 - [ ] L5 — Owner-attended comparisons: CPU graphics -> hardware graphics ->
   same hardware plus worker -> offline game -> network -> audio. Start10s;
   first freeze stops the sequence. Never automatically retry or start GUI.
@@ -350,3 +350,19 @@ L3/L4 documentation: README and packaged PLAY guide describe timed probe,
 physical GPU selectors, strict presentation support and CPU-only limits. Old
 strace-first instruction replaced by the attended runbook. Linux release is
 currently building (four jobs); runtime comparisons remain unexecuted.
+
+L4 evidence (2026-10-20): focused locked cargo check passed0.90s; four-job
+Linux release/package completed1m31s, embedded revision
+v0.1.0-alpha.1-49-g6619f4ef6db1. target/dist executable SHA256 both
+afb4fcfcf3c30f64c7904f99902a6a9e0952b26acea269b0f4dc60df23d294ce.
+Tar SHA2565cbccc3e36a10a020c6407e5acdbeae1e2a5ec48cb5738bebc77d195fbb3d474;
+only ssk/ssk.yml/PLAY.md, CPU isolation/FIFO config retained. Probe --help printed
+successfully without logger/window/GPU initialization (Clap early exit).
+Current boot GNOME journal selects card2 primary; sysfs maps card2 to
+0000:65:00.0 and card1 to0000:17:00.0. No GPU API/enumeration/GUI launched.
+
+L5 pending explicit owner presence/authorization: one10s CPU-only probe, no
+worker/net/audio, with independent120s kernel capture. Request sent; do not
+interpret silence as authorization. No collector/game/build currently active.
+Windows build/script runtime acceptance and all hardware comparisons deferred.
+L6/K4/J3 remain open; no root-cause or hardware-fix claim.
