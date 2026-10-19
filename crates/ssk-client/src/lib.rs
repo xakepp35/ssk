@@ -120,6 +120,20 @@ async fn run(options: Options, mut profile: profile::Profile) {
         profile.class = class.index();
     }
     let mut world = World::new(options.seed, class);
+    let mut network = if options.online {
+        match ssk_net::Network::start(options.network.clone(), options.connect.clone()) {
+            Ok(net) => Some(net),
+            Err(error) => {
+                eprintln!("Network: {error:#}");
+                None
+            }
+        }
+    } else {
+        None
+    };
+    if let Some(net) = &network {
+        world.player.id = net.player_id;
+    }
     let mut effects = effects::Effects::new().await;
     let mut accumulator = 0.;
     let mut camera = V2::ZERO;
@@ -134,6 +148,9 @@ async fn run(options: Options, mut profile: profile::Profile) {
     show_mouse(false);
     loop {
         let frame_start = std::time::Instant::now();
+        if let Some(net) = &mut network {
+            while let Ok(_event) = net.incoming.try_recv() {}
+        }
         let dt = get_frame_time().min(0.1);
         if is_quit_requested() {
             break;
@@ -300,8 +317,21 @@ async fn run(options: Options, mut profile: profile::Profile) {
             );
         }
         if options.online {
+            let status = network
+                .as_ref()
+                .map(|n| n.status.borrow().clone())
+                .unwrap_or_else(|| ssk_net::Status {
+                    phase: "Network failed to start; see terminal".into(),
+                    ..Default::default()
+                });
+            if is_key_pressed(KeyCode::F2) {
+                miniquad::window::clipboard_set(&status.ticket);
+            }
             draw_text(
-                "NETWORK INITIALIZING — phase B",
+                &format!(
+                    "{} | {} peers | F2 copy invite (also in terminal)",
+                    status.phase, status.peers
+                ),
                 24.,
                 screen_height() - 100.,
                 20.,

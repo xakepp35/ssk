@@ -27,7 +27,7 @@ no automated tests unless requested. A short manual game session when available.
 ## B — duel MVP and decentralized beta
 
 - [x] B1 — Identity, configuration, Tokio, bounded queues. `feat: add network foundations`
-- [ ] B2 — Two peers connect by ticket over QUIC/UDP. `feat: connect two peers`
+- [x] B2 — Two peers connect by ticket over QUIC/UDP. `feat: connect two peers`
 - [ ] B3 — Quantized independent snapshots, sequences, interpolation. `feat: add compressed ship replication`
 - [ ] B4 — Shots, damage, death, respawn; playable duel MVP. `feat: make peer duel playable`
 - [ ] B5 — Origin signatures, history, bounded combat validation. `feat: validate peer combat events`
