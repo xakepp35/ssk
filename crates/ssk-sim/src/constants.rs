@@ -140,10 +140,15 @@ pub const VALIDATION_SHOT_MEMORY: usize = 128;
 pub const MAX_REMOTE_SHOT_RANGE: f32 = 5000.;
 pub const REPLICA_STALE_SECONDS: f64 = 5.;
 pub const SHARED_MEMBER_SECONDS: f64 = 2.;
-pub const SHARED_IMAGE_SECONDS: f64 = 5.;
+/// Prefetch and keep both sides of a seam while they can be on screen.
+/// Less than half a sector: at most four active sectors for one player.
+pub const SHARED_ACTIVE_MARGIN: f32 = 1600.;
+pub const SHARED_NEIGHBOR_SECTORS: i64 = 1;
+const _: () = assert!(SHARED_ACTIVE_MARGIN < SECTOR_SIZE / 2.);
 pub const LEASE_SECONDS: f64 = 2.;
 pub const LEASE_RENEW_SECONDS: f64 = 0.5;
 pub const SHARED_SNAPSHOT_SECONDS: f64 = 0.2;
+pub const SHARED_PREFETCH_SNAPSHOT_SECONDS: f64 = 1.;
 pub const SHARED_PREDICTION_SECONDS: f64 = SHARED_SNAPSHOT_SECONDS * 2.;
 pub const SHARED_CORRECTION_SECONDS: f64 = SHARED_SNAPSHOT_SECONDS / 2.;
 pub const SHARED_VISUAL_SNAP_DISTANCE: f32 = 512.;

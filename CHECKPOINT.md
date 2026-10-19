@@ -86,5 +86,8 @@ F1 complete: nose-relative inertial thrust and finite turning, named ShipStats,
 full shield absorption at 0.5 E/damage, HP 750/1400/1000; cargo check passed
 (2.47s), no tests. Rules ID ssk-rules-4-inertial. Next bounded sector/camera continuity,
 starfield, sequential one-job Linux/Windows packages. No tests/GUI/stress runs.
-Current working tree initially clean. Next: fix nearby sector retention,
-prefetch, camera/input rebase order, then starfield and rebuild.
+F2 complete: at most 4 sectors per player with 1600-unit prefetch/keep margin;
+empty prefetch sectors do not spawn encounters and publish terrain at 1 Hz.
+Known active images survive delivery stalls; camera rebases before mouse aim.
+Snapshot v2 uses velocity step 1/8 (covers boost); cargo check passed (1.03s).
+Next: 1320 depth-based stars with phase continuity, then release builds.

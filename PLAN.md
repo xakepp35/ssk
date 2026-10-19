@@ -149,7 +149,7 @@ launching the game; cause remains unknown. No live post-fix match performed.
 - [x] F1 — Named ship traction/turn stats; inertial nose-relative thrusters,
   limited mouse steering, class HP rebalance, full shield at 0.5 E/damage,
   stronger scout thrust and double boost turning; update AI/validation/UI/docs.
-- [ ] F2 — Fix coordinate handoff/camera jumps and sector-content continuity;
+- [x] F2 — Fix coordinate handoff/camera jumps and sector-content continuity;
   preserve nearby objects across sector boundaries and ownership changes.
 - [ ] F3 — Fourfold stars with individual depth, brightness and parallax;
   retain background continuity across coordinate rebases.
@@ -160,3 +160,8 @@ only; gameplay improvements require a later manual session.
 
 F1 evidence: cargo check --locked -p ssk --jobs 1 passed (2.47s). Rules ID
 ssk-rules-4-inertial prevents matches with old flight/balance clients. No tests.
+
+F2 evidence: cargo check passed (1.03s). Bounded 1600-unit sector prefetch/keep,
+no new encounters in empty prefetch sectors, 1 Hz empty terrain checkpoints,
+retain known active images during handoff/delivery delay. Camera rebase occurs
+before mouse aim. Snapshot v2 covers scout boost speed; no runtime claims.

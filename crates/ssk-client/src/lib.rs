@@ -183,6 +183,11 @@ async fn run(options: Options, mut profile: profile::Profile) {
             view = frame;
             world = view.world.clone();
         }
+        // Rebase before computing cursor aim; camera and ship must use the same
+        // coordinate frame, including the first rendered frame after a seam.
+        camera -= world.origin_shift;
+        effects.shift(world.origin_shift);
+        world.origin_shift = V2::ZERO;
         let dt = get_frame_time().min(MAX_RENDER_DELTA);
         if is_quit_requested() {
             break;
@@ -254,9 +259,6 @@ async fn run(options: Options, mut profile: profile::Profile) {
             spawn_radius: screen_width().hypot(screen_height()) * 0.5 + SPAWN_SCREEN_MARGIN,
         });
         let alpha = (view.at.elapsed().as_secs_f32() / DT).clamp(0., 1.);
-        camera -= world.origin_shift;
-        effects.shift(world.origin_shift);
-        world.origin_shift = V2::ZERO;
         let target = world.player.previous.lerp(world.player.pos, alpha)
             + mouse.clamp_length(CAMERA_LOOKAHEAD) * CAMERA_LOOKAHEAD_SCALE;
         camera = camera.lerp(target, 1. - (-CAMERA_SMOOTHING * dt).exp());

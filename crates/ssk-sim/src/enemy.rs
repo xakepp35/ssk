@@ -14,7 +14,18 @@ impl World {
         let time = self.tick as f32 * DT;
         let target =
             (NPC_INITIAL_COUNT + (time / NPC_COUNT_INTERVAL) as usize).min(NPC_DIRECTOR_LIMIT);
-        if time >= self.next_spawn && self.npcs.len() < target {
+        let occupied = !self.shared_authority
+            || self.targets.iter().any(|s| {
+                WorldPos {
+                    sector: self.origin,
+                    local: s.pos,
+                }
+                .normalized()
+                .sector
+                    == self.origin
+            });
+        // Prefetching terrain must not multiply encounter spawns in empty sectors.
+        if occupied && time >= self.next_spawn && self.npcs.len() < target {
             let direction = V2::from_angle(self.rng.range(0., std::f32::consts::TAU));
             let pos = self.player.pos + direction * self.spawn_radius;
             let roll = self.rng.unit();

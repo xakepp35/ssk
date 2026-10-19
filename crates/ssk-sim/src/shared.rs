@@ -4,6 +4,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 struct Owned {
     world: World,
     epoch: u64,
+    published: f64,
 }
 struct Image {
     state: SectorState,
@@ -150,25 +151,34 @@ impl SharedWorld {
             }
         }
         self.owners.clear();
+        let local = WorldPos {
+            sector: w.origin,
+            local: w.player.pos,
+        };
         for (id, _, s) in &self.players {
-            let sector = s.pos.sector;
-            if (sector[0] as i128 - w.origin[0] as i128).abs() > 1
-                || (sector[1] as i128 - w.origin[1] as i128).abs() > 1
-            {
-                continue;
+            for dx in -SHARED_NEIGHBOR_SECTORS..=SHARED_NEIGHBOR_SECTORS {
+                for dy in -SHARED_NEIGHBOR_SECTORS..=SHARED_NEIGHBOR_SECTORS {
+                    let sector = [
+                        w.origin[0].saturating_add(dx),
+                        w.origin[1].saturating_add(dy),
+                    ];
+                    if local.near_sector(sector, SHARED_ACTIVE_MARGIN)
+                        && s.pos.near_sector(sector, SHARED_ACTIVE_MARGIN)
+                    {
+                        self.owners
+                            .entry(sector)
+                            .and_modify(|owner| *owner = (*owner).min(*id))
+                            .or_insert(*id);
+                    }
+                }
             }
-            self.owners
-                .entry(sector)
-                .and_modify(|owner| *owner = (*owner).min(*id))
-                .or_insert(*id);
         }
         for (sector, owner) in &mut self.owners {
             if let Some(lease) = self.leases.get(sector) {
                 if lease.until > now
-                    && self
-                        .players
-                        .iter()
-                        .any(|(id, _, s)| *id == lease.owner && s.pos.sector == *sector)
+                    && self.players.iter().any(|(id, _, s)| {
+                        *id == lease.owner && s.pos.near_sector(*sector, SHARED_ACTIVE_MARGIN)
+                    })
                 {
                     *owner = lease.owner;
                 }
@@ -282,10 +292,9 @@ impl SharedWorld {
                     || until_ms <= wall
                     || until_ms.saturating_sub(wall) > LEASE_MAX_FUTURE_MILLIS
                     || !self.owners.contains_key(&sector)
-                    || !self
-                        .players
-                        .iter()
-                        .any(|(id, _, s)| *id == origin && s.pos.sector == sector)
+                    || !self.players.iter().any(|(id, _, s)| {
+                        *id == origin && s.pos.near_sector(sector, SHARED_ACTIVE_MARGIN)
+                    })
                 {
                     return vec![];
                 }
@@ -468,7 +477,7 @@ impl SharedWorld {
         let id = w.player.id;
         let mut events = Vec::new();
         self.owned.retain(|sector, o| {
-            let keep = self.owners.get(sector) == Some(&id) && *sector == w.origin;
+            let keep = self.owners.get(sector) == Some(&id);
             if !keep {
                 events.push(SharedEvent::Release {
                     sector: *sector,
@@ -498,7 +507,14 @@ impl SharedWorld {
                         announced: now - 1.,
                     },
                 );
-                self.owned.insert(sector, Owned { world, epoch });
+                self.owned.insert(
+                    sector,
+                    Owned {
+                        world,
+                        epoch,
+                        published: now - SHARED_PREFETCH_SNAPSHOT_SECONDS,
+                    },
+                );
             }
         }
         self.owned.retain(|sector, o| {
@@ -506,6 +522,11 @@ impl SharedWorld {
                 .get(sector)
                 .is_some_and(|l| l.owner == id && l.epoch == o.epoch)
         });
+        for (sector, image) in &mut self.images {
+            if !self.owned.contains_key(sector) {
+                image.local = false;
+            }
+        }
         for (&sector, o) in &self.owned {
             let l = self.leases.get_mut(&sector).unwrap();
             if now - l.announced >= LEASE_RENEW_SECONDS {
@@ -525,7 +546,9 @@ impl SharedWorld {
                 let targets = self
                     .players
                     .iter()
-                    .filter(|(_, _, s)| s.pos.sector == sector && s.hp > 0.)
+                    .filter(|(_, _, s)| {
+                        s.pos.near_sector(sector, SHARED_ACTIVE_MARGIN) && s.hp > 0.
+                    })
                     .map(|(id, _, s)| s.ship(*id, sector))
                     .collect();
                 owned.world.sector_step(targets);
@@ -564,8 +587,9 @@ impl SharedWorld {
                 Image::new(SectorState::capture(&owned.world), owned.epoch, now, true),
             );
         }
-        self.images
-            .retain(|s, i| self.owners.contains_key(s) && now - i.time < SHARED_IMAGE_SECONDS);
+        // Active interest bounds this map. A delayed replacement image must not
+        // erase the visible scene; prediction itself is still time-bounded.
+        self.images.retain(|s, _| self.owners.contains_key(s));
         w.asteroids.clear();
         w.npcs.clear();
         w.pickups.clear();
@@ -617,7 +641,24 @@ impl SharedWorld {
         }
         let frames = if now - self.published >= SHARED_SNAPSHOT_SECONDS {
             self.published = now;
-            Some(self.checkpoint())
+            let mut frames = Vec::new();
+            for (&sector, owned) in &mut self.owned {
+                let occupied = self.players.iter().any(|(_, _, s)| s.pos.sector == sector);
+                let interval = if occupied || !owned.world.npcs.is_empty() {
+                    SHARED_SNAPSHOT_SECONDS
+                } else {
+                    SHARED_PREFETCH_SNAPSHOT_SECONDS
+                };
+                if now - owned.published >= interval {
+                    owned.published = now;
+                    frames.push(SectorImage {
+                        sector,
+                        epoch: owned.epoch,
+                        state: SectorState::capture(&owned.world),
+                    });
+                }
+            }
+            Some(frames)
         } else {
             None
         };

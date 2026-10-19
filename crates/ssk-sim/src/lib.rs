@@ -20,6 +20,13 @@ pub struct WorldPos {
     pub local: V2,
 }
 impl WorldPos {
+    pub fn near_sector(self, sector: [i64; 2], margin: f32) -> bool {
+        let p = self.relative_to(sector);
+        p.x >= -margin
+            && p.y >= -margin
+            && p.x <= SECTOR_SIZE + margin
+            && p.y <= SECTOR_SIZE + margin
+    }
     pub fn relative_to(self, origin: [i64; 2]) -> V2 {
         V2::new(
             (self.sector[0] as i128 - origin[0] as i128) as f32 * SECTOR_SIZE,
