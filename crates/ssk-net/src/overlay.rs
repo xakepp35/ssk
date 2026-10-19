@@ -160,6 +160,10 @@ impl Overlay {
         peers: &mut HashMap<String, crate::reliable::Peer>,
         seq: u64,
     ) {
+        if kind == 0 {
+            self.batch(kind, &[data.to_vec()], peers);
+            return;
+        }
         let destinations: Vec<_> = self
             .contacts
             .keys()
@@ -191,32 +195,66 @@ impl Overlay {
         frames: &[Vec<u8>],
         peers: &mut HashMap<String, crate::reliable::Peer>,
     ) {
+        self.batch(6, frames, peers);
+    }
+    fn batch(
+        &mut self,
+        kind: u8,
+        frames: &[Vec<u8>],
+        peers: &mut HashMap<String, crate::reliable::Peer>,
+    ) {
         let destinations: Vec<_> = self
             .contacts
             .keys()
             .filter(|p| *p != &self.id && self.interested(p))
             .cloned()
             .collect();
-        let mut sectors: BTreeMap<Vec<u8>, Vec<&Vec<u8>>> = BTreeMap::new();
-        for frame in frames {
-            if let Some(sector) = frame.get(49..65) {
-                sectors.entry(sector.to_vec()).or_default().push(frame);
-            }
-        }
+        let mut groups: BTreeMap<String, Vec<String>> = BTreeMap::new();
         for dest in destinations {
             let Some(next) = self.route(&dest, peers).into_iter().next() else {
                 continue;
             };
-            for (sector, parts) in &sectors {
-                let prefix = format!("shared:{}:{dest}:{sector:?}:", self.id);
-                let batch = parts
-                    .iter()
-                    .filter_map(|data| {
-                        let key = format!("{prefix}{:?}", data.get(65..83));
-                        Some((key, Self::envelope(&dest, 6, 0, data)?))
-                    })
-                    .collect();
-                peers.get_mut(&next).unwrap().shared_batch(&prefix, batch);
+            groups.entry(next).or_default().push(dest);
+        }
+        let mut sectors: BTreeMap<Vec<u8>, Vec<&Vec<u8>>> = BTreeMap::new();
+        for frame in frames {
+            let key = if kind == 6 {
+                frame.get(49..65).unwrap_or_default().to_vec()
+            } else {
+                vec![]
+            };
+            sectors.entry(key).or_default().push(frame);
+        }
+        for (next, destinations) in groups {
+            let peer = peers.get_mut(&next).unwrap();
+            for (group, recipients) in destinations.chunks(12).enumerate() {
+                let mut header = vec![kind, recipients.len() as u8];
+                for dest in recipients {
+                    header.extend(dest.parse::<iroh::PublicKey>().unwrap().as_bytes());
+                }
+                for (sector, parts) in &sectors {
+                    let prefix = format!("shared:multi:{}:{sector:?}:{group}:", self.id);
+                    let batch: Vec<_> = parts
+                        .iter()
+                        .map(|data| {
+                            let mut payload = header.clone();
+                            payload.extend_from_slice(data);
+                            let key = if kind == 6 {
+                                format!("{prefix}{:?}", data.get(65..83))
+                            } else {
+                                format!("multi:{}:{group}", self.id)
+                            };
+                            (key, payload)
+                        })
+                        .collect();
+                    if kind == 6 {
+                        peer.shared_batch(&prefix, batch);
+                    } else {
+                        for (key, data) in batch {
+                            peer.state(key, data);
+                        }
+                    }
+                }
             }
         }
     }
@@ -234,7 +272,10 @@ impl Overlay {
         {
             if let (Some(a), Some(b)) = (self.positions.get(&self.id), self.positions.get(id)) {
                 return (b.pos.relative_to(a.pos.sector) - a.pos.local).length()
-                    <= self.radius + 1560. + 832. * 0.2;
+                    <= self.radius
+                        + ssk_sim::WeaponKind::from_index(0).stats().speed
+                            * ssk_sim::WeaponKind::from_index(0).stats().life
+                        + 832. * 0.2;
             }
         }
         (remote.sector[0] as i128 - local.sector[0] as i128).abs() <= 1
@@ -384,6 +425,31 @@ impl Overlay {
         worker: &Worker,
         seq: u64,
     ) {
+        if frame_kind == 7 {
+            if frame.len() < 2 || ![0, 6].contains(&frame[0]) || !(1..=12).contains(&frame[1]) {
+                return;
+            }
+            let header = 2 + frame[1] as usize * 32;
+            let Some(signed) = frame.get(header..) else {
+                return;
+            };
+            if !auth
+                .verify(frame[0], signed)
+                .is_some_and(|(origin, _)| origin == remote)
+            {
+                return;
+            }
+            // Multicast is source -> one neighbour -> final recipients only.
+            for key in frame[2..header].chunks_exact(32) {
+                let Ok(dest) = iroh::PublicKey::from_bytes(key.try_into().unwrap()) else {
+                    continue;
+                };
+                if let Some(envelope) = Self::envelope(&dest.to_string(), frame[0], 0, signed) {
+                    self.receive(remote, 4, &envelope, peers, auth, worker, seq);
+                }
+            }
+            return;
+        }
         if frame_kind == 3 {
             if let Some((origin, data)) = auth.verify(3, frame) {
                 self.learn(origin, &data, frame);

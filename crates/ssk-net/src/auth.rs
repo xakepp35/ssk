@@ -9,7 +9,8 @@ pub(crate) struct Auth {
     serial: u64,
     verified: HashMap<[u8; 32], (String, Vec<u8>)>,
     order: VecDeque<[u8; 32]>,
-    latest: HashMap<(String, [u8; 8]), u64>,
+    latest: HashMap<([u8; 32], [u8; 8]), u64>,
+    keys: HashMap<[u8; 32], (String, ed25519_dalek::VerifyingKey)>,
 }
 impl Auth {
     pub fn new(key: iroh::SecretKey, config: &Config) -> Self {
@@ -28,6 +29,7 @@ impl Auth {
             verified: HashMap::new(),
             order: VecDeque::new(),
             latest: HashMap::new(),
+            keys: HashMap::new(),
         }
     }
     pub fn sign(&mut self, kind: u8, payload: &[u8]) -> Vec<u8> {
@@ -51,15 +53,10 @@ impl Auth {
         if payload.len() < 113 || payload.len() > 1000 || payload[48] != kind {
             return None;
         }
-        let key = iroh::PublicKey::from_bytes(payload[..32].try_into().ok()?).ok()?;
+        let key_bytes: [u8; 32] = payload[..32].try_into().ok()?;
         let session: [u8; 8] = payload[32..40].try_into().ok()?;
         let serial = u64::from_le_bytes(payload[40..48].try_into().ok()?);
-        let peer = key.to_string();
-        let latest = self
-            .latest
-            .get(&(peer.clone(), session))
-            .copied()
-            .unwrap_or(0);
+        let latest = self.latest.get(&(key_bytes, session)).copied().unwrap_or(0);
         if serial.saturating_add(4096) < latest {
             return None;
         }
@@ -68,12 +65,22 @@ impl Auth {
             self.stats.cache_hits += 1;
             return Some(value.clone());
         }
+        if !self.keys.contains_key(&key_bytes) {
+            let key = ed25519_dalek::VerifyingKey::from_bytes(&key_bytes).ok()?;
+            let peer = iroh::PublicKey::from_bytes(&key_bytes).ok()?.to_string();
+            if self.keys.len() >= 512 {
+                self.keys.clear();
+            }
+            self.keys.insert(key_bytes, (peer, key));
+        }
+        let (peer, key) = self.keys.get(&key_bytes)?;
+        let peer = peer.clone();
         let end = payload.len() - 64;
-        let signature = iroh::Signature::from_bytes(payload[end..].try_into().ok()?);
+        let signature = ed25519_dalek::Signature::from_bytes(payload[end..].try_into().ok()?);
         let mut message = self.domain.clone();
         message.extend(&payload[..end]);
         let started = std::time::Instant::now();
-        let valid = key.verify(&message, &signature).is_ok();
+        let valid = key.verify_strict(&message, &signature).is_ok();
         let us = started.elapsed().as_micros() as u64;
         self.stats.verified += 1;
         self.stats.verify_us += us;
@@ -81,10 +88,9 @@ impl Auth {
         if !valid {
             return None;
         }
-        self.latest
-            .insert((peer.clone(), session), latest.max(serial));
+        self.latest.insert((key_bytes, session), latest.max(serial));
         if self.latest.len() > 512 {
-            self.latest.retain(|(p, _), _| p == &peer);
+            self.latest.retain(|(p, _), _| p == &key_bytes);
         }
         let result = (peer, payload[49..end].to_vec());
         self.verified.insert(digest, result.clone());

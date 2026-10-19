@@ -11,3 +11,4 @@ ssk-net.workspace = true
 macroquad.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+rayon = "1"

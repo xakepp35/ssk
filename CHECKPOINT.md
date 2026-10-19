@@ -30,10 +30,16 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
   for most clients; cumulative event expiry 2299. Frame is all 64 clients on
   one serial simulation thread (~46 ms), with skipped steps. Not accepted.
 
+- B16c: bounded source multicast (one intermediary), verifying-key cache,
+  parallel headless simulations and measured drop/expiry deltas. README weapon
+  numbers now match existing simulation; AOI range corrected to 4096.
+- Serial 128-client diagnostic failed: ~467 ms aggregate frame, p95 age546 ms,
+  missing shared images; this exposed both workload and harness bottlenecks.
+
 ## Next
 Build release, rerun isolated 64 then 128 moving/firing clients, measure shared
 object freshness too. Execute tools/nat two-bridge relay scenario, document
-actual results and remaining acceptance limits. 128-client diagnostic currently running (exec session 96752 may differ; inspect processes).
+actual results and remaining acceptance limits. No active benchmark; release rebuild in exec session 88655.
 
 ## Constraints
 240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.

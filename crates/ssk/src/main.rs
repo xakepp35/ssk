@@ -41,6 +41,8 @@ enum Command {
         output: Option<std::path::PathBuf>,
         #[arg(long, default_value_t = 0)]
         drop_count: usize,
+        #[arg(long, default_value_t = 8)]
+        workers: usize,
     },
 }
 
@@ -73,6 +75,7 @@ fn main() -> anyhow::Result<()> {
             invite_file,
             output,
             drop_count,
+            workers,
         }) => {
             let report = ssk_client::bench::run(
                 network,
@@ -85,6 +88,7 @@ fn main() -> anyhow::Result<()> {
                     connect,
                     invite_file,
                     drop_count,
+                    workers,
                 },
             )
             .map_err(anyhow::Error::msg)?;

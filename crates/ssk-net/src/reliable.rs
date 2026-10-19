@@ -116,9 +116,13 @@ impl Peer {
             }
             self.acks.pop_front();
         }
+        // Reserve complete packets periodically: a multipart checkpoint must fit
+        // even when a multicast recipient header makes it larger than one ship.
+        if seq % 4 == 0 {
+            self.drain_states(&mut packet, true, limit, usize::MAX);
+        }
         // Ship positions must advance even while reliable combat traffic is busy.
-        let ship_limit = limit.min(packet.len() + 420);
-        self.drain_states(&mut packet, false, ship_limit);
+        self.drain_states(&mut packet, false, limit, 1);
         // E2E receipts do not recursively need reliable receipt-of-receipt traffic.
         // A lost receipt is regenerated when the source retries the event.
         for _ in 0..self.receipts.len() {
@@ -127,11 +131,6 @@ impl Peer {
                 self.receipts.push_front(data);
                 break;
             }
-        }
-        // Give sector checkpoints a bounded share instead of starving indefinitely.
-        if seq % 4 == 0 {
-            let shared_limit = limit.min(packet.len() + 570);
-            self.drain_states(&mut packet, true, shared_limit);
         }
         let before = self.pending.len();
         self.pending.retain(|e| {
@@ -154,11 +153,18 @@ impl Peer {
             }
             self.pending.push_back(event);
         }
-        self.drain_states(&mut packet, false, limit);
-        self.drain_states(&mut packet, true, limit);
+        self.drain_states(&mut packet, false, limit, usize::MAX);
+        self.drain_states(&mut packet, true, limit, usize::MAX);
         packet
     }
-    fn drain_states(&mut self, packet: &mut Vec<u8>, shared: bool, limit: usize) {
+    fn drain_states(
+        &mut self,
+        packet: &mut Vec<u8>,
+        shared: bool,
+        limit: usize,
+        max_frames: usize,
+    ) {
+        let mut sent = 0;
         for _ in 0..self.state_order.len() {
             let key = self.state_order.pop_front().unwrap();
             if key.starts_with("shared:") != shared {
@@ -166,9 +172,19 @@ impl Peer {
                 continue;
             }
             let data = self.states.remove(&key).unwrap();
-            if !append(packet, 4, &data, limit) {
+            let kind = if key.starts_with("multi:") || key.starts_with("shared:multi:") {
+                7
+            } else {
+                4
+            };
+            if !append(packet, kind, &data, limit) {
                 self.states.insert(key.clone(), data);
                 self.state_order.push_back(key);
+            } else {
+                sent += 1;
+                if sent >= max_frames {
+                    break;
+                }
             }
         }
     }
@@ -204,7 +220,7 @@ impl Peer {
                     Some(u64::from_le_bytes(payload[..8].try_into().unwrap())),
                     &payload[8..],
                 )
-            } else if kind == 4 || kind == 3 || kind == 5 {
+            } else if kind == 4 || kind == 3 || kind == 5 || kind == 7 {
                 (None, payload)
             } else {
                 continue;
