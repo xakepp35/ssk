@@ -4,6 +4,7 @@ mod effects;
 mod online;
 mod profile;
 mod render;
+mod shared;
 mod ui;
 pub struct Options {
     pub seed: u64,
@@ -256,7 +257,7 @@ async fn run(options: Options, mut profile: profile::Profile) {
             world.player.previous.lerp(world.player.pos, alpha) + mouse.clamp_length(200.) * 0.25;
         camera = camera.lerp(target, 1. - (-12. * dt).exp());
         if let Some(session) = &mut online {
-            if session.after_frame(&world, dt) {
+            if session.after_frame(&mut world, dt) {
                 class = ssk_sim::ShipClass::ALL[profile.class];
                 restart = true;
             }

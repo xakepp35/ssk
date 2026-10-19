@@ -11,7 +11,9 @@ pub use field::*;
 mod enemy;
 pub use enemy::*;
 mod loot;
+mod sector;
 pub use loot::*;
+pub use sector::*;
 
 #[derive(Clone, Copy, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct WorldPos {
@@ -39,7 +41,7 @@ impl WorldPos {
         self
     }
 }
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct InputFrame {
     pub movement: V2,
     pub aim: f32,
@@ -201,6 +203,9 @@ pub struct World {
     pub duel: bool,
     pub last_attacker: u64,
     pub last_shot: u64,
+    pub shared_authority: bool,
+    pub shared_replica: bool,
+    pub targets: Vec<Ship>,
 }
 impl World {
     pub fn new(seed: u64, class: ShipClass) -> Self {
@@ -227,6 +232,9 @@ impl World {
             duel: false,
             last_attacker: 0,
             last_shot: 0,
+            shared_authority: false,
+            shared_replica: false,
+            targets: Vec::new(),
         }
     }
     pub fn step(&mut self, input: InputFrame) {
@@ -234,7 +242,9 @@ impl World {
             return;
         }
         self.tick += 1;
-        self.player.move_step(input);
+        if !self.shared_authority {
+            self.player.move_step(input);
+        }
         self.field_step();
         if !self.duel {
             self.enemies_step();

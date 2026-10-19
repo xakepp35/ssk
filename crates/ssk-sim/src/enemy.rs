@@ -1,5 +1,6 @@
 use crate::*;
 
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Npc {
     pub ship: Ship,
     pub input: InputFrame,
@@ -46,6 +47,16 @@ impl World {
         let shooters: Vec<_> = order.iter().take(3).map(|(_, id)| *id).collect();
         let mut nearby = Vec::new();
         for npc in &mut self.npcs {
+            let target = self
+                .targets
+                .iter()
+                .filter(|t| t.hp > 0.)
+                .min_by(|a, b| {
+                    (a.pos - npc.ship.pos)
+                        .length_squared()
+                        .total_cmp(&(b.pos - npc.ship.pos).length_squared())
+                })
+                .unwrap_or(&self.player);
             npc.age += DT;
             npc.telegraph = (npc.telegraph - DT).max(0.);
             if npc.telegraph > 0. {
@@ -53,7 +64,7 @@ impl World {
             }
             npc.think -= DT;
             if npc.think <= 0. {
-                let delta = self.player.pos - npc.ship.pos;
+                let delta = target.pos - npc.ship.pos;
                 let distance = delta.length();
                 let normal = delta.normalized();
                 let (range, weapon, strafe) = match npc.ship.class {
@@ -70,7 +81,7 @@ impl World {
                     ShipClass::Cadet => retreat,
                     ShipClass::Thunder => distance < 950. && phase < 0.75,
                 };
-                let lead = self.player.velocity
+                let lead = target.velocity
                     * (distance / WeaponKind::from_index(weapon).stats().speed * 0.6);
                 npc.input = InputFrame {
                     movement: normal
@@ -133,10 +144,26 @@ impl World {
             .npcs
             .iter()
             .filter(|n| n.ship.hp <= 0.)
-            .map(|n| (n.ship.pos, n.ship.class, n.last_hit == self.player.id))
+            .map(|n| {
+                (
+                    n.ship.pos,
+                    n.ship.class,
+                    n.last_hit == self.player.id,
+                    n.ship.id,
+                    n.last_hit,
+                )
+            })
             .collect();
         self.npcs.retain(|n| n.ship.hp > 0.);
-        for (pos, class, owned) in dead {
+        for (pos, class, owned, id, player) in dead {
+            let amount = match class {
+                ShipClass::Spark => 100,
+                ShipClass::Cadet => 150,
+                ShipClass::Thunder => 250,
+            };
+            if self.shared_authority && player & (1 << 63) != 0 {
+                self.emit(WorldEvent::Reward { id, player, amount });
+            }
             if owned {
                 self.award(match class {
                     ShipClass::Spark => 100,

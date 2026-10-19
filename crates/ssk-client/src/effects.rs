@@ -147,6 +147,7 @@ impl Effects {
                     self.sound(5, volume);
                 }
                 WorldEvent::Dry => self.sound(6, volume),
+                WorldEvent::Reward { .. } => {}
             }
         }
     }

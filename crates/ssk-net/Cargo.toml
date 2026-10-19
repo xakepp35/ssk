@@ -16,3 +16,4 @@ serde_yaml = "0.9"
 base64 = "0.22"
 libp2p = { version = "0.57.1", default-features = false, features = ["tokio", "quic", "kad", "identify", "macros", "ed25519"] }
 futures = "0.3"
+postcard = { version = "1", features = ["alloc"] }

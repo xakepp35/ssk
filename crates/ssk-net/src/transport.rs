@@ -175,6 +175,7 @@ pub(crate) async fn run(
                 if let Some(snapshot)=snapshot {overlay.positions.insert(overlay.id.clone(),snapshot);}
                 if worker.state.has_changed().unwrap_or(false) {let state=worker.state.borrow_and_update().clone();signed_state=auth.sign(0,&state);}
                 if !signed_state.is_empty(){overlay.queue(0,&signed_state,&mut peers,seq);}
+                if worker.shared.has_changed().unwrap_or(false){let frames=worker.shared.borrow_and_update().clone().into_iter().take(256).filter(|f| f.len()<=420).map(|f| auth.sign(6,&f)).collect::<Vec<_>>();overlay.shared(&frames,&mut peers);}
                 overlay.retry(&mut peers,seq,config.net_hz);
                 control_budget=(control_budget+8192./config.net_hz as f32).min(8192.);
                 let mut ids:Vec<_>=peers.keys().cloned().collect();ids.sort();let count=ids.len();if count>0{ids.rotate_left(seq as usize%count);}

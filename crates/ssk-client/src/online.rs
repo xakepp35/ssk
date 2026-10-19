@@ -17,6 +17,7 @@ pub struct Online {
     guard: ssk_net::CombatGuard,
     own_history: VecDeque<(f64, WorldPos)>,
     fired: VecDeque<(u64, f64)>,
+    shared: crate::shared::Shared,
 }
 impl Online {
     pub fn new(config: ssk_net::Config, connect: Option<String>) -> Result<Self, String> {
@@ -36,9 +37,11 @@ impl Online {
             guard: Default::default(),
             own_history: VecDeque::new(),
             fired: VecDeque::new(),
+            shared: Default::default(),
         })
     }
     pub fn receive(&mut self, world: &mut World, now: f64) {
+        self.shared.members(world, self.life, &self.replicas, now);
         let stale: Vec<_> = self
             .replicas
             .peers
@@ -55,6 +58,15 @@ impl Online {
                 break;
             };
             match event {
+                NetEvent::Packet {
+                    peer,
+                    kind: 6,
+                    bytes,
+                } => {
+                    if let Some(id) = ssk_net::player_id(&peer) {
+                        self.shared.chunk(id, &bytes, now);
+                    }
+                }
                 NetEvent::Packet {
                     peer,
                     kind: 0,
@@ -84,6 +96,15 @@ impl Online {
                             continue;
                         }
                         match event {
+                            CombatEvent::Shared(event) => {
+                                if let Some(id) = ssk_net::player_id(&peer) {
+                                    let replies =
+                                        self.shared.event(id, event, world, self.life, now);
+                                    for e in replies {
+                                        self.event(CombatEvent::Shared(e));
+                                    }
+                                }
+                            }
                             CombatEvent::Shot {
                                 mut shot,
                                 sector,
@@ -115,6 +136,13 @@ impl Online {
                                     local: shot.pos,
                                 }
                                 .relative_to(world.origin);
+                                let mut source_shot = shot;
+                                source_shot.pos = WorldPos {
+                                    sector: world.origin,
+                                    local: shot.pos,
+                                }
+                                .relative_to(sector);
+                                self.shared.shot(source_shot, sector);
                                 if (shot.pos - world.player.pos).length() > 5000. {
                                     continue;
                                 }
@@ -188,7 +216,7 @@ impl Online {
             self.error = "Critical game event backlog full".into();
         }
     }
-    pub fn after_frame(&mut self, world: &World, dt: f32) -> bool {
+    pub fn after_frame(&mut self, world: &mut World, dt: f32) -> bool {
         let now = macroquad::time::get_time();
         self.own_history.push_back((
             now,
@@ -214,6 +242,7 @@ impl Online {
                     .normalized();
                     let mut shot = *shot;
                     shot.pos = pos.local;
+                    self.shared.shot(shot, pos.sector);
                     self.event(CombatEvent::Shot {
                         shot,
                         sector: pos.sector,
@@ -222,6 +251,13 @@ impl Online {
                     });
                 }
             }
+        }
+        let (events, frames) = self.shared.tick(world, self.life, &self.replicas, dt, now);
+        for event in events {
+            self.event(CombatEvent::Shared(event));
+        }
+        if let Some(frames) = frames {
+            self.net.shared(frames);
         }
         if world.player.hp <= 0. {
             if self.dead_for == 0. {

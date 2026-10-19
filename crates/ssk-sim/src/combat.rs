@@ -25,9 +25,9 @@ impl WeaponKind {
     pub fn stats(self) -> WeaponStats {
         match self {
             Self::MachineGun => WeaponStats {
-                damage: 40.,
+                damage: 64.,
                 interval: 0.1,
-                energy: 18.,
+                energy: 8.,
                 speed: 1300.,
                 radius: 2.,
                 life: 1.2,
@@ -37,12 +37,12 @@ impl WeaponKind {
             Self::Shotgun => WeaponStats {
                 damage: 35.,
                 interval: 0.75,
-                energy: 112.,
-                speed: 1000.,
+                energy: 128.,
+                speed: 1.,
                 radius: 3.,
                 life: 0.6,
-                pellets: 8,
-                spread: 16f32.to_radians(),
+                pellets: 16,
+                spread: 8f32.to_radians(),
             },
             Self::Plasma => WeaponStats {
                 damage: 240.,
@@ -79,7 +79,7 @@ pub struct Shot {
     pub damage_scale: f32,
     pub blocked: bool,
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Bullet {
     pub shot: Shot,
     pub pos: V2,
@@ -96,6 +96,7 @@ pub enum WorldEvent {
     Impact { pos: V2, damage: f32 },
     Destroyed { pos: V2, size: f32 },
     Pickup { pos: V2, kind: PickupKind },
+    Reward { id: u64, player: u64, amount: u64 },
 }
 
 impl Ship {
@@ -295,7 +296,9 @@ impl World {
                     }
                 }
             }
-            if bullet.shot.owner == self.player.id {
+            if bullet.shot.owner == self.player.id
+                || (self.shared_authority && bullet.shot.owner & (1 << 63) != 0)
+            {
                 for (index, npc) in self.npcs.iter().enumerate() {
                     if npc.telegraph > 0. || npc.ship.hp <= 0. {
                         continue;
@@ -324,12 +327,16 @@ impl World {
             if let Some((t, kind, index)) = first {
                 match kind {
                     0 => {
-                        self.asteroids[index].hp -= bullet.damage;
-                        self.asteroids[index].last_hit = bullet.shot.owner;
+                        if !self.shared_replica {
+                            self.asteroids[index].hp -= bullet.damage;
+                            self.asteroids[index].last_hit = bullet.shot.owner;
+                        }
                     }
                     1 => {
-                        self.npcs[index].ship.damage(bullet.damage);
-                        self.npcs[index].last_hit = bullet.shot.owner;
+                        if !self.shared_replica {
+                            self.npcs[index].ship.damage(bullet.damage);
+                            self.npcs[index].last_hit = bullet.shot.owner;
+                        }
                     }
                     _ => {
                         self.player.damage(bullet.damage);
@@ -347,8 +354,10 @@ impl World {
             }
         }
         self.bullets.retain(|b| b.life > 0.);
-        self.destroy_asteroids();
-        self.destroy_enemies();
+        if !self.shared_replica {
+            self.destroy_asteroids();
+            self.destroy_enemies();
+        }
         for event in impacts {
             self.emit(event);
         }

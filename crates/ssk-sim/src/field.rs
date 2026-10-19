@@ -102,6 +102,9 @@ impl World {
         }
     }
     fn rebase(&mut self) {
+        if self.shared_authority {
+            return;
+        }
         let shift = [
             (self.player.pos.x / SECTOR_SIZE).floor() as i64,
             (self.player.pos.y / SECTOR_SIZE).floor() as i64,
@@ -185,7 +188,13 @@ impl World {
                     pos: a.pos,
                     size: a.radius,
                 });
-                rewards.push((a.pos, a.small, a.last_hit == self.player.id));
+                rewards.push((
+                    a.pos,
+                    a.small,
+                    a.last_hit == self.player.id,
+                    a.id,
+                    a.last_hit,
+                ));
                 if !a.small {
                     for sign in [-1., 1.] {
                         let normal = V2::from_angle(a.angle) * sign;
@@ -210,7 +219,14 @@ impl World {
         for event in events {
             self.emit(event);
         }
-        for (pos, small, owned) in rewards {
+        for (pos, small, owned, id, player) in rewards {
+            if self.shared_authority && player & (1 << 63) != 0 {
+                self.emit(WorldEvent::Reward {
+                    id,
+                    player,
+                    amount: if small { 10 } else { 30 },
+                });
+            }
             if owned {
                 self.award(if small { 10 } else { 30 });
             }

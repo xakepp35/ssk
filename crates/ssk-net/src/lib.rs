@@ -11,7 +11,9 @@ mod discovery;
 mod validation;
 pub use validation::*;
 mod events;
+mod shared;
 pub use events::*;
+pub use shared::*;
 mod reliable;
 mod replication;
 pub use replication::*;
@@ -46,6 +48,7 @@ pub struct Network {
     pub player_id: u64,
     state: tokio::sync::watch::Sender<Vec<u8>>,
     events: tokio::sync::mpsc::Sender<Vec<u8>>,
+    shared: tokio::sync::watch::Sender<Vec<Vec<u8>>>,
     pub incoming: tokio::sync::mpsc::Receiver<NetEvent>,
     pub status: tokio::sync::watch::Receiver<Status>,
     stop: tokio::sync::watch::Sender<bool>,
@@ -54,6 +57,7 @@ pub struct Network {
 pub(crate) struct Worker {
     state: tokio::sync::watch::Receiver<Vec<u8>>,
     events: tokio::sync::mpsc::Receiver<Vec<u8>>,
+    shared: tokio::sync::watch::Receiver<Vec<Vec<u8>>>,
     incoming: tokio::sync::mpsc::Sender<NetEvent>,
     status: tokio::sync::watch::Sender<Status>,
     stop: tokio::sync::watch::Receiver<bool>,
@@ -65,6 +69,7 @@ impl Network {
             u64::from_le_bytes(key.public().as_bytes()[..8].try_into().unwrap()) | 1 << 63;
         let (state, state_rx) = tokio::sync::watch::channel(Vec::new());
         let (events, events_rx) = tokio::sync::mpsc::channel(128);
+        let (shared, shared_rx) = tokio::sync::watch::channel(Vec::new());
         let (incoming_tx, incoming) = tokio::sync::mpsc::channel(512);
         let (status_tx, status) = tokio::sync::watch::channel(Status {
             phase: "Starting network".into(),
@@ -74,6 +79,7 @@ impl Network {
         let worker = Worker {
             state: state_rx,
             events: events_rx,
+            shared: shared_rx,
             incoming: incoming_tx,
             status: status_tx,
             stop: stop_rx,
@@ -97,6 +103,7 @@ impl Network {
             player_id,
             state,
             events,
+            shared,
             incoming,
             status,
             stop,
@@ -105,6 +112,9 @@ impl Network {
     }
     pub fn publish(&self, state: Vec<u8>) {
         self.state.send_replace(state);
+    }
+    pub fn shared(&self, frames: Vec<Vec<u8>>) {
+        self.shared.send_replace(frames);
     }
     pub fn event(&self, event: Vec<u8>) -> Result<(), Vec<u8>> {
         self.events.try_send(event).map_err(|e| e.into_inner())

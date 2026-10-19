@@ -143,6 +143,40 @@ impl Overlay {
             }
         }
     }
+    pub fn shared(
+        &mut self,
+        frames: &[Vec<u8>],
+        peers: &mut HashMap<String, crate::reliable::Peer>,
+    ) {
+        let destinations: Vec<_> = self
+            .contacts
+            .keys()
+            .filter(|p| *p != &self.id && self.interested(p))
+            .cloned()
+            .collect();
+        let mut sectors: BTreeMap<Vec<u8>, Vec<&Vec<u8>>> = BTreeMap::new();
+        for frame in frames {
+            if let Some(sector) = frame.get(49..65) {
+                sectors.entry(sector.to_vec()).or_default().push(frame);
+            }
+        }
+        for dest in destinations {
+            let Some(next) = self.route(&dest, peers).into_iter().next() else {
+                continue;
+            };
+            for (sector, parts) in &sectors {
+                let prefix = format!("shared:{}:{dest}:{sector:?}:", self.id);
+                let batch = parts
+                    .iter()
+                    .filter_map(|data| {
+                        let key = format!("{prefix}{:?}", data.get(65..83));
+                        Some((key, Self::envelope(&dest, 6, 0, data)?))
+                    })
+                    .collect();
+                peers.get_mut(&next).unwrap().shared_batch(&prefix, batch);
+            }
+        }
+    }
     fn interested(&self, id: &str) -> bool {
         let Some(remote) = self.presence.get(id).filter(|c| c.playing) else {
             return false;
@@ -175,8 +209,18 @@ impl Overlay {
         for next in self.route(dest, peers).into_iter().take(copies) {
             if let Some(frame) = Self::envelope(dest, kind, 0, data) {
                 let peer = peers.get_mut(&next).unwrap();
-                if kind == 0 {
-                    peer.state(dest.into(), frame);
+                if kind == 0 || kind == 6 {
+                    let key = if kind == 6 {
+                        format!(
+                            "shared:{}:{dest}:{:?}:{:?}",
+                            self.id,
+                            data.get(49..65),
+                            data.get(65..83)
+                        )
+                    } else {
+                        dest.into()
+                    };
+                    peer.state(key, frame);
                 } else {
                     peer.queue(seq, frame, seq);
                 }
@@ -274,7 +318,7 @@ impl Overlay {
         let dest = dest.to_string();
         let kind = frame[32];
         let hops = frame[33];
-        if kind > 2 || hops > 1 {
+        if ![0, 1, 2, 6].contains(&kind) || hops > 1 {
             return;
         }
         let Some((origin, data)) = auth.verify(kind, &frame[34..]) else {
@@ -343,8 +387,17 @@ impl Overlay {
         if let Some(peer) = peers.get_mut(&dest).filter(|p| p.direct()) {
             let mut forwarded = frame.to_vec();
             forwarded[33] = 1;
-            if kind == 0 {
-                peer.state(format!("{origin}:{dest}"), forwarded);
+            if kind == 0 || kind == 6 {
+                let key = if kind == 6 {
+                    format!(
+                        "shared:{origin}:{dest}:{:?}:{:?}",
+                        data.get(..16),
+                        data.get(16..34)
+                    )
+                } else {
+                    format!("{origin}:{dest}")
+                };
+                peer.state(key, forwarded);
             } else if !peer.queue(seq, forwarded, seq) {
                 worker.status.send_modify(|s| s.dropped += 1);
             }

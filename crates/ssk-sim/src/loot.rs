@@ -61,6 +61,9 @@ impl World {
         let mut collected = Vec::new();
         for pickup in &mut self.pickups {
             pickup.life -= DT;
+            if self.shared_replica || self.shared_authority {
+                continue;
+            }
             let delta = self.player.pos - pickup.pos;
             let distance = delta.length();
             if distance < 180. {

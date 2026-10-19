@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use ssk_sim::*;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum CombatEvent {
+    Shared(crate::SharedEvent),
     Shot {
         shot: Shot,
         sector: [i64; 2],

@@ -14,13 +14,13 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - `cargo check --workspace` passed after A2; no tests/manual session.
 
 ## Live state
-- Completed B10: Immediate sector presence/query changes, eight-neighbour prefetch, projectile-aware interest radius, stale-position fallback, active-player topology and stale replica removal without resetting transport on sector crossing. Current membership is capped at 128 contacts; transient differing views can reduce reachability.
+- Completed B11: Shared sector simulation, bounded multipart snapshots, authenticated NPC shots/rewards and single-owner pickup claims. Whole revisions admitted atomically at source; queue bounds preserved. Ownership recovery remains B12.
 - `cargo check --workspace` passed at this step. No automated tests run.
 - No manual play session yet. No public hosts for internet acceptance.
 - No active project processes. Source discussions preserved. No push.
 
 ## Next
-B11: single-owner shared sector NPC/asteroid/pickup simulation and confirmed pickup claims.
+B12: leases, epoch ordering, checkpoint restore and owner recovery.
 
 ## Constraints
 240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.

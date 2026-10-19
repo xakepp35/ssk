@@ -63,12 +63,23 @@ impl Peer {
     }
     pub fn state(&mut self, key: String, data: Vec<u8>) {
         if !self.states.contains_key(&key) {
-            if self.states.len() >= 128 {
+            if self.states.len() >= 256 {
                 return;
             }
             self.state_order.push_back(key.clone());
         }
         self.states.insert(key, data);
+    }
+    pub fn shared_batch(&mut self, prefix: &str, frames: Vec<(String, Vec<u8>)>) {
+        // Admit an entire revision, and finish the previous one before replacing it.
+        if self.states.keys().any(|k| k.starts_with(prefix))
+            || self.states.len() + frames.len() > 256
+        {
+            return;
+        }
+        for (key, data) in frames {
+            self.state(key, data);
+        }
     }
     pub fn packet(
         &mut self,
