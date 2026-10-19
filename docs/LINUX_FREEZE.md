@@ -107,14 +107,22 @@ GSP, change monitors/VPN, or run another reproduction without owner agreement.
 up to 48 relevant threads, one-second samples, three-second procfs-worker
 timeout, 16 MiB file limit, 120 seconds by default. It reads `/proc/*/stack`
 under root and writes a private NDJSON file. It does not call GPU APIs, change
-sysctls/services, send SysRq, listen on the network or launch SSK. Only syntax
-compilation has been performed; collection has **not** run. Reviewed command
-for an owner-approved attended capture (root files need privileged reading):
+sysctls/services, send SysRq, listen on the network or launch SSK. A **one-second
+healthy baseline** was collected through graphical Polkit at 19:58:40 MSK:
+eight relevant threads, zero stack-read errors. GNOME's KMS thread was idle in
+`ppoll`; both NVIDIA modeset workers were sleeping in `_main_loop`. This verifies
+stack access and supplies a comparison, not a diagnosis of the earlier failure.
+The baseline is private under ignored `runtime/freeze-stacks/`. Reviewed command
+for an owner-approved attended incident capture (root files need privileged reading):
 
 ```sh
 pkexec /usr/bin/python3 /home/a/github.com/xakepp35/ssk/tools/freeze-stacks.py \
   --output-dir /home/a/github.com/xakepp35/ssk/runtime/freeze-stacks
 ```
+
+After collection, `--summary-file /absolute/path/to/kernel-stacks-….ndjson`
+prints only the final display/blocked stacks and read-error counts via the same
+Polkit command, without another collection. No incident reproduction was run.
 
 Continued samples while the picture is frozen would show a functioning scheduler
 and may identify the blocked kernel stack. A stopped collector is inconclusive:

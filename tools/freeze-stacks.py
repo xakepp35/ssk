@@ -73,10 +73,27 @@ def main():
         return
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seconds", type=int, default=DEFAULT_SECONDS)
-    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--output-dir", type=Path)
+    parser.add_argument("--summary-file", type=Path, help="Read a bounded capture and print only the final display stacks")
     args = parser.parse_args()
     if sys.platform != "linux" or os.geteuid() != 0:
         parser.error("Use pkexec /usr/bin/python3 /absolute/tools/freeze-stacks.py --output-dir /absolute/directory")
+    if args.summary_file:
+        if args.output_dir or args.summary_file.stat().st_size > MAX_FILE_BYTES:
+            parser.error("summary-file must be used alone and fit the capture size limit")
+        with args.summary_file.open() as source:
+            records = [json.loads(line) for line in source if line.strip()]
+        if not records or any(row.get("schema") != "ssk.kernel-capture/1" for row in records):
+            parser.error("Not an SSK kernel-stack capture")
+        threads = records[-1]["sample"].get("threads", [])
+        selected = [row for row in threads if "KMS" in str(row["thread"]) or str(row["process"]).startswith("nvidia-modeset") or "D (" in row["state"]]
+        print(json.dumps({"records": len(records), "first_ms": records[0]["ts_unix_ms"],
+                          "last_ms": records[-1]["ts_unix_ms"], "threads": len(threads),
+                          "stack_read_errors": sum(isinstance(row["kernel_stack"], dict) for row in threads),
+                          "display_or_blocked": [{**row, "kernel_stack": str(row["kernel_stack"]).splitlines()[:12]} for row in selected]}, indent=2))
+        return
+    if not args.output_dir:
+        parser.error("output-dir is required for collection")
     if not 1 <= args.seconds <= MAX_SECONDS:
         parser.error(f"seconds must be 1..{MAX_SECONDS}")
     args.output_dir.mkdir(mode=0o700, parents=True, exist_ok=True)

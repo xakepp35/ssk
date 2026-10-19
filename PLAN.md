@@ -269,8 +269,10 @@ GPU wait snapshots recover in subsequent records. Host memory/write metrics
 show no resource runaway; pre-existing I/O pressure is recorded separately.
 Historical metrics and journal/rsyslog/Loki have no fault stack at the incident.
 Root cause remains unproven; see docs/LINUX_FREEZE.md for exact times/hashes.
-J2 collector syntax compiled only; no collector, GPU/probe/game/tests or root
-changes executed. J3 needs evidence not present in the supplied application log.
+J2 collector syntax compiled; a one-second read-only Polkit baseline captured
+eight threads with zero stack-read errors (KMS ppoll, NVIDIA modeset idle).
+No GPU/probe/game/tests, sysctl/service/driver changes or reproduction executed.
+J3 needs evidence not present in the supplied application log or healthy baseline.
 
 I3 status: Linux four-job release/package completed in 4m34s, then owner reported
 this freeze. Windows packaging is deferred while J is the active priority.

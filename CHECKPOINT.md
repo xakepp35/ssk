@@ -69,7 +69,11 @@ GPU metrics last11:50:01:48/66C, memory12.5/13.8GB, no measured prior exhaustion
 Same-driver upstream NVIDIA1392 and GNOME1289 support a graphics hypothesis,
 but no matching local stack/root cause. SSH inactive, kdump loaded, panic flags0.
 Prepared tools/freeze-stacks.py reads bounded root procfs kernel stacks, no GPU
-calls/settings/SysRq/application launch. Syntax compiled only; NOT run. Needs
-owner-approved attended capture; do not start SSK or arm panic automatically.
+calls/settings/SysRq/application launch. One-second Polkit baseline succeeded
+at19:58:40:8 threads, zero read errors; KMS idle ppoll/NVIDIA idle _main_loop.
+Private file runtime/freeze-stacks/kernel-stacks-20261019T165840Z-641629.ndjson.
+--summary-file supports bounded final-stack extraction. Collector has finished;
+no active collector/build/game. Needs owner-approved attended incident capture;
+do not start SSK or arm panic automatically. No root system settings changed.
 Next J3: get independent liveness and KMS/nvidia-modeset/SSK stacks during an
 incident. Additional logging expansion and Windows build remain deferred.
