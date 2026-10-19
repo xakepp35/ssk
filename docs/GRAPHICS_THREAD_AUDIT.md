@@ -75,7 +75,11 @@ monitor/compositor paced. Software rendering costs CPU and its FPS is unmeasured
 selects a specific surface-compatible hardware adapter. Candidate/selected
 events record indexes; an index is local to that enumeration, not a PCI address
 or a stable GPU identifier. Invalid indexes fail instead of silently changing
-devices. No affinity pinning or undocumented main-thread rendering fork exists.
+devices. Stable selection is now also available through --gpu-uuid HEX or
+--gpu-pci dddd:bb:dd.f; identities are queried on already enumerated Vulkan
+adapters with API/extension guards. No affinity pinning or undocumented
+main-thread rendering fork exists. Current timed scene, worker comparison,
+FIFO/Mailbox controls and operator gates: [FREEZE_RUNBOOK.md](FREEZE_RUNBOOK.md).
 
 No GUI, GPU enumeration probe, stress load or crash was launched automatically.
 Compilation/build evidence is in PLAN/CHECKPOINT. Runtime acceptance is still

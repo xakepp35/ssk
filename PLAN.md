@@ -345,3 +345,8 @@ reports it, keeps the last successful thread sample even after timeout records,
 and counts sampling failures. Malformed complete/interior records still fail.
 Python source compilation passed; no collector/probe/test launched. Windows
 observer prints first successful ICMP baseline; execution on Windows pending.
+
+L3/L4 documentation: README and packaged PLAY guide describe timed probe,
+physical GPU selectors, strict presentation support and CPU-only limits. Old
+strace-first instruction replaced by the attended runbook. Linux release is
+currently building (four jobs); runtime comparisons remain unexecuted.

@@ -149,7 +149,8 @@ network/simulation/native audio are created after graphics readiness.
 
 New attended probe command: `python3 tools/trace-graphics.py` or
 `ssk graphics-probe`. Old `--native`/GLX/EGL switches were removed. Probe uses
-the same winit/device/painter path without game/audio/network. An update callback
+the same winit/device/painter path without audio/network; game is off by default
+and --simulation worker explicitly adds the real offline 360Hz loop. An update callback
 or queued frame is not proof a monitor displayed it. No GUI/probe was launched
 by the agent. Four Cargo build jobs are now authorized; targets run sequentially.
 Migration is not root-cause evidence and does not guarantee the freezes stopped.
@@ -424,15 +425,11 @@ watchdog arm can improve evidence on the next natural incident without
 deliberately reproducing it. After a reboot, inspect `/var/crash` and previous
 boot/pstore before starting another experiment.
 
-For a deliberately chosen, attended diagnostic session **after capture is
-ready**, start with the native default-path probe, not a live network match:
-
-```sh
-python3 tools/trace-graphics.py
-```
-
-This now runs the Vulkan path. Comparing VPN states or driver versions would
-require a separately chosen attended experiment; do not loop risky launches.
+For a deliberately chosen attended diagnostic session, follow
+[FREEZE_RUNBOOK.md](FREEZE_RUNBOOK.md): prepare independent capture, then one
+10-second software Vulkan scene. The strace wrapper is an optional later
+instrument, not the first/default experiment. Comparing VPN states or driver
+versions requires a separately chosen experiment; do not loop risky launches.
 **The root cause is still unknown; no fix or runtime success is claimed.**
 
 Build evidence for these diagnostic additions: focused `cargo check --locked

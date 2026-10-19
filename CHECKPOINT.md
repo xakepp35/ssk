@@ -137,3 +137,8 @@ handles torn final record and last successful stacks vs later sampling errors.
 Python py_compile completed for collector/trace wrapper, artifacts under target.
 No runtime collector or GUI. Linux four-job release build is active; see tools
 build-linux.sh. Windows observer implementation not runtime-verified.
+
+README/LAN/audit/freeze docs aligned with new controls; no stale strace-first
+procedure. Package guide points to FREEZE_RUNBOOK in checkout. Release build
+still active; no runtime comparisons/GUI. Next: finish package/hash, record
+build evidence, request exactly one attended CPU-only10s capture session.
