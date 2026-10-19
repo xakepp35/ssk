@@ -9,19 +9,18 @@ without attended owner authorization. No driver/kernel/VPN/service changes.
 No active build, game, collector or other mutation driver.
 
 ## Active authorized experiment / reboot recovery
-Owner explicitly approved staged attended experiments2026-10-20 and will report
-any freeze after reboot. No repeated permission needed for this sequence. Stop
-at first freeze; no automatic retries, driver/kernel/VPN/display changes, panic
-arming or crashes. CPU-only10s scene first, independent120s kernel stacks.
-Before any resumed action read runtime/freeze-sessions/current.json and the
-session.json/app.ndjson/console.ndjson there; inspect boot ID and preserve
-previous boot evidence. Prepared session: runtime/freeze-sessions/20261019T232406Z.
-Current stage cpu-graphics (software Vulkan/FIFO, simulation off, no net/audio).
-CPU stage finished successfully; game not running. Next: root read-only collector via Polkit,
-wait for durable-ready, one launch, bounded readout. Remote Windows observer is
-not attached; no claim about remote liveness. No kernel/driver changes authorized.
-If session has a start without a finish, don't rerun; correlate with owner report
-and boot change first. L5/L6 and hardware freeze remain open.
+Owner approved staged attended experiments2026-10-20; stop at first freeze.
+No repeated permission needed for this sequence. No automatic retries or
+kernel/driver/VPN/display/service/watchdog changes. After reboot read
+runtime/freeze-sessions/current.json and the pointed session.json/app.ndjson/
+console.ndjson, compare boot ID and preserve previous-boot evidence BEFORE
+any new launch. A start without finish is not itself proof of a host freeze.
+Current prepared session: runtime/freeze-sessions/20261019T232806Z.
+Stage gpu-graphics:10s static scene, primary PCI0000:65:00.0, FIFO, simulation
+off/no net/audio. NVIDIA-only ICD and implicit layers disabled in child only,
+matching CPU isolation policy. No root game. Next: independent120s root stacks,
+wait for durable-ready, ONE launch, review. Remote observer absent, human visual
+confirmation of CPU window still pending. No collector/game active at preparation.
 
 ## L5 runtime evidence / current stage
 CPU session runtime/freeze-sessions/20261019T232406Z finished: exit0/10.444s,

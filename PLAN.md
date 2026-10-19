@@ -382,3 +382,8 @@ no remote observer. This is a short software baseline, not hardware acceptance.
 Capture/session: runtime/freeze-sessions/20261019T232406Z. Summary now supports
 --pid to inspect the application's stacks during its lifetime, not just final
 after-exit display stacks; preserve TIDs so same-named threads aren't merged.
+
+L5 next prepared: gpu-graphics,10s static scene on primary PCI0000:65:00.0,
+FIFO/no worker/net/audio; child NVIDIA-only ICD/implicit layers off, same layer
+policy as CPU baseline. Session saved before root capture/application launch;
+if reboot occurs, preserve it and previous boot before another experiment.
