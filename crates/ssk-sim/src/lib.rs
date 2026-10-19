@@ -4,6 +4,8 @@ pub const DT: f32 = 1.0 / TICK_HZ as f32;
 pub const SECTOR_SIZE: f32 = 4096.;
 mod math;
 pub use math::*;
+mod combat;
+pub use combat::*;
 
 #[derive(Clone, Copy, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct WorldPos { pub sector: [i64; 2], pub local: V2 }
@@ -35,10 +37,11 @@ impl ShipClass {
 pub struct Ship {
     pub id: u64, pub class: ShipClass, pub pos: V2, pub previous: V2,
     pub velocity: V2, pub angle: f32, pub hp: f32, pub energy: f32,
+    pub cooldowns: [f32;3], pub quiet:f32, pub weapon:WeaponKind,
 }
 impl Ship {
     pub fn new(id: u64, class: ShipClass, pos: V2) -> Self {
-        Self { id, class, pos, previous: pos, velocity: V2::ZERO, angle: 0., hp: class.stats().0, energy: 1000. }
+        Self { id, class, pos, previous: pos, velocity: V2::ZERO, angle: 0., hp: class.stats().0, energy: 1000., cooldowns:[0.;3], quiet:0., weapon:WeaponKind::MachineGun }
     }
     pub fn move_step(&mut self, input: InputFrame) {
         self.previous = self.pos;
@@ -53,10 +56,13 @@ impl Ship {
 }
 pub struct World {
     pub player: Ship, pub origin: [i64; 2], pub tick: u64, pub seed: u64,
+    pub bullets:Vec<Bullet>, pub targets:Vec<Target>, pub events:Vec<WorldEvent>,
+    pub rng:Rng, pub next_id:u64,
 }
 impl World {
     pub fn new(seed: u64, class: ShipClass) -> Self {
-        Self { player: Ship::new(1, class, V2::ZERO), origin: [0, 0], tick: 0, seed }
+        Self { player: Ship::new(1, class, V2::ZERO), origin: [0, 0], tick: 0, seed,
+            bullets:Vec::with_capacity(4096), targets:vec![Target { pos:V2::new(350.,0.), radius:40., hp:360. }], events:Vec::with_capacity(512), rng:Rng(seed), next_id:2 }
     }
-    pub fn step(&mut self, input: InputFrame) { self.tick += 1; self.player.move_step(input); }
+    pub fn step(&mut self, input: InputFrame) { self.tick += 1; self.player.move_step(input); self.combat(input); }
 }

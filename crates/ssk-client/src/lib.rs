@@ -69,7 +69,20 @@ async fn run(options: Options) {
         let alpha=accumulator/DT;
         let target=world.player.previous.lerp(world.player.pos,alpha)+mouse.clamp_length(200.)*0.25;
         camera=camera.lerp(target,1.-(-12.*dt).exp());
-        background(camera); draw_ship(&world.player,camera,alpha,SKYBLUE);
+        background(camera);
+        for target in &world.targets {
+            let p=screen(target.pos,camera); draw_circle_lines(p.x,p.y,target.radius,2.,ORANGE);
+            draw_text(&format!("{:.0}",target.hp),p.x-20.,p.y+5.,18.,WHITE);
+        }
+        for bullet in &world.bullets {
+            let p=screen(bullet.previous.lerp(bullet.pos,alpha),camera);
+            let tail=screen(bullet.pos-bullet.velocity*0.012,camera);
+            draw_line(tail.x,tail.y,p.x,p.y,2.,YELLOW); draw_circle(p.x,p.y,bullet.radius,YELLOW);
+        }
+        draw_ship(&world.player,camera,alpha,SKYBLUE);
+        draw_rectangle(24.,52.,240.,10.,DARKGRAY);
+        draw_rectangle(24.,52.,240.*world.player.energy/1000.,10.,SKYBLUE);
+        world.events.clear();
         draw_text(&format!("{} | WASD move  MOUSE aim | 240 Hz  skipped {}",world.player.class.name(),dropped_steps),24.,32.,22.,GRAY);
         draw_circle_lines(mouse_position().0,mouse_position().1,8.,1.,SKYBLUE);
         next_frame().await;

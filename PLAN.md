@@ -9,7 +9,7 @@ split oversized steps. Never treat compilation as proof of playability.
 - [x] A0 — Write README, PLAN, AGENTS and checkpoint. `docs: define game and delivery plan`
 - [x] A1 — Rust workspace, CLI, window, headless dispatch. `build: create Rust workspace`
 - [x] A2 — 240 Hz movement, aim, camera. `feat: add ship movement and aiming`
-- [ ] A3 — Machine gun, energy, destructible target. `feat: add first playable combat`
+- [x] A3 — Machine gun, energy, destructible target. `feat: add first playable combat`
 - [ ] A4 — Sectors, spatial grid, asteroids, swept collisions. `feat: add procedural asteroid field`
 - [ ] A5 — Shotgun, plasma, persistent weapon cooldowns. `feat: add three weapon loadout`
 - [ ] A6 — NPC, death, score, instant restart; first complete run. `feat: add survival combat loop`

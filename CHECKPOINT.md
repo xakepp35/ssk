@@ -14,15 +14,16 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - `cargo check --workspace` passed after A2; no tests/manual session.
 
 ## Live state
-- A0 committed as c20b5a9. A1: 3 libraries + one CLI binary; window and headless dispatch.
-- `cargo check --workspace` passed. No tests run; no play session yet.
-- No active project processes. No public hosts available for internet acceptance.
-- A1 implementation complete; optional network commands explicitly report not implemented.
+- Completed A3: Machine gun, energy costs/regeneration, destructible target, swept bullet hits.
+- `cargo check --workspace` passed at this step. No automated tests run.
+- No manual play session yet. No public hosts for internet acceptance.
+- No active project processes. Source discussions preserved. No push.
 
 ## Next
-A3: machine gun, energy and destructible target.
+A4: sector rebasing, spatial grid and procedural asteroid field.
 
 ## Constraints
-240 Hz sim, 30–60 game PPS/link; one ability/class; owner-authoritative ships;
-one intermediary, bounded load; no performance claims without measurement.
-No push; no secrets. Update this file before context rollover.
+240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.
+Owner-authoritative ships, at most one intermediary, bounded queues.
+Do not claim gameplay/network/performance acceptance from compilation alone.
+Read PLAN.md for all completed milestones; README.md for design.
