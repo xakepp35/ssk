@@ -71,8 +71,6 @@ def stop_group(process):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--native", action="store_true", help="skip Macroquad resource setup")
-    parser.add_argument("--backend", choices=("default", "glx", "egl"), default="default")
     parser.add_argument("--binary", type=Path, default=ROOT / "target/release/ssk")
     parser.add_argument("--strace", type=Path)
     args = parser.parse_args()
@@ -93,11 +91,9 @@ def main():
         str(tracer), "-f", "-ttt", "-T", "-I", "1", "--kill-on-exit",
         "--decode-fds=path", "-e", f"trace={SYSCALLS}",
         "-e", f"raw={RAW_SYSCALLS}",
-        str(binary), "graphics-probe", "--backend", args.backend,
+        str(binary), "graphics-probe",
         "--log", str(folder / "stages.log"),
     ]
-    if args.native:
-        command.append("--native")
     metadata = {
         "command": command,
         "kernel": platform.release(),
@@ -105,8 +101,8 @@ def main():
         "nvidia": read_local("/proc/driver/nvidia/version"),
         "session": {name: os.environ.get(name) for name in (
             "XDG_SESSION_TYPE", "DISPLAY", "WAYLAND_DISPLAY",
-            "LIBGL_ALWAYS_SOFTWARE", "__GLX_VENDOR_LIBRARY_NAME",
-            "__NV_PRIME_RENDER_OFFLOAD",
+            "WAYLAND_SOCKET", "WGPU_POWER_PREF",
+            "VK_DRIVER_FILES", "VK_ICD_FILENAMES",
         )},
         "limits": {"seconds": DEFAULT_TIMEOUT_SECONDS, "trace_bytes": MAX_TRACE_BYTES},
         "note": "No SSK game/audio/network. ptrace; no --seccomp-bpf. Buffers/ioctls raw.",

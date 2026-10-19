@@ -6,7 +6,8 @@ try {
     rustup target add x86_64-pc-windows-msvc
     if ($LASTEXITCODE -ne 0) { throw 'rustup failed' }
     $env:CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS = '-C target-feature=+crt-static'
-    cargo build --locked --release -p ssk --target x86_64-pc-windows-msvc --jobs 2
+    $buildJobs = if ($env:SSK_BUILD_JOBS) { $env:SSK_BUILD_JOBS } else { 4 }
+    cargo build --locked --release -p ssk --target x86_64-pc-windows-msvc --jobs $buildJobs
     if ($LASTEXITCODE -ne 0) { throw 'Cargo build failed' }
     $bundle = 'dist/ssk-windows-msvc'
     New-Item -ItemType Directory -Force $bundle | Out-Null

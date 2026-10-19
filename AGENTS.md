@@ -96,3 +96,10 @@ Use Vulkan and native Wayland on Wayland sessions; no OpenGL/GLX fallback.
 Preserve monitor-driven rendering and independent 360 Hz simulation. Four Cargo
 build jobs are authorized; build targets sequentially. Do not launch graphics
 or stress probes automatically after the reported workstation hard freezes.
+
+Graphics implementation is now eframe/egui + winit/wgpu, Vulkan only. Keep the
+shared client/probe configuration in ssk-client diagnostics.rs, drawing state
+owned by Canvas, and gameplay in its existing 360 Hz worker. Do not add glow,
+GLX/EGL/Macroquad or silently fall back to OpenGL. Let winit/egui handle native
+Wayland/DPI and surface lifecycle. Record actual adapter/window system at ready;
+compilation and a queued frame never prove presentation or a freeze fix.

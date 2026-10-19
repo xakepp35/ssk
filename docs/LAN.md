@@ -1,5 +1,18 @@
 # Linux 192.168.50.155 ↔ Windows 11: быстрый старт
 
+## Графика
+
+Обе сборки используют **wgpu / Vulkan**. На Linux в Wayland-сессии окно
+нативное Wayland; в X11 — X11/Vulkan. OpenGL/GLX отсутствуют. На Windows нужен
+Vulkan-драйвер GPU (обычно устанавливается с NVIDIA/AMD/Intel драйвером),
+Vulkan SDK не требуется. В ZIP нет дополнительных runtime DLL.
+Размер окна 1600×1000 задан в логических пикселях; масштаб монитора учитывается
+автоматически. F11 переключает fullscreen. Логика 360 Гц не зависит от vsync.
+Событие `ssk.client.graphics.ready` в `runtime/logs/ssk-*.ndjson` показывает
+фактический backend, оконную систему и выбранный GPU/драйвер. Начальная строка
+`graphics.begin` означает только вход в инициализацию. Полный Linux-фриз пока
+не получил установленной причины; новая графика не проходила ручной запуск.
+
 ## Сыграть вдвоём
 
 1. Оба компьютера должны быть в одной обычной LAN/Wi-Fi без client isolation.
@@ -71,6 +84,7 @@
 
 ## Сборка
 
+По умолчанию 4 Cargo jobs; переменная `SSK_BUILD_JOBS` переопределяет число.
 Linux: `tools/build-linux.sh` → `dist/ssk-linux-x64/` и архив `.tar.gz`.
 Рядом с Linux-бинарём тоже лежит `ssk.yml` с режимом host.
 Linux → Windows: `tools/build-windows.sh` (Rust windows-gnu + MinGW-w64).

@@ -215,7 +215,7 @@ Exact evidence, limits and capture procedure: docs/LINUX_FREEZE.md.
   rotation/filtering/suppression, panic backtrace and host/progress monitoring.
 - [ ] H3 — Instrument startup/client/simulation/network/audio and teardown;
   add independent host journal/thread collector and usage/query documentation.
-- [ ] H4 — Focused compilation, sequential one-job Linux/Windows release packages;
+- [ ] H4 — Focused compilation, sequential four-job Linux/Windows release packages;
   record evidence without launching graphics, stress loads or automated tests.
 
 Hard-freeze root cause remains open (G4). Logging cannot guarantee recovery of
@@ -233,7 +233,7 @@ to the same sink. Focused cargo check passed; no runtime/GUI/tests executed.
 - [x] I1 — Replace Macroquad/Miniquad/OpenGL with eframe/egui + wgpu;
   Vulkan renderer, native Wayland on Wayland sessions, X11 compatibility on X11.
   Preserve drawing, menus/input, window preferences, 360 Hz worker and audio.
-- [ ] I2 — Move graphics-only probe to the same wgpu path; document backend,
+- [x] I2 — Move graphics-only probe to the same wgpu path; document backend,
   monitor/DPI behavior, startup evidence and remaining hard-freeze uncertainty.
 - [ ] I3 — Four-job focused compilation and sequential Linux/Windows static
   release packages; update guides/config and record actual build evidence.
@@ -248,3 +248,7 @@ Client, primitives, menus, effects and probe now compile on eframe/egui 0.33.3,
 wgpu 27.0.1, winit 0.30.13; only Vulkan backend enabled. Native Wayland preferred
 by winit on Wayland sessions. Explicit FIFO/2 frames in flight. Physics/network
 rules unchanged. No GUI, runtime probe, automated tests or freeze reproduction.
+
+I2: README/LAN and freeze history distinguish new Vulkan behavior from old
+incident evidence; graphics trace wrapper matches the new probe CLI. All build
+scripts default to four jobs. Linux release build in progress; no GUI/tests.

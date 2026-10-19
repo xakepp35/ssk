@@ -1,5 +1,23 @@
 # Linux hard-freeze investigation — 2026-10-19
 
+## Current renderer after the requested migration
+
+Client now uses eframe/egui 0.33.3, winit 0.30.13 and wgpu 27.0.1, Vulkan only
+on Linux and Windows. Winit chooses native Wayland first on Wayland sessions;
+X11 sessions use X11/Vulkan. There is no OpenGL/GLX fallback. FIFO vsync,
+two frames in flight, independent 360 Hz simulation. Selected GPU/driver and
+actual window system are recorded by `ssk.client.graphics.ready`; the preceding
+`graphics.begin` still does NOT prove initialization completed. Application
+network/simulation/native audio are created after graphics readiness.
+
+New attended probe command: `python3 tools/trace-graphics.py` or
+`ssk graphics-probe`. Old `--native`/GLX/EGL switches were removed. Probe uses
+the same winit/device/painter path without game/audio/network. An update callback
+or queued frame is not proof a monitor displayed it. No GUI/probe was launched
+by the agent. Four Cargo build jobs are now authorized; targets run sequentially.
+Migration is not root-cause evidence and does not guarantee the freezes stopped.
+The incident evidence below describes the OLD Macroquad/GLX implementation.
+
 ## What was observed
 
 The owner reports occasional complete-looking freezes when starting the Linux
@@ -155,7 +173,7 @@ No game, probe, stress run or GUI reproduction was started during this diagnosis
   `/var/lib/systemd/pstore` empty. Backend is `efi_pstore`. `/var/crash` contains
   kdump bookkeeping, no vmcore. An abrupt power cut can lose decisive messages.
 - GNOME runs Wayland. Miniquad **0.4.11** defaults to **X11Only** and
-  **GLXWithEGLFallback**, so this application uses Xwayland/GLX on this desktop.
+  **GLXWithEGLFallback**, so the pre-migration application used Xwayland/GLX on this desktop.
   Kernel is **7.0.0-38-generic**, NVIDIA open module **615.71.09**, two RTX3090Ti.
   Installed libGLX NVIDIA version matches the module; no version mismatch was
   identified. This does not establish that the graphics driver is healthy.
@@ -174,7 +192,7 @@ No game, probe, stress run or GUI reproduction was started during this diagnosis
 ### What the single startup line actually proves
 
 The old wording meant **starting graphics initialization**, not successful
-video initialization. The source order in `ssk-client/src/lib.rs` is:
+video initialization. The pre-migration source order was:
 
 | Stage | Work |
 | --- | --- |
@@ -195,20 +213,12 @@ a game launch also remains relevant.
 
 ### Prepared capture tools
 
-`ssk graphics-probe` uses the same window dimensions, high DPI and vsync settings
-as the game, initializes Macroquad, clears a frame and exits. It never starts
-the game worker, identity/transport runtime, simulation or native audio. `--native`
-uses Miniquad directly and additionally skips Macroquad resources/shaders/UI.
-`--backend glx` / `--backend egl` explicitly choose that Linux context path;
-the normal game defaults have not been changed. No Wayland backend migration
-or driver workaround was silently applied.
-
-Probe stage records are appended and `sync_data` is requested for each marker.
-For a future ordinary launch, `--startup-log runtime/startup.log` also persists
-graphics/game/audio/first-frame markers. A resumed frame loop proves the swap
-call returned on the current X11 backend, not that a monitor displayed the frame.
-Upstream native setup remains opaque until the probe callback; syscall tracing
-adds a second level of evidence.
+The original probes separated Macroquad from Miniquad with optional GLX/EGL
+selection. Those paths have been replaced by the Vulkan-only probe described
+at the top of this document. Startup stages are NDJSON in a flushed/synced file
+and stderr. `--startup-log PATH` remains an alias for `--log-file PATH`.
+Upstream native setup remains opaque until the app creation callback;
+syscall tracing adds a second level of evidence.
 
 `tools/trace-graphics.py` runs **only** the probe under strace (ptrace, without
 `--seccomp-bpf`). It saves a unique `runtime/graphics-TIMESTAMP-PID/` directory:
@@ -281,12 +291,11 @@ For a deliberately chosen, attended diagnostic session **after capture is
 ready**, start with the native default-path probe, not a live network match:
 
 ```sh
-python3 tools/trace-graphics.py --native
+python3 tools/trace-graphics.py
 ```
 
-If it completes, a separately chosen Macroquad probe is
-`python3 tools/trace-graphics.py`. Comparing EGL or VPN on/off is a later,
-single-variable experiment, not an automatic loop of risky launches.
+This now runs the Vulkan path. Comparing VPN states or driver versions would
+require a separately chosen attended experiment; do not loop risky launches.
 **The root cause is still unknown; no fix or runtime success is claimed.**
 
 Build evidence for these diagnostic additions: focused `cargo check --locked

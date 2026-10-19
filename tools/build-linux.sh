@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-cargo build --locked --release -p ssk --jobs "${SSK_BUILD_JOBS:-2}"
+cargo build --locked --release -p ssk --jobs "${SSK_BUILD_JOBS:-4}"
 ssk_bundle="$PWD/dist/ssk-linux-x64"
 mkdir -p "$ssk_bundle"
 cp target/release/ssk ssk.yml "$ssk_bundle/"
