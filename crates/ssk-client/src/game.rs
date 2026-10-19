@@ -22,6 +22,7 @@ pub struct Frame {
     pub frags: u32,
     pub error: String,
     pub overloads: u64,
+    pub sector: SectorStatus,
     pub at: Instant,
 }
 enum Command {
@@ -68,6 +69,7 @@ impl Game {
             frags: 0,
             error: error.clone(),
             overloads: 0,
+            sector: Default::default(),
             at: Instant::now(),
         };
         let controls = Arc::new(Mutex::new(Controls {
@@ -138,7 +140,8 @@ impl Game {
                             let peers=n.replicas.peers.keys().filter_map(|p| {let (s,age)=n.replicas.sample(p,time)?;Some((s.ship(ssk_net::player_id(p)?,world.origin),age))}).collect();
                             (peers,n.net.status.borrow().clone(),n.frags,n.error.clone())
                         } else {(Vec::new(),ssk_net::Status {phase:if failed {error.clone()}else {"Offline".into()},..Default::default()},0,String::new())};
-                        *slot=Some(Frame {world:render_world,peers,status,frags,error:if error.is_empty(){net_error}else{error.clone()},overloads,at:Instant::now()});
+                        let sector=online.as_ref().map(|n|n.shared.sector_status(world.origin,time)).unwrap_or_default();
+                        *slot=Some(Frame {world:render_world,peers,status,frags,error:if error.is_empty(){net_error}else{error.clone()},overloads,sector,at:Instant::now()});
                         r.store(false,Ordering::Release);
                     }
                 }

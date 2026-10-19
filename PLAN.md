@@ -126,7 +126,11 @@ MSVC script and live cross-platform match remain unverified.
   Add bounded NPC/asteroid dead reckoning and 100 ms correction decay in
   ssk-sim, sampled only into render copies. Reset by sector epoch/entity ID;
   canonical AI/combat/ownership and wire rate remain unchanged.
-- [ ] E2 — Record read-only journal findings; real --no-audio/audio.enabled
+- [x] E2 — Record read-only journal findings; real --no-audio/audio.enabled
   switch that skips native audio initialization, plus startup stage messages.
 - [ ] E3 — Rebuild Linux/Windows packages. No automatic GUI/freeze reproduction
   or heavy workloads; manual cross-platform follow-up remains separate.
+
+E1/E2 compile evidence: cargo check passed; no GUI or freeze reproduction.
+Receiver HUD now distinguishes local/remote stewardship and completed-image age.
+Journal evidence and limits: docs/LINUX_FREEZE.md. Root cause remains unknown.

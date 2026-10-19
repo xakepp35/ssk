@@ -4,7 +4,7 @@ use ssk_sim::{DT, InputFrame, Ship, V2};
 pub mod bench;
 mod config;
 pub mod constants;
-pub use config::WindowConfig;
+pub use config::{AudioConfig, WindowConfig};
 mod effects;
 mod game;
 mod online;
@@ -15,6 +15,7 @@ pub struct Options {
     pub seed: u64,
     pub class: Option<ssk_sim::ShipClass>,
     pub window: WindowConfig,
+    pub audio: AudioConfig,
     pub play: bool,
     pub online: bool,
     pub connect: Option<String>,
@@ -25,6 +26,10 @@ pub fn launch(options: Options) {
     profile.width = options.window.width;
     profile.height = options.window.height;
     profile.fullscreen = options.window.fullscreen;
+    eprintln!(
+        "SSK startup: graphics init, {}x{}, vsync interval {}",
+        profile.width, profile.height, VSYNC_INTERVAL
+    );
     macroquad::Window::from_config(
         Conf {
             window_title: "Syrup Space Kadet".into(),
@@ -146,6 +151,7 @@ fn background(camera: V2) {
     }
 }
 async fn run(options: Options, mut profile: profile::Profile) {
+    eprintln!("SSK startup: graphics context ready");
     let mut class = options
         .class
         .unwrap_or(ssk_sim::ShipClass::ALL[profile.class]);
@@ -153,7 +159,15 @@ async fn run(options: Options, mut profile: profile::Profile) {
     let (game, initial) = game::Game::start(&options, class);
     let mut view = initial;
     let mut world = view.world.clone();
-    let mut effects = effects::Effects::new().await;
+    eprintln!(
+        "SSK startup: audio {}",
+        if options.audio.enabled {
+            "worker requested"
+        } else {
+            "disabled; native audio initialization skipped"
+        }
+    );
+    let mut effects = effects::Effects::new(options.audio.enabled);
     let mut camera = world.player.pos;
     let mut weapon = 0;
     let mut menu = !options.play;
@@ -388,8 +402,13 @@ async fn run(options: Options, mut profile: profile::Profile) {
             }
             draw_text(
                 &format!(
-                    "{} | {} peers | F2 menu / ship | F3 copy invite",
-                    status.phase, status.peers
+                    "{} | {} peers | SECTOR {} / image {} | F2 menu / ship | F3 invite",
+                    status.phase,
+                    status.peers,
+                    if view.sector.local { "LOCAL" } else { "REMOTE" },
+                    view.sector
+                        .age_ms
+                        .map_or_else(|| "waiting".into(), |age| format!("{age:.0}ms"))
                 ),
                 NOTICE_INSET,
                 screen_height() - NOTICE_BOTTOM,

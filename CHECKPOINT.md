@@ -65,5 +65,12 @@ Found sector snapshots 5 Hz, replicated NPC.previous=pos, no remote smoothing;
 owner election uses ID/lease, not host/join. E1 adds bounded visual dead
 reckoning (400 ms) and correction decay 100 ms, applied only to render copies.
 Canonical game rules remain unchanged. cargo check passes; no runtime replay.
-E2 audio initialization switch and incident notes are in progress; E3 builds
+E2 adds --no-audio/audio.enabled with truly lazy native audio creation,
+startup markers and docs/LINUX_FREEZE.md; default audio remains enabled.
+Final cargo check --locked -p ssk --jobs 2 passed (1.71s); no tests/GUI.
+HUD shows local/remote steward and completed-image receiver age. E3 builds
 pending. No game/server/load process. Preserve owner's Cargo authors edit.
+
+Read-only previous-boot journal: 110127 Focusrite USB errors 06:00:22–06:11:55,
+re-enumerated 06:11:56; last SSK terminal activity 06:15:25 then reboot 06:17:42.
+No searched Xid/OOM/lockup record; no causal conclusion or system changes.

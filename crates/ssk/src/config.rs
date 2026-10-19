@@ -19,6 +19,7 @@ pub struct Config {
     pub mode: Mode,
     pub connect: Option<String>,
     pub window: ssk_client::WindowConfig,
+    pub audio: ssk_client::AudioConfig,
     pub network: ssk_net::Config,
 }
 impl Default for Config {
@@ -32,6 +33,7 @@ impl Default for Config {
             mode: Mode::Host,
             connect: Some(DEFAULT_LAN_SERVER.into()),
             window: Default::default(),
+            audio: Default::default(),
             network,
         }
     }

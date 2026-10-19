@@ -2637,7 +2637,6 @@ dependencies = [
  "macroquad_macro",
  "miniquad",
  "quad-rand",
- "quad-snd",
 ]
 
 [[package]]
@@ -4531,6 +4530,7 @@ name = "ssk-client"
 version = "0.1.0"
 dependencies = [
  "macroquad",
+ "quad-snd",
  "rayon",
  "serde",
  "serde_json",

@@ -90,4 +90,9 @@ powershell -ExecutionPolicy Bypass -File .\tools\build-windows.ps1
 
 Результат `dist/ssk-windows-msvc.zip`; CRT также задан статически.
 На ноутбуке с готовым ZIP Rust/Build Tools не нужны.
-Живой матч Linux↔Windows и запуск MSVC-скрипта ещё не проверены.
+Владелец уже сообщил о живом матче Linux↔Windows и рывках NPC на реплике.
+После исправления сглаживания повторный матч ещё не проверен. HUD показывает
+SECTOR LOCAL/REMOTE и возраст последнего принятого образа сектора; это не RTT.
+При диагностике Linux-фриза доступен `--no-audio` / `audio.enabled: false`,
+который пропускает открытие аудиоустройства. Подробнее: docs/LINUX_FREEZE.md
+в репозитории. MSVC-скрипт ещё не запускался.

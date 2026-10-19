@@ -18,3 +18,17 @@ impl Default for WindowConfig {
         }
     }
 }
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct AudioConfig {
+    /// False skips the native audio context, not just sound playback.
+    pub enabled: bool,
+}
+impl Default for AudioConfig {
+    fn default() -> Self {
+        Self {
+            enabled: DEFAULT_AUDIO_ENABLED,
+        }
+    }
+}

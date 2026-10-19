@@ -11,6 +11,7 @@ pub const DEATH_DEDUP_CAPACITY: usize = 1024;
 pub const LEAVE_GRACE_MILLIS: u64 = 150;
 
 pub const DEFAULT_VOLUME: f32 = 0.6;
+pub const DEFAULT_AUDIO_ENABLED: bool = true;
 pub const DEFAULT_SHAKE: f32 = 0.7;
 pub const UI_SCALE_RANGE: std::ops::RangeInclusive<f32> = 0.75..=1.25;
 pub const WINDOW_WIDTH_RANGE: std::ops::RangeInclusive<i32> = 800..=7680;

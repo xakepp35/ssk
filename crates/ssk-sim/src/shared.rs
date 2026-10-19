@@ -112,7 +112,21 @@ pub struct SharedWorld {
     accumulator: f32,
     published: f64,
 }
+#[derive(Clone, Copy, Default)]
+pub struct SectorStatus {
+    pub local: bool,
+    pub age_ms: Option<f64>,
+}
 impl SharedWorld {
+    pub fn sector_status(&self, sector: [i64; 2], now: f64) -> SectorStatus {
+        SectorStatus {
+            local: self.owned.contains_key(&sector),
+            age_ms: self
+                .images
+                .get(&sector)
+                .map(|i| (now - i.time).max(0.) * 1000.),
+        }
+    }
     pub fn stats(&self, now: f64) -> (usize, f64) {
         (
             self.images.len(),

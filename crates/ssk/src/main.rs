@@ -14,6 +14,9 @@ struct Cli {
     class: Option<Class>,
     #[arg(long, global = true)]
     config: Option<std::path::PathBuf>,
+    /// Skip native audio initialization (useful when diagnosing a USB/audio freeze).
+    #[arg(long, global = true)]
+    no_audio: bool,
 }
 
 #[derive(Subcommand)]
@@ -68,6 +71,9 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
     let mut app = config::Config::load(cli.config.as_deref())?;
+    if cli.no_audio {
+        app.audio.enabled = false;
+    }
     if let Some(seed) = cli.seed {
         app.network.seed = seed;
     }
@@ -138,6 +144,7 @@ fn main() -> anyhow::Result<()> {
                 seed: network.seed,
                 class,
                 window: app.window,
+                audio: app.audio,
                 play: true,
                 online,
                 connect,

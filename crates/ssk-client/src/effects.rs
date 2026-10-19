@@ -1,9 +1,7 @@
 use super::screen;
 use crate::constants::*;
-use macroquad::{
-    audio::{PlaySoundParams, Sound, load_sound_from_bytes, play_sound},
-    prelude::*,
-};
+use macroquad::prelude::*;
+use quad_snd::{AudioContext, PlaySoundParams, Sound};
 use ssk_sim::{PickupKind, Rng, V2, WeaponKind, WorldEvent};
 struct Particle {
     pos: V2,
@@ -22,25 +20,28 @@ struct Ring {
 pub struct Effects {
     particles: Vec<Particle>,
     rings: Vec<Ring>,
-    sounds: Vec<Option<Sound>>,
+    audio: Option<AudioContext>,
+    sounds: Vec<Sound>,
     rng: Rng,
     pub shake: f32,
     pub flash: f32,
 }
 impl Effects {
-    pub async fn new() -> Self {
+    pub fn new(audio_enabled: bool) -> Self {
+        // Macroquad's built-in audio feature initializes before our game starts;
+        // own this context instead so disabling audio never opens ALSA/WASAPI.
+        let audio = audio_enabled.then(AudioContext::new);
         let mut sounds = Vec::new();
-        for (frequency, duration, noise) in SOUND_PRESETS {
-            sounds.push(
-                load_sound_from_bytes(&wave(frequency, duration, noise))
-                    .await
-                    .ok(),
-            );
+        if let Some(context) = &audio {
+            for (frequency, duration, noise) in SOUND_PRESETS {
+                sounds.push(Sound::load(context, &wave(frequency, duration, noise)));
+            }
         }
         Self {
             particles: Vec::with_capacity(MAX_PARTICLES),
             rings: Vec::with_capacity(MAX_RINGS),
             sounds,
+            audio,
             rng: Rng(EFFECT_RNG_SEED),
             shake: 0.,
             flash: 0.,
@@ -62,9 +63,9 @@ impl Effects {
     }
     fn sound(&self, index: usize, volume: f32) {
         if volume > 0. {
-            if let Some(sound) = &self.sounds[index] {
-                play_sound(
-                    sound,
+            if let (Some(context), Some(sound)) = (&self.audio, self.sounds.get(index)) {
+                sound.play(
+                    context,
                     PlaySoundParams {
                         looped: false,
                         volume,
