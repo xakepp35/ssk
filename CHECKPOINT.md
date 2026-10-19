@@ -14,13 +14,13 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - `cargo check --workspace` passed after A2; no tests/manual session.
 
 ## Live state
-- Completed A3: Machine gun, energy costs/regeneration, destructible target, swept bullet hits.
+- Completed A4: Procedural 4096-unit sectors, rebasing, spatial grid, swept nearest hits, moving/splitting asteroids and impact bounce.
 - `cargo check --workspace` passed at this step. No automated tests run.
 - No manual play session yet. No public hosts for internet acceptance.
 - No active project processes. Source discussions preserved. No push.
 
 ## Next
-A4: sector rebasing, spatial grid and procedural asteroid field.
+A5: shotgun/plasma and weapon selection with independent cooldowns.
 
 ## Constraints
 240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.

@@ -67,12 +67,19 @@ async fn run(options: Options) {
         while accumulator>=DT && steps<8 { world.step(input); accumulator-=DT; steps+=1; }
         if accumulator>=DT { dropped_steps+=(accumulator/DT) as u64; accumulator=accumulator.rem_euclid(DT); }
         let alpha=accumulator/DT;
+        camera-=world.origin_shift; world.origin_shift=V2::ZERO;
         let target=world.player.previous.lerp(world.player.pos,alpha)+mouse.clamp_length(200.)*0.25;
         camera=camera.lerp(target,1.-(-12.*dt).exp());
         background(camera);
-        for target in &world.targets {
-            let p=screen(target.pos,camera); draw_circle_lines(p.x,p.y,target.radius,2.,ORANGE);
-            draw_text(&format!("{:.0}",target.hp),p.x-20.,p.y+5.,18.,WHITE);
+        for target in &world.asteroids {
+            let p=screen(target.pos,camera);
+            if p.x < -100. || p.y < -100. || p.x>screen_width()+100. || p.y>screen_height()+100. { continue; }
+            for i in 0..9 {
+                let a=target.angle+i as f32*std::f32::consts::TAU/9.; let b=target.angle+(i+1) as f32*std::f32::consts::TAU/9.;
+                let r1=target.radius*(0.85+((target.id.wrapping_mul(i+1)%17) as f32)*0.009);
+                let r2=target.radius*(0.85+((target.id.wrapping_mul((i+1)%9+1)%17) as f32)*0.009);
+                draw_line(p.x+a.cos()*r1,p.y+a.sin()*r1,p.x+b.cos()*r2,p.y+b.sin()*r2,2.,Color::new(0.35,0.4,0.5,1.));
+            }
         }
         for bullet in &world.bullets {
             let p=screen(bullet.previous.lerp(bullet.pos,alpha),camera);

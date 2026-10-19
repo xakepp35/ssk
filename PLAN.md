@@ -10,7 +10,7 @@ split oversized steps. Never treat compilation as proof of playability.
 - [x] A1 — Rust workspace, CLI, window, headless dispatch. `build: create Rust workspace`
 - [x] A2 — 240 Hz movement, aim, camera. `feat: add ship movement and aiming`
 - [x] A3 — Machine gun, energy, destructible target. `feat: add first playable combat`
-- [ ] A4 — Sectors, spatial grid, asteroids, swept collisions. `feat: add procedural asteroid field`
+- [x] A4 — Sectors, spatial grid, asteroids, swept collisions. `feat: add procedural asteroid field`
 - [ ] A5 — Shotgun, plasma, persistent weapon cooldowns. `feat: add three weapon loadout`
 - [ ] A6 — NPC, death, score, instant restart; first complete run. `feat: add survival combat loop`
 - [ ] A7 — Three classes and one ability each. `feat: add ship classes and abilities`

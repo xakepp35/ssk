@@ -22,8 +22,6 @@ pub struct Bullet { pub shot:Shot, pub pos:V2, pub previous:V2, pub velocity:V2,
 pub enum WorldEvent {
     Shot(Shot), Dry, Impact { pos:V2, damage:f32 }, Destroyed { pos:V2, size:f32 },
 }
-#[derive(Clone, Debug)]
-pub struct Target { pub pos:V2, pub radius:f32, pub hp:f32 }
 
 impl Ship {
     pub fn combat_step(&mut self, input:InputFrame, rng:&mut Rng, shot_id:u64) -> Option<Shot> {
@@ -67,23 +65,25 @@ impl World {
         let shot_id=self.next_id;
         if let Some(shot)=self.player.combat_step(input,&mut self.rng,shot_id) { self.next_id+=1; self.spawn_shot(shot); }
         let mut impacts=Vec::new();
+        let mut nearby=Vec::new();
         for bullet in &mut self.bullets {
             bullet.previous=bullet.pos; bullet.pos+=bullet.velocity*DT; bullet.life-=DT;
             let mut first=None;
-            for (index,target) in self.targets.iter().enumerate() {
+            self.grid.query(bullet.previous,bullet.pos,bullet.radius,&mut nearby);
+            for &index in &nearby {
+                let target=&self.asteroids[index];
                 if target.hp<=0. { continue; }
                 if let Some(t)=swept_circle(bullet.previous,bullet.pos,target.pos,target.radius+bullet.radius) {
                     if first.is_none_or(|(best,_)| t<best) { first=Some((t,index)); }
                 }
             }
             if let Some((t,index))=first {
-                self.targets[index].hp-=bullet.damage; bullet.life=0.;
+                self.asteroids[index].hp-=bullet.damage; bullet.life=0.;
                 impacts.push(WorldEvent::Impact { pos:bullet.previous.lerp(bullet.pos,t), damage:bullet.damage });
             }
         }
         self.bullets.retain(|b| b.life>0.);
-        for target in &self.targets { if target.hp<=0. { impacts.push(WorldEvent::Destroyed { pos:target.pos, size:target.radius }); } }
-        self.targets.retain(|t| t.hp>0.);
+        self.destroy_asteroids();
         for event in impacts { self.emit(event); }
     }
 }
