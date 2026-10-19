@@ -15,13 +15,14 @@ kernel/driver/VPN/display/service/watchdog changes. After reboot read
 runtime/freeze-sessions/current.json and the pointed session.json/app.ndjson/
 console.ndjson, compare boot ID and preserve previous-boot evidence BEFORE
 any new launch. A start without finish is not itself proof of a host freeze.
-Current prepared session: runtime/freeze-sessions/20261019T234020Z.
-Stage network: host/no-audio20s, same primary PCI0000:65:00.0/FIFO/NVIDIA-only
-ICD/implicit layers off/class Cadet. Network/discovery/bootstrap enabled; no
-LAN peer promised.60s root stacks at same1Hz covers startup/run/termination.
-One owned SIGINT if not manually closed; no menu-exit claim. No active game/
-collector at preparation. Prior offline renderer ran>3min, no recorded freeze,
-then exited on SIGINT. Next root capture durable-ready, one host launch.
+Current prepared session: runtime/freeze-sessions/20261019T234225Z.
+Stage audio: same primary-GPU/FIFO/ICD/layers/class host, native audio enabled.
+Only difference from network stage is audio.60s1Hz root capture, observe20s,
+then one owned SIGINT if not manually closed. No active game/collector at
+preparation. Prior CPU/staticGPU/worker/offline/network runs did not reproduce
+freeze; visual feedback/normal menu exit still unverified. If all primary-GPU
+stages pass, next investigate other card (index0 PCI0000:17:00.0) vs display
+card (index1 PCI0000:65:00.0), isolated scene first. Original crash GPU unknown.
 
 ## Latest network comparison
 Session runtime/freeze-sessions/20261019T234020Z:32.555s host/no-audio,~141.6FPS,

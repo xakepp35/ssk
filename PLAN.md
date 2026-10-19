@@ -438,3 +438,9 @@ QUIC initialized. No admitted peer, not LAN match verification. Single SIGINT
 exit-2 expected. Kernel 60records/0sample errors,
 33SSK samples/0read errors.
 Next: same host with native audio enabled, no other changed setting.
+
+Audio stage prepared: same host/GPU/FIFO/ICD/layers, only native audio enabled,
+60s capture and20s observation. If all display-GPU stages pass, investigate
+physical-GPU choice: enumerated first compatible GPU is PCI0000:17:00.0 while
+GNOME primary is65:00.0. This is a new controlled hypothesis, not proof of the
+old crash's selected GPU. Start other GPU comparison with isolated static scene.
