@@ -2,6 +2,15 @@ use serde::{Deserialize, Serialize};
 use ssk_sim::*;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum SharedEvent {
+    Lease {
+        sector: [i64; 2],
+        epoch: u64,
+        until_ms: u64,
+    },
+    Release {
+        sector: [i64; 2],
+        epoch: u64,
+    },
     Shot {
         sector: [i64; 2],
         epoch: u64,

@@ -22,27 +22,36 @@ impl SectorState {
         }
     }
     pub fn valid(&self) -> bool {
+        let pos = |p: V2| p.finite() && p.x.abs() <= 8192. && p.y.abs() <= 8192.;
+        let vel = |v: V2| v.finite() && v.x.abs() <= 5000. && v.y.abs() <= 5000.;
         self.asteroids.len() <= 160
             && self.npcs.len() <= 24
             && self.pickups.len() <= 256
             && self.next_spawn.is_finite()
             && self.asteroids.iter().all(|a| {
-                a.pos.finite()
-                    && a.velocity.finite()
+                pos(a.pos)
+                    && vel(a.velocity)
                     && a.radius.is_finite()
                     && (1. ..=100.).contains(&a.radius)
                     && a.hp.is_finite()
+                    && a.angle.is_finite()
+                    && a.spin.is_finite()
             })
             && self.npcs.iter().all(|n| {
-                n.ship.pos.finite()
-                    && n.ship.velocity.finite()
+                pos(n.ship.pos)
+                    && vel(n.ship.velocity)
                     && n.ship.hp.is_finite()
                     && n.ship.energy.is_finite()
                     && n.ship.angle.is_finite()
                     && n.telegraph.is_finite()
+                    && n.think.is_finite()
+                    && n.age.is_finite()
+                    && n.input.movement.finite()
+                    && n.input.aim.is_finite()
+                    && n.ship.cooldowns.iter().all(|x| x.is_finite())
             })
             && self.pickups.iter().all(|p| {
-                p.pos.finite()
+                pos(p.pos)
                     && p.amount.is_finite()
                     && (0. ..=300.).contains(&p.amount)
                     && p.life.is_finite()

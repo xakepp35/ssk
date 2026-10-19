@@ -14,13 +14,13 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - `cargo check --workspace` passed after A2; no tests/manual session.
 
 ## Live state
-- Completed B11: Shared sector simulation, bounded multipart snapshots, authenticated NPC shots/rewards and single-owner pickup claims. Whole revisions admitted atomically at source; queue bounds preserved. Ownership recovery remains B12.
+- Completed B12: Two-second renewable leases, monotonic epochs with deterministic tie break, complete checkpoint restore, stale-authority rejection and best-effort departure. Partition rollback and missing old projectiles are documented.
 - `cargo check --workspace` passed at this step. No automated tests run.
 - No manual play session yet. No public hosts for internet acceptance.
 - No active project processes. Source discussions preserved. No push.
 
 ## Next
-B12: leases, epoch ordering, checkpoint restore and owner recovery.
+B13: embedded self-hosted relay, configured NAT traversal, path limits.
 
 ## Constraints
 240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.

@@ -37,7 +37,7 @@ no automated tests unless requested. A short manual game session when available.
 - [x] B9 — Kademlia, bootstrap, signed contacts, node mode. `feat: add decentralized discovery`
 - [x] B10 — Interest regions, prefetch, seamless sector transitions. `feat: add seamless sector discovery`
 - [x] B11 — Shared NPCs/asteroids/loot, single pickup confirmation. `feat: synchronize shared sector objects`
-- [ ] B12 — Leases, snapshots, epochs, owner recovery. `feat: recover sector ownership`
+- [x] B12 — Leases, snapshots, epochs, owner recovery. `feat: recover sector ownership`
 - [ ] B13 — Embedded self-hosted relay and NAT traversal. `feat: add self-hosted relay support`
 - [ ] B14 — Multiple seeds/relays, cache, reconnect, friends. `feat: handle network interruptions`
 - [ ] B15 — Headless swarm, measurements, isolated NAT/relay setup. `feat: add network load scenarios`

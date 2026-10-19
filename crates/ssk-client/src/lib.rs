@@ -445,6 +445,9 @@ async fn run(options: Options, mut profile: profile::Profile) {
             std::thread::sleep(remaining);
         }
     }
+    if let Some(session) = &mut online {
+        session.leave();
+    }
     if !profile.fullscreen {
         profile.width = screen_width() as i32;
         profile.height = screen_height() as i32;

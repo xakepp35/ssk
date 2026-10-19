@@ -17,9 +17,23 @@ struct Assembly {
     parts: Vec<Option<Vec<u8>>>,
     time: f64,
 }
+struct Lease {
+    owner: u64,
+    epoch: u64,
+    until: f64,
+    announced: f64,
+}
+fn unix_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .min(u64::MAX as u128) as u64
+}
 #[derive(Default)]
 pub struct Shared {
     owners: HashMap<[i64; 2], u64>,
+    leases: HashMap<[i64; 2], Lease>,
     owned: HashMap<[i64; 2], Owned>,
     images: HashMap<[i64; 2], Image>,
     assemblies: HashMap<([i64; 2], u64, u64), Assembly>,
@@ -57,6 +71,20 @@ impl Shared {
                 .and_modify(|owner| *owner = (*owner).min(*id))
                 .or_insert(*id);
         }
+        for (sector, owner) in &mut self.owners {
+            if let Some(lease) = self.leases.get(sector) {
+                if lease.until > now
+                    && self
+                        .players
+                        .iter()
+                        .any(|(id, _, s)| *id == lease.owner && s.pos.sector == *sector)
+                {
+                    *owner = lease.owner;
+                }
+            }
+        }
+        self.leases
+            .retain(|s, _| self.owners.contains_key(s) || self.images.contains_key(s));
     }
     fn remember(&mut self, sector: [i64; 2], epoch: u64, id: u64, kind: u8) -> bool {
         let key = (sector, epoch, id, kind);
@@ -73,7 +101,7 @@ impl Shared {
         let Some(c) = SharedChunk::decode(bytes) else {
             return;
         };
-        if self.owners.get(&c.sector) != Some(&origin) || self.owned.contains_key(&c.sector) {
+        if !self.valid_owner(c.sector, c.epoch, origin, now) || self.owned.contains_key(&c.sector) {
             return;
         }
         if self
@@ -149,12 +177,58 @@ impl Shared {
         now: f64,
     ) -> Vec<SharedEvent> {
         match event {
+            SharedEvent::Lease {
+                sector,
+                epoch,
+                until_ms,
+            } => {
+                let wall = unix_ms();
+                if epoch == 0
+                    || until_ms <= wall
+                    || until_ms.saturating_sub(wall) > 2500
+                    || !self.owners.contains_key(&sector)
+                    || !self
+                        .players
+                        .iter()
+                        .any(|(id, _, s)| *id == origin && s.pos.sector == sector)
+                {
+                    return vec![];
+                }
+                let wins = self
+                    .leases
+                    .get(&sector)
+                    .is_none_or(|l| epoch > l.epoch || (epoch == l.epoch && origin <= l.owner));
+                if wins {
+                    self.leases.insert(
+                        sector,
+                        Lease {
+                            owner: origin,
+                            epoch,
+                            until: now + (until_ms - wall) as f64 / 1000.,
+                            announced: now,
+                        },
+                    );
+                    self.owners.insert(sector, origin);
+                }
+                vec![]
+            }
+            SharedEvent::Release { sector, epoch } => {
+                if let Some(l) = self.leases.get_mut(&sector) {
+                    if l.owner == origin && l.epoch == epoch {
+                        l.until = 0.;
+                    }
+                }
+                vec![]
+            }
             SharedEvent::Claim {
                 sector,
                 epoch,
                 pickup,
                 life: claim_life,
             } => {
+                if !self.valid_owner(sector, epoch, w.player.id, now) {
+                    return vec![];
+                }
                 let Some(owner) = self.owned.get_mut(&sector).filter(|o| o.epoch == epoch) else {
                     return vec![];
                 };
@@ -189,7 +263,7 @@ impl Shared {
                 epoch,
                 mut shot,
             } => {
-                if self.owners.get(&sector) != Some(&origin)
+                if !self.valid_owner(sector, epoch, origin, now)
                     || !shot.pos.finite()
                     || !shot.angle.is_finite()
                     || ![0.6, 2.4].contains(&shot.damage_scale)
@@ -219,12 +293,12 @@ impl Shared {
                 kind,
                 amount,
             } => {
-                if self.owners.get(&sector) != Some(&origin)
+                if !self.valid_owner(sector, epoch, origin, now)
                     || player != w.player.id
                     || grant_life != life
                     || !amount.is_finite()
                     || !(0. ..=300.).contains(&amount)
-                    || !self.remember(sector, epoch, pickup, 1)
+                    || !self.remember(sector, 0, pickup, 1)
                 {
                     return vec![];
                 }
@@ -247,16 +321,36 @@ impl Shared {
                 player,
                 amount,
             } => {
-                if self.owners.get(&sector) == Some(&origin)
+                if self.valid_owner(sector, epoch, origin, now)
                     && player == w.player.id
                     && amount <= 250
-                    && self.remember(sector, epoch, id, 2)
+                    && self.remember(sector, 0, id, 2)
                 {
                     w.award(amount);
                 }
                 vec![]
             }
         }
+    }
+    fn valid_owner(&self, sector: [i64; 2], epoch: u64, origin: u64, now: f64) -> bool {
+        self.leases
+            .get(&sector)
+            .is_some_and(|l| l.owner == origin && l.epoch == epoch && l.until > now)
+    }
+    pub fn checkpoint(&self) -> Vec<Vec<u8>> {
+        self.owned
+            .iter()
+            .flat_map(|(&s, o)| SharedChunk::snapshot(s, o.epoch, &SectorState::capture(&o.world)))
+            .collect()
+    }
+    pub fn release(&mut self) -> Vec<SharedEvent> {
+        self.owned
+            .iter()
+            .map(|(&sector, o)| SharedEvent::Release {
+                sector,
+                epoch: o.epoch,
+            })
+            .collect()
     }
     pub fn tick(
         &mut self,
@@ -268,20 +362,58 @@ impl Shared {
     ) -> (Vec<SharedEvent>, Option<Vec<Vec<u8>>>) {
         self.members(w, life, replicas, now);
         let id = w.player.id;
-        self.owned
-            .retain(|sector, _| self.owners.get(sector) == Some(&id));
+        let mut events = Vec::new();
+        self.owned.retain(|sector, o| {
+            let keep = self.owners.get(sector) == Some(&id) && *sector == w.origin;
+            if !keep {
+                events.push(SharedEvent::Release {
+                    sector: *sector,
+                    epoch: o.epoch,
+                });
+            }
+            keep
+        });
         for (&sector, &owner) in &self.owners {
             if owner == id && !self.owned.contains_key(&sector) {
-                self.owned.insert(
+                let epoch = self
+                    .leases
+                    .get(&sector)
+                    .map_or(0, |l| l.epoch)
+                    .max(self.images.get(&sector).map_or(0, |i| i.epoch))
+                    .saturating_add(1);
+                let mut world = World::sector(w.seed, sector);
+                if let Some(image) = self.images.get(&sector) {
+                    image.state.restore(&mut world);
+                }
+                self.leases.insert(
                     sector,
-                    Owned {
-                        world: World::sector(w.seed, sector),
-                        epoch: 1,
+                    Lease {
+                        owner: id,
+                        epoch,
+                        until: now + 2.,
+                        announced: now - 1.,
                     },
                 );
+                self.owned.insert(sector, Owned { world, epoch });
             }
         }
-        let mut events = Vec::new();
+        self.owned.retain(|sector, o| {
+            self.leases
+                .get(sector)
+                .is_some_and(|l| l.owner == id && l.epoch == o.epoch)
+        });
+        for (&sector, o) in &self.owned {
+            let l = self.leases.get_mut(&sector).unwrap();
+            if now - l.announced >= 0.5 {
+                l.announced = now;
+                l.until = now + 2.;
+                events.push(SharedEvent::Lease {
+                    sector,
+                    epoch: o.epoch,
+                    until_ms: unix_ms() + 2000,
+                });
+            }
+        }
         self.accumulator += dt.min(0.1);
         let mut steps = 0;
         while self.accumulator >= DT && steps < 8 {

@@ -204,6 +204,14 @@ impl Online {
             }
         }
     }
+    pub fn leave(&mut self) {
+        self.net.shared(self.shared.checkpoint());
+        for event in self.shared.release() {
+            let _ = self.net.event(CombatEvent::Shared(event).encode());
+        }
+        // Best effort final checkpoint/release; crash recovery uses the lease timeout.
+        std::thread::sleep(std::time::Duration::from_millis(150));
+    }
     pub fn snapshot(&mut self, world: &World) {
         self.sequence = self.sequence.wrapping_add(1);
         self.net
