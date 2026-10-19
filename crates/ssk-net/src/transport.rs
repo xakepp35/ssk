@@ -96,7 +96,7 @@ pub(crate) async fn run(
         .await?;
     let (tx, mut rx) = tokio::sync::mpsc::channel(512);
     let mut peers: HashMap<String, crate::reliable::Peer> = HashMap::new();
-    let mut event_id = 0u64;
+    let mut overlay = crate::overlay::Overlay::new(endpoint.id().to_string());
     if let Some(ticket) = connect {
         let addr = decode_ticket(&ticket)?;
         let ep = endpoint.clone();
@@ -127,6 +127,7 @@ pub(crate) async fn run(
             Some(event)=rx.recv()=>match event {
                 Internal::Ready(conn)=>{
                     let id=conn.remote_id().to_string();
+                    overlay.connecting.remove(&id);
                     if peers.contains_key(&id)||peers.len()>=config.max_peers {conn.close(0u32.into(),b"duplicate or full");continue;}
                     peers.insert(id.clone(),crate::reliable::Peer::new(conn.clone()));
                     let _=worker.incoming.try_send(NetEvent::Connected(id.clone()));
@@ -139,28 +140,36 @@ pub(crate) async fn run(
                 Internal::Failed(error)=>{worker.status.send_modify(|s|s.phase=error.clone());let _=worker.incoming.try_send(NetEvent::Error(error));},
                 Internal::Gone(id)=>{peers.remove(&id);let _=worker.incoming.try_send(NetEvent::Disconnected(id));worker.status.send_modify(|s|{s.peers=peers.len();s.phase=if peers.is_empty(){"Waiting for peer".into()}else{"Connected".into()};});},
                 Internal::Data(id,bytes)=>{
-                    if let Some(peer)=peers.get_mut(&id){peer.receive(&id,&bytes,&worker,&mut auth);}
+                    let frames=peers.get_mut(&id).map(|p|p.receive(&bytes)).unwrap_or_default();
+                    for (kind,data) in frames{overlay.receive(&id,kind,&data,&mut peers,&mut auth,&worker,seq);}
                 }
             },
             Some(event)=worker.events.recv()=>{
-                event_id+=1;
                 let event=auth.sign(1,&event);
-                for peer in peers.values_mut(){if !peer.queue(event_id,event.clone(),seq){let _=worker.incoming.try_send(NetEvent::Error("Critical event queue full".into()));}}
+                overlay.queue(1,&event,&mut peers,seq);
 
             },
             _=tick.tick()=>{
                 if seq%150==0 {
                     let mut addr=endpoint.addr();if let Some(ip)=config.advertise {addr.addrs.insert(iroh::TransportAddr::Ip(ip));}
                     let ticket=encode_ticket(&addr)?;
+                    let bytes=serde_json::to_vec(&addr)?;let signed=auth.sign(3,&bytes);overlay.learn(overlay.id.clone(),&bytes,&signed);
                     if !published&&!addr.addrs.is_empty(){println!("SSK invite: {ticket}");published=true;}
                     worker.status.send_modify(|s|{s.ticket=ticket;if s.phase=="Starting network"{s.phase="Waiting for peer".into();}});
                 }
                 seq+=1;
                 if worker.state.has_changed().unwrap_or(false) {let state=worker.state.borrow_and_update().clone();signed_state=auth.sign(0,&state);}
-                for peer in peers.values_mut(){let packet=peer.packet(seq,&signed_state,config.net_hz);let len=packet.len();if len<=peer.conn.max_datagram_size().unwrap_or(0)&&peer.conn.send_datagram(packet.into()).is_ok(){peer.metrics.sent(len);}}
+                if !signed_state.is_empty(){overlay.queue(0,&signed_state,&mut peers,seq);}
+                let contact=overlay.records.values().nth((seq as usize)%overlay.records.len().max(1)).cloned().unwrap_or_default();
+                for peer in peers.values_mut(){let packet=peer.packet(seq,&contact,config.net_hz);let len=packet.len();if len<=peer.conn.max_datagram_size().unwrap_or(0)&&peer.conn.send_datagram(packet.into()).is_ok(){peer.metrics.sent(len);}}
                 if seq%config.net_hz as u64==0 {
                     let links=peers.iter_mut().map(|(id,p)|{p.metrics.stats.peer=id.clone();p.metrics.stats.direct=p.conn.paths().iter().any(|path|path.is_selected()&&path.is_ip());p.metrics.sample()}).collect();
                     worker.status.send_modify(|s|s.links=links);
+                    for (_id,addr) in overlay.connect_tasks(&peers,&endpoint){
+                        let ep=endpoint.clone();let cfg=config.clone();let tx=tx.clone();
+                        tokio::spawn(async move{match tokio::time::timeout(Duration::from_secs(12),ep.connect(addr,ALPN)).await{Ok(Ok(conn))=>admit(conn,cfg,tx).await,result=>{let _=tx.try_send(Internal::Failed(format!("Topology connect: {result:?}")));}}});
+                    }
+                    if overlay.settled(){let desired=overlay.desired();if desired.iter().all(|id|peers.contains_key(id)){for (id,p) in &peers{if !desired.contains(id){p.conn.close(0u32.into(),b"topology epoch settled");}}}}
                 }
 
             }

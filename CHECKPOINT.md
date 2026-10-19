@@ -14,13 +14,13 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - `cargo check --workspace` passed after A2; no tests/manual session.
 
 ## Live state
-- Completed B6: Piggyback sequence echo and measured ACK delay, EWMA RTT/jitter, rolling loss estimate, PPS/payload BPS, queue expiry and selected direct/relay path diagnostics. HUD reports aggregate load; transport control overhead is not included.
+- Completed B7: Virtual row/column/diagonal neighbour graph, signed contact gossip, structural connection formation with make-before-break grace and one-intermediary signed frame forwarding. Relays enforce two selected direct transport legs; runtime topology convergence is not yet measured.
 - `cargo check --workspace` passed at this step. No automated tests run.
 - No manual play session yet. No public hosts for internet acceptance.
 - No active project processes. Source discussions preserved. No push.
 
 ## Next
-B7: deterministic diameter-two membership graph and signed one-intermediary forwarding.
+B8: capacity admission, bounded control budget, end-to-end critical ACK/retry, prepared routes and failover hysteresis.
 
 ## Constraints
 240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.

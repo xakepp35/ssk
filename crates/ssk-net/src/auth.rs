@@ -49,9 +49,6 @@ impl Auth {
         let serial = u64::from_le_bytes(payload[40..48].try_into().ok()?);
         let peer = key.to_string();
         let id = (peer.clone(), session, serial);
-        if kind == 0 && self.seen.contains(&id) {
-            return None;
-        }
         let latest = self
             .latest
             .get(&(peer.clone(), session))

@@ -1,6 +1,8 @@
 //! Bounded bridge between game thread and asynchronous network workers.
 mod auth;
 mod metrics;
+mod overlay;
+pub mod topology;
 pub use metrics::LinkStats;
 mod config;
 mod validation;

@@ -1,6 +1,5 @@
-use crate::*;
 use iroh::endpoint::Connection;
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 struct Pending {
     id: u64,
     data: Vec<u8>,
@@ -14,6 +13,9 @@ pub(crate) struct Peer {
     seen: HashSet<u64>,
     order: VecDeque<u64>,
     pub metrics: crate::metrics::Metrics,
+    states: HashMap<String, Vec<u8>>,
+    state_order: VecDeque<String>,
+    next_event: u64,
 }
 impl Peer {
     pub fn new(conn: Connection) -> Self {
@@ -24,21 +26,40 @@ impl Peer {
             seen: HashSet::new(),
             order: VecDeque::new(),
             metrics: crate::metrics::Metrics::new(),
+            states: HashMap::new(),
+            state_order: VecDeque::new(),
+            next_event: 0,
         }
     }
-    pub fn queue(&mut self, id: u64, data: Vec<u8>, tick: u64) -> bool {
-        if self.pending.len() >= 128 || data.len() > 880 {
+    pub fn queue(&mut self, _id: u64, data: Vec<u8>, tick: u64) -> bool {
+        if self.pending.len() >= 128 || data.len() > 960 {
             return false;
         }
+        self.next_event += 1;
         self.pending.push_back(Pending {
-            id,
+            id: self.next_event,
             data,
             last: 0,
             born: tick,
         });
         true
     }
-    pub fn packet(&mut self, seq: u64, state: &[u8], hz: u32) -> Vec<u8> {
+    pub fn direct(&self) -> bool {
+        self.conn
+            .paths()
+            .iter()
+            .any(|p| p.is_selected() && p.is_ip())
+    }
+    pub fn state(&mut self, key: String, data: Vec<u8>) {
+        if !self.states.contains_key(&key) {
+            if self.states.len() >= 128 {
+                return;
+            }
+            self.state_order.push_back(key.clone());
+        }
+        self.states.insert(key, data);
+    }
+    pub fn packet(&mut self, seq: u64, contact: &[u8], hz: u32) -> Vec<u8> {
         let mut packet = self.metrics.header(seq);
         for _ in 0..16 {
             if let Some(id) = self.acks.pop_front() {
@@ -47,7 +68,7 @@ impl Peer {
                 break;
             }
         }
-        append(&mut packet, 0, state);
+        append(&mut packet, 3, contact);
         let before = self.pending.len();
         self.pending
             .retain(|e| seq.saturating_sub(e.born) < hz as u64 * 5);
@@ -64,17 +85,21 @@ impl Peer {
             }
             self.pending.push_back(event);
         }
+        for _ in 0..self.state_order.len() {
+            let key = self.state_order.pop_front().unwrap();
+            let data = self.states.remove(&key).unwrap();
+            if !append(&mut packet, 4, &data) {
+                self.states.insert(key.clone(), data);
+                self.state_order.push_front(key);
+                break;
+            }
+        }
         packet
     }
-    pub fn receive(
-        &mut self,
-        id: &str,
-        bytes: &[u8],
-        worker: &Worker,
-        auth: &mut crate::auth::Auth,
-    ) {
+    pub fn receive(&mut self, bytes: &[u8]) -> Vec<(u8, Vec<u8>)> {
+        let mut frames = Vec::new();
         if !self.metrics.receive(bytes) {
-            return;
+            return frames;
         }
         let mut rest = &bytes[24..];
         while rest.len() >= 3 {
@@ -96,7 +121,7 @@ impl Peer {
                     Some(u64::from_le_bytes(payload[..8].try_into().unwrap())),
                     &payload[8..],
                 )
-            } else if kind == 0 {
+            } else if kind == 4 || kind == 3 {
                 (None, payload)
             } else {
                 continue;
@@ -107,33 +132,17 @@ impl Peer {
                     continue;
                 }
             }
-            let Some((origin, data)) = auth.verify(kind, data) else {
-                continue;
-            };
-            if origin != id {
-                continue;
-            }
-            if worker
-                .incoming
-                .try_send(NetEvent::Packet {
-                    peer: origin,
-                    kind,
-                    bytes: data,
-                })
-                .is_ok()
-            {
-                if let Some(e) = event_id {
-                    self.seen.insert(e);
-                    self.order.push_back(e);
-                    if self.order.len() > 2048 {
-                        self.seen.remove(&self.order.pop_front().unwrap());
-                    }
-                    self.ack(e);
+            frames.push((if kind == 1 { 4 } else { kind }, data.to_vec()));
+            if let Some(e) = event_id {
+                self.seen.insert(e);
+                self.order.push_back(e);
+                if self.order.len() > 2048 {
+                    self.seen.remove(&self.order.pop_front().unwrap());
                 }
-            } else {
-                worker.status.send_modify(|s| s.dropped += 1);
+                self.ack(e);
             }
         }
+        frames
     }
     fn ack(&mut self, id: u64) {
         if self.acks.len() < 128 && !self.acks.contains(&id) {
