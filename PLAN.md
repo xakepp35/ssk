@@ -317,7 +317,7 @@ with kernel-stack capture submitted because AGENTS prohibits automatic GUI.
   offline 360Hz worker, no network/audio/profile. Same drawing in both modes;
   explicit exit reason/progress, bounded production handoff. Trace wrapper has
   explicit graphics/index/simulation/duration controls and bounded capture.
-- [ ] L2 — Independent capture/runbook and Windows timestamped liveness monitor.
+- [x] L2 — Independent capture/runbook and Windows timestamped liveness monitor.
 - [ ] L3 — Stable GPU identity, strict presentation selection and render pacing.
 - [ ] L4 — Four-job Linux build/package, fingerprint, attended capture readiness.
 - [ ] L5 — Owner-attended comparisons: CPU graphics -> hardware graphics ->

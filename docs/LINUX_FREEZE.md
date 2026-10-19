@@ -439,3 +439,5 @@ Build evidence for these diagnostic additions: focused `cargo check --locked
 -p ssk --jobs 1` completed in 2.08s; Linux release/package completed with one
 Cargo job in 2m15s. `dist/ssk-linux-x64.tar.gz` refreshed. Windows was not rebuilt
 for this Linux investigation. No automated tests or graphical/runtime acceptance.
+
+Current attended sequence and hardware release gate: [FREEZE_RUNBOOK.md](FREEZE_RUNBOOK.md). Do not start with the older strace wrapper by default.

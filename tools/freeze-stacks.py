@@ -6,6 +6,7 @@ SysRq, network listeners, service changes or automatic crash/reboot commands.
 """
 import argparse
 import datetime
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -21,6 +22,8 @@ MAX_THREADS = 48
 MAX_THREAD_SCAN = 256
 MAX_STACK_BYTES = 4096
 MAX_FILE_BYTES = 16 * 1024 * 1024
+HASH_CHUNK_BYTES = 1024 * 1024
+SESSION_STAGES = ("cpu-graphics", "gpu-graphics", "gpu-worker", "offline", "network", "audio")
 TARGETS = ("ssk", "gnome-shell", "Xwayland", "nvidia-modeset", "sing-box", "pipewire", "wireplumber")
 
 
@@ -67,6 +70,16 @@ def snapshot():
             "uptime": read("/proc/uptime")}
 
 
+def fingerprint(path):
+    """Hash operator-selected build/config without recording config contents."""
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        while chunk := source.read(HASH_CHUNK_BYTES):
+            digest.update(chunk)
+        size = source.tell()
+    return {"path": str(path.resolve()), "bytes": size, "sha256": digest.hexdigest()}
+
+
 def main():
     if sys.argv[1:] == ["_sample"]:
         print(json.dumps(snapshot()))
@@ -75,11 +88,14 @@ def main():
     parser.add_argument("--seconds", type=int, default=DEFAULT_SECONDS)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--summary-file", type=Path, help="Read a bounded capture and print only the final display stacks")
+    parser.add_argument("--stage", choices=SESSION_STAGES)
+    parser.add_argument("--binary", type=Path, help="Optional build fingerprint; never executed")
+    parser.add_argument("--app-config", type=Path, help="Optional config hash; contents are never captured")
     args = parser.parse_args()
     if sys.platform != "linux" or os.geteuid() != 0:
         parser.error("Use pkexec /usr/bin/python3 /absolute/tools/freeze-stacks.py --output-dir /absolute/directory")
     if args.summary_file:
-        if args.output_dir or args.summary_file.stat().st_size > MAX_FILE_BYTES:
+        if args.output_dir or args.stage or args.binary or args.app_config or args.summary_file.stat().st_size > MAX_FILE_BYTES:
             parser.error("summary-file must be used alone and fit the capture size limit")
         with args.summary_file.open() as source:
             records = [json.loads(line) for line in source if line.strip()]
@@ -89,6 +105,7 @@ def main():
         selected = [row for row in threads if "KMS" in str(row["thread"]) or str(row["process"]).startswith("nvidia-modeset") or "D (" in row["state"]]
         print(json.dumps({"records": len(records), "first_ms": records[0]["ts_unix_ms"],
                           "last_ms": records[-1]["ts_unix_ms"], "threads": len(threads),
+                          "boot_id": records[0]["boot_id"], "session": records[0].get("session"),
                           "stack_read_errors": sum(isinstance(row["kernel_stack"], dict) for row in threads),
                           "display_or_blocked": [{**row, "kernel_stack": str(row["kernel_stack"]).splitlines()[:12]} for row in selected]}, indent=2))
         return
@@ -96,6 +113,14 @@ def main():
         parser.error("output-dir is required for collection")
     if not 1 <= args.seconds <= MAX_SECONDS:
         parser.error(f"seconds must be 1..{MAX_SECONDS}")
+    session = {"stage": args.stage, "kernel": os.uname().release,
+               "seconds": args.seconds, "sample_seconds": SAMPLE_SECONDS}
+    try:
+        for label, path in (("binary", args.binary), ("config", args.app_config)):
+            if path:
+                session[label] = fingerprint(path)
+    except OSError as error:
+        parser.error(f"Cannot fingerprint session input: {error}")
     args.output_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     path = args.output_dir / f"kernel-stacks-{stamp}-{os.getpid()}.ndjson"
@@ -103,6 +128,7 @@ def main():
     deadline = time.monotonic() + args.seconds
     boot_id = read("/proc/sys/kernel/random/boot_id")
     with os.fdopen(os.open(path, flags, 0o600), "w") as output:
+        first = True
         print(f"Read-only stack capture for {args.seconds}s: {path}", flush=True)
         while time.monotonic() < deadline:
             started = time.monotonic()
@@ -126,6 +152,9 @@ def main():
             record = {"schema": "ssk.kernel-capture/1", "boot_id": boot_id,
                       "ts_unix_ms": time.time_ns() // 1_000_000,
                       "monotonic_s": time.monotonic(), "sample": sample}
+            if first:
+                record["session"] = session
+                first = False
             line = json.dumps(record) + "\n"
             if output.tell() + len(line.encode()) > MAX_FILE_BYTES:
                 break

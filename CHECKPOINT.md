@@ -48,8 +48,8 @@ panic flags off; prepared arm/restore script never armed. Vulkan removes GLX,
 but does not establish the cause or prove freeze resolution. No GUI started.
 
 ## Active processes / exact next action
-Current approved work: PLAN L1–L6. L1 implemented/compiled (four jobs); next L2
-capture/runbook, L3 stable GPU identity/presentation. No GUI launched or approved
+Current approved work: PLAN L1–L6. L1 implemented/compiled (four jobs), L2 prepared; next L3
+stable GPU identity/presentation. No GUI launched or approved
 for automatic execution. No active build/collector/game. Hardware repair open.
 
 Current Linux four-job release/package completed in 1m33s (K below). No active
@@ -115,3 +115,10 @@ audio/profile. Summary reports callbacks/world ticks/overloads/exit reason;
 callbacks never assert actual presentation. Trace wrapper explicitly defaults
 software and takes graphics/index/simulation/duration; finite time/byte cap.
 Focused cargo check passed; no tests or GUI/probe/runtime acceptance.
+
+L2: docs/FREEZE_RUNBOOK.md gives attended single-launch sequence/stop gates,
+120s procfs capture and Windows ICMP observer, evidence branches and hardware
+acceptance. Collector first sample adds stage/kernel/build/config hashes; never
+executes binary or dumps config. tools/freeze-liveness.ps1 writes/flushes1Hz
+ICMP to laptop, bounded1–900s; no service/firewall changes. Neither collector
+nor Windows script launched in this step; PowerShell runtime not verified.
