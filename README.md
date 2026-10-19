@@ -67,7 +67,7 @@ DHT seed повторно набирается каждые 15 секунд. В�
 Для звука нужна ALSA runtime (`libasound.so.2`); при отсутствии dev-ссылки
 сборка создаёт локальный alias в `OUT_DIR`. Система не изменяется.
 
-Доступны меню, `play`, `online`, `node`, `init-config`; `bench` появится в B15.
+Доступны меню, `play`, `online`, `node`, `init-config`, `bench`.
 Профиль: `$XDG_DATA_HOME/ssk/profile.json` (по умолчанию `~/.local/share/ssk/`).
 Каждый рестарт использует следующий seed относительно `--seed`.
 
@@ -83,6 +83,32 @@ cargo run --release -- bench
 Без подкоманды открывается меню. `node` и `bench` не создают окно.
 Дополнительные параметры: `--config`, `--seed`, `--class`.
 Состояние реально реализованных команд фиксируется ниже по мере разработки.
+
+### Headless-нагрузка
+
+```sh
+cargo build --release -p ssk
+target/release/ssk bench --players 2 --warmup 15 --seconds 15 --output /tmp/ssk-2.json
+target/release/ssk bench --players 16 --output /tmp/ssk-16.json
+target/release/ssk bench --players 64 --output /tmp/ssk-64.json
+target/release/ssk bench --players 128 --output /tmp/ssk-128.json
+```
+
+Боты двигаются, стреляют, получают урон, возрождаются и используют общий
+клиентский код без окна. `--hz 60` меняет частоту сети, `--no-fire` выделяет
+движение, `--drop-count 2` отключает два процесса в середине замера.
+Локальный сценарий заранее передаёт подписанный состав всем участникам:
+он измеряет игровой граф/синхронизацию, исключая время поиска DHT. Отчёт
+содержит p50/p95/p99 времени шага, работы headless-кадра, возраста реплик,
+доли свежих соседей, PPS/BPS, RTT, очередей, потерь критических событий,
+затрат подписи и проверки. Это payload-метрики, без QUIC/DHT/NAT overhead.
+Счётчики crypto включают прогрев; headless-кадр не измеряет отрисовку.
+
+Для разнесённых агентов: `bench --players 1 --config UNIQUE.yaml
+--invite-file /tmp/invite --output report.json`, у второго — `--connect TICKET`
+и другой identity-файл. Изолированный сценарий с принудительным relay:
+[tools/nat/README.md](tools/nat/README.md). Автоматических утверждений об
+успешной приёмке в bench нет: отчёт с нулём реплик означает отсутствие связи.
 
 ### Дуэль по приглашению
 

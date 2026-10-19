@@ -45,6 +45,15 @@ pub struct Shared {
     published: f64,
 }
 impl Shared {
+    pub fn stats(&self, now: f64) -> (usize, f64) {
+        (
+            self.images.len(),
+            self.images
+                .values()
+                .map(|i| (now - i.time).max(0.) * 1000.)
+                .fold(0., f64::max),
+        )
+    }
     pub fn members(&mut self, w: &World, life: u32, replicas: &Replicas, now: f64) {
         self.players.clear();
         self.players

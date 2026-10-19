@@ -14,13 +14,13 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - `cargo check --workspace` passed after A2; no tests/manual session.
 
 ## Live state
-- Completed B14: Multiple DHT/ticket seeds and relay URLs, four pinned friends, bounded reconnect with backoff, 16 inbound handshakes, atomic bounded signed contact cache. Expired cached addresses never become live presence without fresh handshake/contact.
+- Completed B15: Implemented real headless moving/firing clients with JSON metrics, signed preintroduced roster, external single-agent mode and bounded peer removal; isolated two-bridge forced-relay Docker scenario supplied. Release build in progress; measurement and NAT execution remain B16 acceptance work.
 - `cargo check --workspace` passed at this step. No automated tests run.
-- No manual play session yet. No public hosts for internet acceptance.
+- One short offline window observation completed; full class/death/restart and internet acceptance remain open.
 - No active project processes. Source discussions preserved. No push.
 
 ## Next
-B15: headless moving/firing swarm, machine-readable measurements and isolated NAT/relay setup.
+B16: run 2/16/64/128 measurements, fix observed bottlenecks, exercise isolated relay and document limits. Active release build exec session 89999.
 
 ## Constraints
 240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.

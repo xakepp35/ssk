@@ -2,6 +2,7 @@ use crate::*;
 use std::collections::{HashMap, HashSet, VecDeque};
 /// Sign on the async worker, never on the 240 Hz simulation thread.
 pub(crate) struct Auth {
+    pub stats: CryptoStats,
     key: iroh::SecretKey,
     domain: Vec<u8>,
     session: [u8; 8],
@@ -13,6 +14,7 @@ pub(crate) struct Auth {
 impl Auth {
     pub fn new(key: iroh::SecretKey, config: &Config) -> Self {
         Self {
+            stats: CryptoStats::default(),
             key,
             domain: format!(
                 "SSK/{PROTOCOL_VERSION}/{RULES_ID}/{}/{}/",
@@ -29,6 +31,7 @@ impl Auth {
         }
     }
     pub fn sign(&mut self, kind: u8, payload: &[u8]) -> Vec<u8> {
+        let started = std::time::Instant::now();
         self.serial += 1;
         let mut body = self.key.public().as_bytes().to_vec();
         body.extend(self.session);
@@ -38,6 +41,10 @@ impl Auth {
         let mut message = self.domain.clone();
         message.extend(&body);
         body.extend(self.key.sign(&message).to_bytes());
+        let us = started.elapsed().as_micros() as u64;
+        self.stats.signed += 1;
+        self.stats.sign_us += us;
+        self.stats.sign_max_us = self.stats.sign_max_us.max(us);
         body
     }
     pub fn verify(&mut self, kind: u8, payload: &[u8]) -> Option<(String, Vec<u8>)> {
@@ -61,7 +68,15 @@ impl Auth {
         let signature = iroh::Signature::from_bytes(payload[end..].try_into().ok()?);
         let mut message = self.domain.clone();
         message.extend(&payload[..end]);
-        key.verify(&message, &signature).ok()?;
+        let started = std::time::Instant::now();
+        let valid = key.verify(&message, &signature).is_ok();
+        let us = started.elapsed().as_micros() as u64;
+        self.stats.verified += 1;
+        self.stats.verify_us += us;
+        self.stats.verify_max_us = self.stats.verify_max_us.max(us);
+        if !valid {
+            return None;
+        }
         self.latest
             .insert((peer.clone(), session), latest.max(serial));
         if self.latest.len() > 512 {

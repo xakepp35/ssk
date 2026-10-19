@@ -1,5 +1,6 @@
 use macroquad::prelude::*;
 use ssk_sim::{DT, InputFrame, Ship, V2, World};
+pub mod bench;
 mod effects;
 mod online;
 mod profile;
@@ -257,7 +258,7 @@ async fn run(options: Options, mut profile: profile::Profile) {
             world.player.previous.lerp(world.player.pos, alpha) + mouse.clamp_length(200.) * 0.25;
         camera = camera.lerp(target, 1. - (-12. * dt).exp());
         if let Some(session) = &mut online {
-            if session.after_frame(&mut world, dt) {
+            if session.after_frame(&mut world, dt, get_time()) {
                 class = ssk_sim::ShipClass::ALL[profile.class];
                 restart = true;
             }

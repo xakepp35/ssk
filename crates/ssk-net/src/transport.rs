@@ -140,6 +140,7 @@ pub(crate) async fn run(
     tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut seq = 0u64;
     let mut published = false;
+    let mut last_addr = None;
     let mut signed_state = Vec::new();
     let mut metric_record = Vec::new();
     let mut control_budget = 8192f32;
@@ -147,6 +148,7 @@ pub(crate) async fn run(
     loop {
         tokio::select! {
             _=worker.stop.changed()=>break,
+            changed=worker.contacts.changed()=>{if changed.is_ok(){let records=worker.contacts.borrow_and_update().clone();for record in records{if let Some((origin,data))=auth.verify(3,&record){overlay.learn(origin,&data,&record);}}}},
             Some(record)=discovery.found.recv()=>{if let Some((origin,data))=auth.verify(3,&record){overlay.learn(origin,&data,&record);}},
             incoming=endpoint.accept()=>if let Some(incoming)=incoming {
                 if peers.len()>=config.max_peers {incoming.refuse();continue;}
@@ -183,11 +185,12 @@ pub(crate) async fn run(
                 let snapshot=Snapshot::decode(&worker.state.borrow());
                 let sector=snapshot.map(|s|s.pos.sector).unwrap_or([0,0]);
                 let presence_changed=overlay.presence.get(&overlay.id).is_none_or(|c|c.sector!=sector||c.playing!=snapshot.is_some());
-                if seq%(config.net_hz as u64*15)==0||presence_changed {
-                    let mut addr=endpoint.addr();if let Some(ip)=config.advertise {addr.addrs.insert(iroh::TransportAddr::Ip(ip));}
+                let mut addr=endpoint.addr();if let Some(ip)=config.advertise {addr.addrs.insert(iroh::TransportAddr::Ip(ip));}
+                if seq%(config.net_hz as u64*15)==0||presence_changed||last_addr.as_ref()!=Some(&addr) {
+                    last_addr=Some(addr.clone());
                     let ticket=encode_ticket(&addr)?;
                     let contact=crate::contact::Contact{addr:addr.clone(),discovery:discovery_id.clone(),expires:crate::contact::unix_time()+60,sector,playing:snapshot.is_some()};
-                    let bytes=serde_json::to_vec(&contact)?;let signed=auth.sign(3,&bytes);overlay.learn(overlay.id.clone(),&bytes,&signed);discovery.publish.send_replace((signed,sector));
+                    let bytes=serde_json::to_vec(&contact)?;let signed=auth.sign(3,&bytes);overlay.learn(overlay.id.clone(),&bytes,&signed);worker.status.send_modify(|s|s.contact=signed.clone());discovery.publish.send_replace((signed,sector));
                     if !published&&!addr.addrs.is_empty(){println!("SSK invite: {ticket}");published=true;}
                     worker.status.send_modify(|s|{s.ticket=ticket;if s.phase=="Starting network"{s.phase="Waiting for peer".into();}});
                 }
@@ -210,7 +213,7 @@ pub(crate) async fn run(
                 if seq%config.net_hz as u64==0 {
                     for id in overlay.prune(){if let Some(p)=peers.remove(&id){p.conn.close(0u32.into(),b"presence expired");}let _=worker.incoming.try_send(NetEvent::Disconnected(id));}
                     let links=peers.iter_mut().map(|(id,p)|{p.metrics.stats.peer=id.clone();p.metrics.stats.direct=p.conn.paths().iter().any(|path|path.is_selected()&&path.is_ip());p.metrics.sample()}).collect();
-                    worker.status.send_modify(|s|s.links=links);
+                    worker.status.send_modify(|s|{s.links=links;s.crypto=auth.stats.clone();});
                     let data=crate::routes::Routes::advertise(&peers,(seq/config.net_hz as u64*12) as usize);metric_record=auth.sign(5,&data);
                     worker.status.send_modify(|s|{s.routes=overlay.routes.chosen.len();s.route_changes=overlay.routes.changes;s.unconfirmed=overlay.routes.expired;});
                     if seq%(config.net_hz as u64*15)==0 {if let Some(path)=&config.contact_cache {

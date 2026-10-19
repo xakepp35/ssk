@@ -22,7 +22,26 @@ enum Command {
     },
     Node,
     InitConfig,
-    Bench,
+    Bench {
+        #[arg(long, default_value_t = 2)]
+        players: usize,
+        #[arg(long, default_value_t = 15)]
+        seconds: u64,
+        #[arg(long, default_value_t = 15)]
+        warmup: u64,
+        #[arg(long, default_value_t = 30)]
+        hz: u32,
+        #[arg(long)]
+        no_fire: bool,
+        #[arg(long)]
+        connect: Option<String>,
+        #[arg(long)]
+        invite_file: Option<std::path::PathBuf>,
+        #[arg(long)]
+        output: Option<std::path::PathBuf>,
+        #[arg(long, default_value_t = 0)]
+        drop_count: usize,
+    },
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -44,7 +63,43 @@ fn main() -> anyhow::Result<()> {
     let network = ssk_net::Config::load(cli.config.as_deref())?;
     match cli.command {
         Some(Command::Node) => ssk_net::run_node(network),
-        Some(Command::InitConfig | Command::Bench) => {
+        Some(Command::Bench {
+            players,
+            seconds,
+            warmup,
+            hz,
+            no_fire,
+            connect,
+            invite_file,
+            output,
+            drop_count,
+        }) => {
+            let report = ssk_client::bench::run(
+                network,
+                ssk_client::bench::Options {
+                    players,
+                    seconds,
+                    warmup,
+                    hz,
+                    fire: !no_fire,
+                    connect,
+                    invite_file,
+                    drop_count,
+                },
+            )
+            .map_err(anyhow::Error::msg)?;
+            let json = serde_json::to_string_pretty(&report)?;
+            if let Some(path) = output {
+                if let Some(p) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+                    std::fs::create_dir_all(p)?;
+                }
+                std::fs::write(path, json)?;
+            } else {
+                println!("{json}");
+            }
+            Ok(())
+        }
+        Some(Command::InitConfig) => {
             anyhow::bail!("Available in the network phase")
         }
         command => {

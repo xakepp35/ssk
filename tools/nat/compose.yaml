@@ -1,0 +1,25 @@
+services:
+  relay:
+    build: {context: ../.., dockerfile: tools/nat/Dockerfile}
+    command: [relay]
+    networks: [side_a, side_b]
+    volumes: [exchange:/run/ssk]
+  a:
+    build: {context: ../.., dockerfile: tools/nat/Dockerfile}
+    command: [a]
+    cap_add: [NET_ADMIN]
+    networks: [side_a]
+    volumes: [exchange:/run/ssk]
+    depends_on: [relay]
+  b:
+    build: {context: ../.., dockerfile: tools/nat/Dockerfile}
+    command: [b]
+    cap_add: [NET_ADMIN]
+    networks: [side_b]
+    volumes: [exchange:/run/ssk]
+    depends_on: [relay, a]
+networks:
+  side_a: {internal: true}
+  side_b: {internal: true}
+volumes:
+  exchange:

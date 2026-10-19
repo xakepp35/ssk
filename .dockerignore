@@ -1,0 +1,10 @@
+*
+!target/
+target/*
+!target/release/
+target/release/*
+!target/release/ssk
+!tools/
+tools/*
+!tools/nat/
+!tools/nat/**

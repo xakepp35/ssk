@@ -6,6 +6,7 @@ mod overlay;
 mod relay;
 mod routes;
 pub mod topology;
+pub use iroh::TransportAddr;
 pub use metrics::LinkStats;
 mod config;
 mod contact;
@@ -26,6 +27,8 @@ pub const PROTOCOL_VERSION: u16 = 1;
 pub const RULES_ID: &str = "ssk-rules-1-240hz";
 #[derive(Clone, Debug, Default)]
 pub struct Status {
+    pub contact: Vec<u8>,
+    pub crypto: CryptoStats,
     pub phase: String,
     pub ticket: String,
     pub peers: usize,
@@ -34,6 +37,16 @@ pub struct Status {
     pub routes: usize,
     pub route_changes: u64,
     pub unconfirmed: u64,
+}
+#[derive(Clone, Debug, Default, serde::Serialize)]
+pub struct CryptoStats {
+    pub signed: u64,
+    pub verified: u64,
+    pub sign_us: u64,
+    pub verify_us: u64,
+    pub sign_max_us: u64,
+    pub verify_max_us: u64,
+    pub cache_hits: u64,
 }
 #[derive(Debug)]
 pub enum NetEvent {
@@ -51,6 +64,7 @@ pub struct Network {
     state: tokio::sync::watch::Sender<Vec<u8>>,
     events: tokio::sync::mpsc::Sender<Vec<u8>>,
     shared: tokio::sync::watch::Sender<Vec<Vec<u8>>>,
+    contacts: tokio::sync::watch::Sender<Vec<Vec<u8>>>,
     pub incoming: tokio::sync::mpsc::Receiver<NetEvent>,
     pub status: tokio::sync::watch::Receiver<Status>,
     stop: tokio::sync::watch::Sender<bool>,
@@ -60,6 +74,7 @@ pub(crate) struct Worker {
     state: tokio::sync::watch::Receiver<Vec<u8>>,
     events: tokio::sync::mpsc::Receiver<Vec<u8>>,
     shared: tokio::sync::watch::Receiver<Vec<Vec<u8>>>,
+    contacts: tokio::sync::watch::Receiver<Vec<Vec<u8>>>,
     incoming: tokio::sync::mpsc::Sender<NetEvent>,
     status: tokio::sync::watch::Sender<Status>,
     stop: tokio::sync::watch::Receiver<bool>,
@@ -72,6 +87,7 @@ impl Network {
         let (state, state_rx) = tokio::sync::watch::channel(Vec::new());
         let (events, events_rx) = tokio::sync::mpsc::channel(128);
         let (shared, shared_rx) = tokio::sync::watch::channel(Vec::new());
+        let (contacts, contacts_rx) = tokio::sync::watch::channel(Vec::new());
         let (incoming_tx, incoming) = tokio::sync::mpsc::channel(512);
         let (status_tx, status) = tokio::sync::watch::channel(Status {
             phase: "Starting network".into(),
@@ -82,6 +98,7 @@ impl Network {
             state: state_rx,
             events: events_rx,
             shared: shared_rx,
+            contacts: contacts_rx,
             incoming: incoming_tx,
             status: status_tx,
             stop: stop_rx,
@@ -106,6 +123,7 @@ impl Network {
             state,
             events,
             shared,
+            contacts,
             incoming,
             status,
             stop,
@@ -118,8 +136,21 @@ impl Network {
     pub fn shared(&self, frames: Vec<Vec<u8>>) {
         self.shared.send_replace(frames);
     }
+    /// Introduce a bounded signed roster; records still pass normal authentication.
+    pub fn learn_contacts(&self, records: Vec<Vec<u8>>) {
+        self.contacts.send_replace(
+            records
+                .into_iter()
+                .filter(|r| r.len() <= 1000)
+                .take(128)
+                .collect(),
+        );
+    }
     pub fn event(&self, event: Vec<u8>) -> Result<(), Vec<u8>> {
         self.events.try_send(event).map_err(|e| e.into_inner())
+    }
+    pub fn request_stop(&self) {
+        let _ = self.stop.send(true);
     }
 }
 impl Drop for Network {

@@ -20,6 +20,9 @@ pub struct Online {
     shared: crate::shared::Shared,
 }
 impl Online {
+    pub fn shared_stats(&self, now: f64) -> (usize, f64) {
+        self.shared.stats(now)
+    }
     pub fn new(config: ssk_net::Config, connect: Option<String>) -> Result<Self, String> {
         Ok(Self {
             net: Network::start(config, connect).map_err(|e| e.to_string())?,
@@ -224,8 +227,7 @@ impl Online {
             self.error = "Critical game event backlog full".into();
         }
     }
-    pub fn after_frame(&mut self, world: &mut World, dt: f32) -> bool {
-        let now = macroquad::time::get_time();
+    pub fn after_frame(&mut self, world: &mut World, dt: f32, now: f64) -> bool {
         self.own_history.push_back((
             now,
             WorldPos {
