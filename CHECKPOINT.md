@@ -14,13 +14,13 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - `cargo check --workspace` passed after A2; no tests/manual session.
 
 ## Live state
-- Completed A5: Three distinct weapons, seeded shotgun cone, whole burst costs, per-gun cooldowns and Q/E/wheel/1–3 selection.
+- Completed A6: Spawning enemies, aimed bursts, swept ship hits, death/results/score and R restart.
 - `cargo check --workspace` passed at this step. No automated tests run.
 - No manual play session yet. No public hosts for internet acceptance.
 - No active project processes. Source discussions preserved. No push.
 
 ## Next
-A6: enemies, death, score and immediate restart.
+A7: class abilities, shields and release-to-rearm semantics.
 
 ## Constraints
 240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.

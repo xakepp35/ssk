@@ -55,6 +55,7 @@ async fn run(options: Options) {
         let frame_start=std::time::Instant::now();
         if is_key_pressed(KeyCode::Escape) { break; }
         if is_key_pressed(KeyCode::F11) { fullscreen=!fullscreen; set_fullscreen(fullscreen); }
+        if world.player.hp<=0. && is_key_pressed(KeyCode::R) { world=World::new(options.seed,options.class);camera=V2::ZERO;accumulator=0.; }
         let dt=get_frame_time().min(0.1);
         if is_key_pressed(KeyCode::Q)||mouse_wheel().1>0. { weapon=(weapon+2)%3; }
         if is_key_pressed(KeyCode::E)||mouse_wheel().1<0. { weapon=(weapon+1)%3; }
@@ -91,9 +92,20 @@ async fn run(options: Options) {
             draw_line(tail.x,tail.y,p.x,p.y,2.,color); draw_circle(p.x,p.y,bullet.radius,color);
         }
         draw_ship(&world.player,camera,alpha,SKYBLUE);
+        for npc in &world.npcs {
+            if npc.telegraph>0. {
+                let p=screen(npc.ship.pos,camera);draw_circle_lines(p.x,p.y,45.*npc.telegraph/0.8,2.,RED);
+            } else { draw_ship(&npc.ship,camera,alpha,PINK); }
+        }
         draw_rectangle(24.,52.,240.,10.,DARKGRAY);
         draw_rectangle(24.,52.,240.*world.player.energy/1000.,10.,SKYBLUE);
         draw_text(&format!("[{}] {}  | Q/E or wheel",weapon+1,world.player.weapon.name()),24.,90.,24.,WHITE);
+        draw_text(&format!("HP {:.0}  |  SCORE {}  |  {:.1}s",world.player.hp.max(0.),world.score,world.tick as f32*DT),24.,120.,24.,WHITE);
+        if world.player.hp<=0. {
+            draw_rectangle(0.,0.,screen_width(),screen_height(),Color::new(0.01,0.02,0.05,0.8));
+            draw_text("SHIP LOST",screen_width()/2.-150.,screen_height()/2.-40.,48.,PINK);
+            draw_text(&format!("SCORE {}  |  Press R to fly again",world.score),screen_width()/2.-210.,screen_height()/2.+20.,26.,WHITE);
+        }
         world.events.clear();
         draw_text(&format!("{} | WASD move  MOUSE aim | 240 Hz  skipped {}",world.player.class.name(),dropped_steps),24.,32.,22.,GRAY);
         draw_circle_lines(mouse_position().0,mouse_position().1,8.,1.,SKYBLUE);

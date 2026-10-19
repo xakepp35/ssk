@@ -73,22 +73,34 @@ impl World {
         let mut nearby=Vec::new();
         for bullet in &mut self.bullets {
             bullet.previous=bullet.pos; bullet.pos+=bullet.velocity*DT; bullet.life-=DT;
-            let mut first=None;
+            let mut first:Option<(f32,u8,usize)>=None;
             self.grid.query(bullet.previous,bullet.pos,bullet.radius,&mut nearby);
             for &index in &nearby {
                 let target=&self.asteroids[index];
                 if target.hp<=0. { continue; }
                 if let Some(t)=swept_circle(bullet.previous,bullet.pos,target.pos,target.radius+bullet.radius) {
-                    if first.is_none_or(|(best,_)| t<best) { first=Some((t,index)); }
+                    if first.is_none_or(|(best,_,_)| t<best) { first=Some((t,0,index)); }
                 }
             }
-            if let Some((t,index))=first {
-                self.asteroids[index].hp-=bullet.damage; bullet.life=0.;
+            if bullet.shot.owner==self.player.id {
+                for (index,npc) in self.npcs.iter().enumerate() {
+                    if npc.telegraph>0. || npc.ship.hp<=0. { continue; }
+                    if let Some(t)=swept_circle(bullet.previous,bullet.pos,npc.ship.pos,npc.ship.class.stats().3+bullet.radius) {
+                        if first.is_none_or(|(best,_,_)|t<best) { first=Some((t,1,index)); }
+                    }
+                }
+            } else if let Some(t)=swept_circle(bullet.previous,bullet.pos,self.player.pos,self.player.class.stats().3+bullet.radius) {
+                if first.is_none_or(|(best,_,_)|t<best) { first=Some((t,2,0)); }
+            }
+            if let Some((t,kind,index))=first {
+                match kind { 0=>self.asteroids[index].hp-=bullet.damage,1=>self.npcs[index].ship.hp-=bullet.damage,_=>self.player.hp-=bullet.damage }
+                bullet.life=0.;
                 impacts.push(WorldEvent::Impact { pos:bullet.previous.lerp(bullet.pos,t), damage:bullet.damage });
             }
         }
         self.bullets.retain(|b| b.life>0.);
         self.destroy_asteroids();
+        self.destroy_enemies();
         for event in impacts { self.emit(event); }
     }
 }

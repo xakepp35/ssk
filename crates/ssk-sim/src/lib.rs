@@ -8,6 +8,8 @@ mod combat;
 pub use combat::*;
 mod field;
 pub use field::*;
+mod enemy;
+pub use enemy::*;
 
 #[derive(Clone, Copy, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct WorldPos { pub sector: [i64; 2], pub local: V2 }
@@ -62,12 +64,17 @@ pub struct World {
     pub bullets:Vec<Bullet>, pub asteroids:Vec<Asteroid>, pub events:Vec<WorldEvent>,
     pub rng:Rng, pub next_id:u64,
     pub grid:SpatialGrid, pub loaded:std::collections::HashSet<[i64;2]>, pub origin_shift:V2,
+    pub npcs:Vec<Npc>, pub score:u64, pub next_spawn:f32,
 }
 impl World {
     pub fn new(seed: u64, class: ShipClass) -> Self {
         Self { player: Ship::new(1, class, V2::ZERO), origin: [0, 0], tick: 0, seed,
             bullets:Vec::with_capacity(4096), asteroids:Vec::with_capacity(512), events:Vec::with_capacity(512), rng:Rng(seed), next_id:2,
-            grid:SpatialGrid::default(),loaded:field::empty_loaded(),origin_shift:V2::ZERO }
+            grid:SpatialGrid::default(),loaded:field::empty_loaded(),origin_shift:V2::ZERO,
+            npcs:Vec::with_capacity(24),score:0,next_spawn:2. }
     }
-    pub fn step(&mut self, input: InputFrame) { self.tick += 1; self.player.move_step(input); self.field_step(); self.combat(input); }
+    pub fn step(&mut self, input: InputFrame) {
+        if self.player.hp<=0. { return; }
+        self.tick += 1; self.player.move_step(input); self.field_step(); self.enemies_step(); self.combat(input);
+    }
 }

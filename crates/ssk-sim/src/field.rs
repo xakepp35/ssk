@@ -62,6 +62,7 @@ impl World {
             let offset=V2::new(shift[0] as f32*SECTOR_SIZE,shift[1] as f32*SECTOR_SIZE);
             self.player.pos-=offset;self.player.previous-=offset;
             for a in &mut self.asteroids { a.pos-=offset; }
+            for npc in &mut self.npcs { npc.ship.pos-=offset;npc.ship.previous-=offset; }
             for b in &mut self.bullets { b.pos-=offset;b.previous-=offset;b.shot.pos-=offset; }
             self.origin_shift+=offset;
         }
