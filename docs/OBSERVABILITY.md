@@ -94,6 +94,49 @@ H3 instruments client/network and adds the independent host collector/query
 guide. H4 compiles and builds Linux/Windows sequentially with one Cargo job.
 No automated tests, GUI probe, gameplay or freeze reproduction unless requested.
 
+## Available controls (H2)
+
+Every normal launch now initializes logging **before** application config is
+read. No flag is required: `runtime/logs/ssk-RUNID-0000.ndjson`; the first
+`ssk.observe.ready` record gives its path. stderr contains the same NDJSON.
+Stdout remains reserved for explicit command output such as bench reports.
+The process run ID is OS-random; no identity key is loaded to construct it.
+
+```sh
+# Read-only process/host snapshot; no window or game/transport workers:
+./target/release/ssk doctor
+
+# Ordinary launch, optional destination override:
+./target/release/ssk --log-file runtime/session.ndjson
+
+# Own TRACE, dependencies WARN, no per-callsite suppression (intrusive):
+./target/release/ssk --log-filter 'warn,ssk=trace,ssk_client=trace,ssk_net=trace' --log-rate-limit 0
+```
+
+CLI: `--log-dir`, `--log-file` (alias `--startup-log`), `--log-filter`,
+`--log-sync always|flush`, `--log-no-console`, `--log-rate-limit N`.
+`SSK_LOG` supplies the filter when no CLI filter is given. Default sync is
+`always`; `flush` explicitly omits the disk sync. Default rate is 20 accepted
+non-error records per event ID per second; 0 disables it, errors bypass it.
+Suppressed counts appear on the next accepted record and logger metric samples.
+Maximum field 32KiB, record 128KiB; oversized records retain the envelope and
+report truncation. Repetitive DEBUG/TRACE output can therefore be incomplete.
+
+Files rotate at 16MiB, up to eight parts for this run (also explicit destinations).
+Default-named inactive files are also pruned to eight; advisory-locked files of
+other live processes are excluded. The active file path is in logger samples.
+Private Unix files/directories use 0600/0700; Windows uses the user's inherited
+ACL. Panic/file-write failures use a separate `ssk-RUNID-panic.ndjson` FD without
+taking the normal writer mutex. Release builds include line debug information.
+
+Linux host samples include typed memory/IO/CPU-tick counters, pressure, thread
+state/wchan and interface counters. TUN interfaces are prioritized before veth
+rows. Thread/interface rows are capped and that limitation is exposed. Wait
+channels can be null due to permission restrictions; a `wchan` is not a stack.
+Other operating systems explicitly report the unavailable proc/sysfs metrics;
+portable application/transport metrics remain available. Sampling is one second;
+an overdue worker sample or startup operation warns after five seconds.
+
 Primary APIs: [tracing named events](https://docs.rs/tracing/latest/tracing/macro.event.html),
 [subscriber layers](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/layer/trait.Layer.html),
 [File::sync_data](https://doc.rust-lang.org/std/fs/struct.File.html#method.sync_data).

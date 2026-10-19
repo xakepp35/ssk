@@ -13,3 +13,4 @@ quad-snd = "0.2.8"
 serde.workspace = true
 serde_json.workspace = true
 rayon = "1"
+tracing.workspace = true

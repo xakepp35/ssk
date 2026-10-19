@@ -22,22 +22,26 @@ pub struct Options {
     pub online: bool,
     pub connect: Option<String>,
     pub network: ssk_net::Config,
-    pub startup_log: Option<std::path::PathBuf>,
 }
 pub fn launch(options: Options) -> std::io::Result<()> {
-    let log = diagnostics::StartupLog::open(options.startup_log.as_deref())?;
+    let _profile = tracing::debug_span!("ssk.client.profile.load", watchdog = true).entered();
     let mut profile = profile::Profile::load();
+    drop(_profile);
     profile.width = options.window.width;
     profile.height = options.window.height;
     profile.fullscreen = options.window.fullscreen;
-    log.mark(&format!(
-        "graphics init, {}x{}, vsync interval {} (context not ready yet)",
-        profile.width, profile.height, VSYNC_INTERVAL
-    ));
+    tracing::debug!(name:"ssk.client.graphics.begin",width=profile.width,height=profile.height,
+        vsync=VSYNC_INTERVAL,fullscreen=profile.fullscreen,"Entering native graphics setup; context not ready yet");
+    let initializing =
+        tracing::debug_span!("ssk.client.graphics.initialize", watchdog = true).entered();
     macroquad::Window::from_config(
         diagnostics::window_conf(&options.window, diagnostics::GraphicsBackend::Default),
-        run(options, profile, log),
+        async move {
+            drop(initializing);
+            run(options, profile).await;
+        },
     );
+    tracing::debug!(name:"ssk.client.graphics.end","Native event loop/teardown returned");
     Ok(())
 }
 fn screen(p: V2, camera: V2) -> Vec2 {
@@ -102,27 +106,20 @@ fn draw_ship(ship: &Ship, camera: V2, alpha: f32, color: Color) {
         draw_line(start.x, start.y, end.x, end.y, EXHAUST_WIDTH, SKYBLUE);
     }
 }
-async fn run(options: Options, mut profile: profile::Profile, log: diagnostics::StartupLog) {
-    log.mark("graphics context ready; Macroquad initialized and future polled");
+async fn run(options: Options, mut profile: profile::Profile) {
+    tracing::debug!(name:"ssk.client.graphics.ready","Macroquad initialized; first future poll");
     let mut class = options
         .class
         .unwrap_or(ssk_sim::ShipClass::ALL[profile.class]);
     profile.class = class.index();
-    log.mark("starting game worker (network only for online mode)");
+    tracing::debug!(name:"ssk.client.game.begin",online=options.online,"Starting game worker");
     let (game, initial) = game::Game::start(&options, class);
-    log.mark("game worker created");
+    tracing::debug!(name:"ssk.client.game.ready","Game worker created");
     let mut view = initial;
     let mut world = view.world.clone();
-    log.mark(&format!(
-        "audio {}",
-        if options.audio.enabled {
-            "worker requested"
-        } else {
-            "disabled; native audio initialization skipped"
-        }
-    ));
+    tracing::debug!(name:"ssk.client.audio.begin",enabled=options.audio.enabled,"Audio worker requested only if enabled");
     let mut effects = effects::Effects::new(options.audio.enabled);
-    log.mark("effects ready");
+    tracing::debug!(name:"ssk.client.effects.ready","Effects ready; audio device readiness is asynchronous");
     let mut camera = world.player.pos;
     let mut stars = starfield::Starfield::new(camera);
     let mut weapon = 0;
@@ -406,11 +403,11 @@ async fn run(options: Options, mut profile: profile::Profile, log: diagnostics::
             SKYBLUE,
         );
         if first_frame {
-            log.mark("first game frame queued; awaiting draw/present");
+            tracing::debug!(name:"ssk.client.frame.first.queued","First game frame queued; draw/present follows");
         }
         next_frame().await;
         if first_frame {
-            log.mark("frame loop resumed after first game frame");
+            tracing::debug!(name:"ssk.client.frame.first.returned","Loop resumed after first game frame");
             first_frame = false;
         }
     }
@@ -420,7 +417,7 @@ async fn run(options: Options, mut profile: profile::Profile, log: diagnostics::
         profile.height = screen_height() as i32;
     }
     if let Err(error) = profile.save() {
-        eprintln!("Profile save: {error}");
+        tracing::warn!(name:"ssk.client.profile.save_failed",%error,"Profile save failed");
     }
     show_mouse(true);
 }

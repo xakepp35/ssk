@@ -1,5 +1,27 @@
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
+    for path in [
+        "src",
+        "../ssk-client/src",
+        "../ssk-net/src",
+        "../ssk-sim/src",
+        "../../Cargo.toml",
+        "../../.git/HEAD",
+        "../../.git/refs",
+    ] {
+        println!("cargo:rerun-if-changed={path}");
+    }
+    if let Ok(output) = std::process::Command::new("git")
+        .args(["describe", "--always", "--dirty", "--abbrev=12"])
+        .output()
+    {
+        if output.status.success() {
+            println!(
+                "cargo:rustc-env=SSK_BUILD_REVISION={}",
+                String::from_utf8_lossy(&output.stdout).trim()
+            );
+        }
+    }
     // quad-snd only needs the ALSA ABI; desktop runtime packages contain it.
     // Supply a local linker alias when the distribution's -dev symlink is absent.
     #[cfg(target_os = "linux")]

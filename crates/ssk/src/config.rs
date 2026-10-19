@@ -40,6 +40,12 @@ impl Default for Config {
 }
 impl Config {
     pub fn load(explicit: Option<&Path>) -> anyhow::Result<Self> {
+        let _span = tracing::debug_span!(
+            "ssk.config.load",
+            watchdog = true,
+            explicit = explicit.is_some()
+        )
+        .entered();
         let path = if let Some(path) = explicit {
             path.to_path_buf()
         } else if Path::new(DEFAULT_CONFIG_FILE).exists() {
@@ -53,6 +59,7 @@ impl Config {
             }
         };
         let mut config = if path.exists() {
+            tracing::debug!(name:"ssk.config.read",path=%path.display(),"Reading application configuration");
             anyhow::ensure!(
                 std::fs::metadata(&path)?.len() <= MAX_CONFIG_BYTES,
                 "Config too large"
@@ -93,6 +100,8 @@ impl Config {
                 && ssk_client::constants::WINDOW_HEIGHT_RANGE.contains(&config.window.height),
             "Window dimensions out of range"
         );
+        tracing::debug!(name:"ssk.config.ready",width=config.window.width,height=config.window.height,
+            fullscreen=config.window.fullscreen,audio=config.audio.enabled,"Config validated; contents/keys omitted");
         Ok(config)
     }
     pub fn write_default(path: Option<&Path>) -> anyhow::Result<PathBuf> {

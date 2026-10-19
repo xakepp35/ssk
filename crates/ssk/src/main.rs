@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand, ValueEnum};
 mod config;
 mod constants;
+mod observation;
 
 #[derive(Parser)]
 #[command(version, about = "Syrup Space Kadet — procedural space arcade")]
@@ -17,9 +18,22 @@ struct Cli {
     /// Skip native audio initialization (useful when diagnosing a USB/audio freeze).
     #[arg(long, global = true)]
     no_audio: bool,
-    /// Persist and sync graphics/game/audio startup stages to a local file.
+    /// NDJSON destination override (startup-log is a compatibility alias).
+    #[arg(long, alias = "startup-log", global = true)]
+    log_file: Option<std::path::PathBuf>,
+    #[arg(long, global = true, default_value = constants::observation::LOG_DIR)]
+    log_dir: std::path::PathBuf,
+    /// tracing filter; otherwise SSK_LOG or own DEBUG / dependency WARN.
     #[arg(long, global = true)]
-    startup_log: Option<std::path::PathBuf>,
+    log_filter: Option<String>,
+    /// Always sync each record by default; flush omits the storage sync request.
+    #[arg(long, global = true, value_enum, default_value_t = LogSync::Always)]
+    log_sync: LogSync,
+    #[arg(long, global = true)]
+    log_no_console: bool,
+    /// Repetitive non-error records per callsite per second; 0 disables suppression.
+    #[arg(long, global = true, default_value_t = constants::observation::SITE_RECORDS_PER_SEC)]
+    log_rate_limit: u64,
 }
 
 #[derive(Subcommand)]
@@ -35,6 +49,8 @@ enum Command {
     #[command(alias = "node")]
     Server,
     InitConfig,
+    /// Read-only host/process snapshot and exit; no graphics, game or network.
+    Doctor,
     /// Initialize only graphics, clear one frame, then exit; no game/network/audio.
     GraphicsProbe {
         /// Use Miniquad directly, skipping Macroquad resources and shaders.
@@ -43,8 +59,8 @@ enum Command {
         /// Linux-only explicit context override; default matches normal startup.
         #[arg(long, value_enum, default_value_t = ProbeBackend::Default)]
         backend: ProbeBackend,
-        #[arg(long, default_value = constants::DEFAULT_GRAPHICS_PROBE_LOG)]
-        log: std::path::PathBuf,
+        #[arg(long)]
+        log: Option<std::path::PathBuf>,
     },
     Bench {
         #[arg(long, default_value_t = ssk_client::constants::BENCH_DEFAULT_PLAYERS)]
@@ -81,9 +97,58 @@ enum ProbeBackend {
     Glx,
     Egl,
 }
+#[derive(Clone, Copy, ValueEnum)]
+enum LogSync {
+    Always,
+    Flush,
+}
 
-fn main() -> anyhow::Result<()> {
+fn main() -> std::process::ExitCode {
     let cli = Cli::parse();
+    let file = cli.log_file.clone().or_else(|| match &cli.command {
+        Some(Command::GraphicsProbe { log, .. }) => log.clone(),
+        _ => None,
+    });
+    let settings = observation::Settings {
+        directory: cli.log_dir.clone(),
+        file,
+        filter: cli
+            .log_filter
+            .clone()
+            .or_else(|| std::env::var("SSK_LOG").ok())
+            .unwrap_or_else(|| constants::observation::FILTER.into()),
+        console: !cli.log_no_console,
+        sync: matches!(cli.log_sync, LogSync::Always),
+        rate_limit: cli.log_rate_limit,
+    };
+    let _observation = match observation::install(settings) {
+        Ok(guard) => guard,
+        Err(error) => {
+            use std::io::Write;
+            let record = serde_json::json!({"schema":constants::observation::SCHEMA,"event_id":"ssk.observe.init_failed","level":"ERROR","fields":{"error":error.to_string()}});
+            let _ = writeln!(std::io::stderr().lock(), "{record}");
+            return std::process::ExitCode::FAILURE;
+        }
+    };
+    let _session =
+        tracing::info_span!("ssk.process.run", version = env!("CARGO_PKG_VERSION")).entered();
+    tracing::info!(name:"ssk.process.begin",version=env!("CARGO_PKG_VERSION"),"Process entry before application config");
+    match run(cli) {
+        Ok(()) => {
+            tracing::info!(name:"ssk.process.end",success=true,"Process work completed");
+            std::process::ExitCode::SUCCESS
+        }
+        Err(error) => {
+            tracing::error!(name:"ssk.process.failed",error=%format!("{error:#}"),"Process work failed");
+            std::process::ExitCode::FAILURE
+        }
+    }
+}
+fn run(cli: Cli) -> anyhow::Result<()> {
+    if matches!(cli.command, Some(Command::Doctor)) {
+        observation::snapshot();
+        return Ok(());
+    }
     if matches!(cli.command, Some(Command::InitConfig)) {
         println!(
             "{}",
@@ -113,9 +178,7 @@ fn main() -> anyhow::Result<()> {
     let network = app.network;
     match command {
         Command::GraphicsProbe {
-            native,
-            backend,
-            log,
+            native, backend, ..
         } => {
             use ssk_client::diagnostics::GraphicsBackend;
             let backend = match backend {
@@ -123,7 +186,7 @@ fn main() -> anyhow::Result<()> {
                 ProbeBackend::Glx => GraphicsBackend::Glx,
                 ProbeBackend::Egl => GraphicsBackend::Egl,
             };
-            ssk_client::diagnostics::graphics_probe(&app.window, native, backend, &log)?;
+            ssk_client::diagnostics::graphics_probe(&app.window, native, backend)?;
             Ok(())
         }
         Command::Server => ssk_net::run_node(network),
@@ -163,7 +226,9 @@ fn main() -> anyhow::Result<()> {
             }
             Ok(())
         }
-        Command::InitConfig => unreachable!("handled before configuration loading"),
+        Command::InitConfig | Command::Doctor => {
+            unreachable!("handled before configuration loading")
+        }
         command => {
             let online = matches!(command, Command::Online { .. } | Command::Host);
             let connect = match command {
@@ -184,7 +249,6 @@ fn main() -> anyhow::Result<()> {
                 online,
                 connect,
                 network,
-                startup_log: cli.startup_log,
             })?;
             Ok(())
         }

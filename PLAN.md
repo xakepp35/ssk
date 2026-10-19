@@ -211,7 +211,7 @@ Exact evidence, limits and capture procedure: docs/LINUX_FREEZE.md.
 
 - [x] H1 — Define versioned NDJSON schema, stable callsite IDs, correlation,
   durability/rotation/privacy, subsystem coverage and limits. docs/OBSERVABILITY.md.
-- [ ] H2 — Binary-owned tracing sink, file+stderr immediate flush/sync,
+- [x] H2 — Binary-owned tracing sink, file+stderr immediate flush/sync,
   rotation/filtering/suppression, panic backtrace and host/progress monitoring.
 - [ ] H3 — Instrument startup/client/simulation/network/audio and teardown;
   add independent host journal/thread collector and usage/query documentation.
@@ -220,3 +220,9 @@ Exact evidence, limits and capture procedure: docs/LINUX_FREEZE.md.
 
 Hard-freeze root cause remains open (G4). Logging cannot guarantee recovery of
 kernel state from a total lockup; watchdog arming remains unapplied/unapproved.
+
+H2: logging initialized before config, random run/trace IDs, stable named events,
+span lifecycle/durations, bounded rotated file+stderr durable sink, panic FD,
+rate/drop/IO counters, Linux read-only host/thread/interface/pressure monitor,
+startup operation/progress ages and doctor command. Startup/probe markers migrated
+to the same sink. Focused cargo check passed; no runtime/GUI/tests executed.

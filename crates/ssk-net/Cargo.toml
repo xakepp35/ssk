@@ -22,3 +22,4 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 rustls-pemfile = "2"
 blake3 = "1"
 ed25519-dalek = "3"
+tracing.workspace = true

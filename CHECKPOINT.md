@@ -140,7 +140,12 @@ before any experiment. Root cause remains unknown; never claim this was fixed.
 ## Active observability / H
 Owner requests detailed DEBUG NDJSON simultaneously to terminal/file, immediate
 flush and unique per-callsite keys, system/subsystem/stack diagnostics. H1 design
-saved in docs/OBSERVABILITY.md; implement H2 sink/monitor, H3 instrumentation and
-independent host collector, then H4 one-job sequential Linux/Windows builds.
+saved in docs/OBSERVABILITY.md. H2 sink/CLI/panic/progress+host monitor implemented;
+startup/probe events migrated from legacy text to binary-owned tracing. Random
+run/trace IDs; span begin/end, sync each record, rotation and explicit rate limit,
+Linux proc/sysfs typed samples and doctor command. Focused cargo check passed.
+No logger runtime or GUI executed. Next H3: render/sim/net/audio instrumentation,
+independent host collector and offline log reconstruction; then H4 sequential
+one-job Linux/Windows packages. Cargo.lock updated only for already present deps.
 No GUI/stress/tests/root changes authorized by this request. Existing watchdog
 arm question has no answer; do not infer permission from the logging request.

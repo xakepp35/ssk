@@ -4517,12 +4517,16 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "getrandom 0.4.3",
  "serde",
  "serde_json",
  "serde_yaml",
  "ssk-client",
  "ssk-net",
  "ssk-sim",
+ "tracing",
+ "tracing-log",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -4536,6 +4540,7 @@ dependencies = [
  "serde_json",
  "ssk-net",
  "ssk-sim",
+ "tracing",
 ]
 
 [[package]]
@@ -4558,6 +4563,7 @@ dependencies = [
  "serde_yaml",
  "ssk-sim",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
