@@ -50,18 +50,21 @@ fn background(camera: V2) {
 }
 async fn run(options: Options) {
     let mut world=World::new(options.seed,options.class);
-    let mut accumulator=0.; let mut camera=V2::ZERO; let mut fullscreen=false; let mut dropped_steps=0u64;
+    let mut accumulator=0.; let mut camera=V2::ZERO; let mut fullscreen=false; let mut dropped_steps=0u64; let mut weapon=0;
     loop {
         let frame_start=std::time::Instant::now();
         if is_key_pressed(KeyCode::Escape) { break; }
         if is_key_pressed(KeyCode::F11) { fullscreen=!fullscreen; set_fullscreen(fullscreen); }
         let dt=get_frame_time().min(0.1);
+        if is_key_pressed(KeyCode::Q)||mouse_wheel().1>0. { weapon=(weapon+2)%3; }
+        if is_key_pressed(KeyCode::E)||mouse_wheel().1<0. { weapon=(weapon+1)%3; }
+        for (i,key) in [KeyCode::Key1,KeyCode::Key2,KeyCode::Key3].into_iter().enumerate() { if is_key_pressed(key) { weapon=i; } }
         let mouse=V2::new(mouse_position().0-screen_width()/2.,mouse_position().1-screen_height()/2.);
         let input=InputFrame {
             movement: V2::new((is_key_down(KeyCode::D) as i8-is_key_down(KeyCode::A) as i8) as f32,(is_key_down(KeyCode::S) as i8-is_key_down(KeyCode::W) as i8) as f32),
             aim:(camera+mouse-world.player.pos).angle(),
             fire:is_mouse_button_down(MouseButton::Left)||is_key_down(KeyCode::Space),
-            ability:is_mouse_button_down(MouseButton::Right)||is_key_down(KeyCode::LeftShift)||is_key_down(KeyCode::RightShift), weapon:0,
+            ability:is_mouse_button_down(MouseButton::Right)||is_key_down(KeyCode::LeftShift)||is_key_down(KeyCode::RightShift), weapon,
         };
         accumulator+=dt; let mut steps=0;
         while accumulator>=DT && steps<8 { world.step(input); accumulator-=DT; steps+=1; }
@@ -84,11 +87,13 @@ async fn run(options: Options) {
         for bullet in &world.bullets {
             let p=screen(bullet.previous.lerp(bullet.pos,alpha),camera);
             let tail=screen(bullet.pos-bullet.velocity*0.012,camera);
-            draw_line(tail.x,tail.y,p.x,p.y,2.,YELLOW); draw_circle(p.x,p.y,bullet.radius,YELLOW);
+            let color=match bullet.shot.weapon { ssk_sim::WeaponKind::Plasma=>VIOLET, ssk_sim::WeaponKind::Shotgun=>ORANGE, _=>YELLOW };
+            draw_line(tail.x,tail.y,p.x,p.y,2.,color); draw_circle(p.x,p.y,bullet.radius,color);
         }
         draw_ship(&world.player,camera,alpha,SKYBLUE);
         draw_rectangle(24.,52.,240.,10.,DARKGRAY);
         draw_rectangle(24.,52.,240.*world.player.energy/1000.,10.,SKYBLUE);
+        draw_text(&format!("[{}] {}  | Q/E or wheel",weapon+1,world.player.weapon.name()),24.,90.,24.,WHITE);
         world.events.clear();
         draw_text(&format!("{} | WASD move  MOUSE aim | 240 Hz  skipped {}",world.player.class.name(),dropped_steps),24.,32.,22.,GRAY);
         draw_circle_lines(mouse_position().0,mouse_position().1,8.,1.,SKYBLUE);

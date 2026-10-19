@@ -6,7 +6,11 @@ impl WeaponKind {
     pub fn from_index(i: usize) -> Self { match i % 3 { 1 => Self::Shotgun, 2 => Self::Plasma, _ => Self::MachineGun } }
     pub fn name(self) -> &'static str { match self { Self::MachineGun => "MACHINE GUN", Self::Shotgun => "SHOTGUN", Self::Plasma => "PLASMA" } }
     pub fn stats(self) -> WeaponStats {
-        WeaponStats { damage:40., interval:0.1, energy:18., speed:1300., radius:2., life:1.2, pellets:1, spread:2f32.to_radians() }
+        match self {
+            Self::MachineGun => WeaponStats { damage:40., interval:0.1, energy:18., speed:1300., radius:2., life:1.2, pellets:1, spread:2f32.to_radians() },
+            Self::Shotgun => WeaponStats { damage:35., interval:0.75, energy:112., speed:1000., radius:3., life:0.6, pellets:8, spread:16f32.to_radians() },
+            Self::Plasma => WeaponStats { damage:240., interval:0.7, energy:108., speed:720., radius:12., life:1.6, pellets:1, spread:0. },
+        }
     }
 }
 pub struct WeaponStats { pub damage:f32, pub interval:f32, pub energy:f32, pub speed:f32, pub radius:f32, pub life:f32, pub pellets:usize, pub spread:f32 }
@@ -54,9 +58,10 @@ impl World {
     pub fn emit(&mut self,event:WorldEvent) { if self.events.len()<512 { self.events.push(event); } }
     pub fn spawn_shot(&mut self,shot:Shot) {
         let stats=shot.weapon.stats(); let mut rng=Rng(shot.seed);
-        for _ in 0..stats.pellets {
+        for pellet in 0..stats.pellets {
             if self.bullets.len()>=4096 { break; }
-            let direction=V2::from_angle(shot.angle+rng.range(-stats.spread,stats.spread));
+            let spread=if stats.pellets>1 { -stats.spread+2.*stats.spread*(pellet as f32+rng.range(0.1,0.9))/stats.pellets as f32 } else { rng.range(-stats.spread,stats.spread) };
+            let direction=V2::from_angle(shot.angle+spread);
             self.bullets.push(Bullet { shot, pos:shot.pos, previous:shot.pos, velocity:direction*stats.speed, life:stats.life, damage:stats.damage*shot.damage_scale, radius:stats.radius });
         }
         self.emit(WorldEvent::Shot(shot));
