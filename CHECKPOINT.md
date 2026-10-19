@@ -162,3 +162,16 @@ window/UI features; Vulkan on Linux, native Wayland selection. Inspect current
 crate APIs, port client and probe, build both packages. Vulkan removes the old
 OpenGL route but does not prove or guarantee a fix for the workstation freeze.
 No new authorization for watchdog arming or automatic graphics reproduction.
+
+
+I1 implemented: Macroquad/Miniquad dependencies removed, owned per-frame Canvas
+uses egui Painter and winit input. eframe 0.33.3 + wgpu 27.0.1 (Vulkan/std/WGSL
+only). Latest eframe 0.37 conflicts with libp2p's pinned wasm-bindgen-futures/
+js-sys; selected compatible stable series rather than changing networking.
+Wayland selected before X11 by winit; no GL fallback. FIFO presentation with
+2 frames in flight; independent 360 Hz worker and lazy quad-snd audio preserved.
+Window/fullscreen/DPI/clipboard/menu and depth-star/effect drawing ported. Probe
+uses same window/device/painter path, no game/audio/network. Four-job Linux
+cargo check passed (1.38s). No GUI, probe, tests or root actions. No active build.
+Next I2: update obsolete GLX/EGL probe wrapper/docs; I3: sequential four-job
+Linux and Windows static packages. Build script defaults already edited to 4.

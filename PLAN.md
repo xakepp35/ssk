@@ -230,7 +230,7 @@ to the same sink. Focused cargo check passed; no runtime/GUI/tests executed.
 
 ## I: modern native graphics (owner priority, H3/H4 paused)
 
-- [ ] I1 — Replace Macroquad/Miniquad/OpenGL with eframe/egui + wgpu;
+- [x] I1 — Replace Macroquad/Miniquad/OpenGL with eframe/egui + wgpu;
   Vulkan renderer, native Wayland on Wayland sessions, X11 compatibility on X11.
   Preserve drawing, menus/input, window preferences, 360 Hz worker and audio.
 - [ ] I2 — Move graphics-only probe to the same wgpu path; document backend,
@@ -242,3 +242,9 @@ H3 checkpoint: subsystem instrumentation compiles with four jobs. Independent
 `tools/observe.py` is an unfinished draft, not advertised for use. Its journal
 exit handling and Windows summary import need correction before H3 completion.
 No GUI, tests, crashes or system changes. More logging coverage deferred by owner.
+
+I1 evidence: `cargo check --locked -p ssk --jobs 4` passed (1.38s).
+Client, primitives, menus, effects and probe now compile on eframe/egui 0.33.3,
+wgpu 27.0.1, winit 0.30.13; only Vulkan backend enabled. Native Wayland preferred
+by winit on Wayland sessions. Explicit FIFO/2 frames in flight. Physics/network
+rules unchanged. No GUI, runtime probe, automated tests or freeze reproduction.

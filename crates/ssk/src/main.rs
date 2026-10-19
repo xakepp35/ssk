@@ -53,12 +53,6 @@ enum Command {
     Doctor,
     /// Initialize only graphics, clear one frame, then exit; no game/network/audio.
     GraphicsProbe {
-        /// Use Miniquad directly, skipping Macroquad resources and shaders.
-        #[arg(long)]
-        native: bool,
-        /// Linux-only explicit context override; default matches normal startup.
-        #[arg(long, value_enum, default_value_t = ProbeBackend::Default)]
-        backend: ProbeBackend,
         #[arg(long)]
         log: Option<std::path::PathBuf>,
     },
@@ -91,12 +85,6 @@ enum Class {
     Thunder,
 }
 
-#[derive(Clone, Copy, ValueEnum)]
-enum ProbeBackend {
-    Default,
-    Glx,
-    Egl,
-}
 #[derive(Clone, Copy, ValueEnum)]
 enum LogSync {
     Always,
@@ -177,16 +165,8 @@ fn run(cli: Cli) -> anyhow::Result<()> {
     }
     let network = app.network;
     match command {
-        Command::GraphicsProbe {
-            native, backend, ..
-        } => {
-            use ssk_client::diagnostics::GraphicsBackend;
-            let backend = match backend {
-                ProbeBackend::Default => GraphicsBackend::Default,
-                ProbeBackend::Glx => GraphicsBackend::Glx,
-                ProbeBackend::Egl => GraphicsBackend::Egl,
-            };
-            ssk_client::diagnostics::graphics_probe(&app.window, native, backend)?;
+        Command::GraphicsProbe { .. } => {
+            ssk_client::diagnostics::graphics_probe(&app.window)?;
             Ok(())
         }
         Command::Server => ssk_net::run_node(network),

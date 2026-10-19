@@ -1,6 +1,5 @@
-use super::screen;
 use crate::constants::*;
-use macroquad::prelude::*;
+use crate::graphics::*;
 use quad_snd::{AudioContext, PlaySoundParams, Sound};
 use ssk_sim::{PickupKind, Rng, V2, WeaponKind, WorldEvent};
 struct Particle {
@@ -34,8 +33,8 @@ impl Effects {
             audio_enabled
         )
         .entered();
-        // Macroquad's built-in audio feature initializes before our game starts;
-        // own this context instead so disabling audio never opens ALSA/WASAPI.
+        // Audio is independent of the graphics stack. Disabling it never opens
+        // an ALSA/WASAPI context.
         let audio = audio_enabled.then(||{
             let _request=tracing::debug_span!("ssk.client.audio.context.request",watchdog=true).entered();
             let context=AudioContext::new();
@@ -188,26 +187,26 @@ impl Effects {
     pub fn offset(&mut self, strength: f32) -> V2 {
         V2::new(self.rng.range(-1., 1.), self.rng.range(-1., 1.)) * self.shake * strength
     }
-    pub fn draw(&self, camera: V2, flashes: bool) {
+    pub fn draw(&self, canvas: &Canvas, camera: V2, flashes: bool) {
         for p in &self.particles {
-            let point = screen(p.pos, camera);
-            let tail = screen(p.pos - p.velocity * PARTICLE_TAIL_SECONDS, camera);
+            let point = canvas.screen(p.pos, camera);
+            let tail = canvas.screen(p.pos - p.velocity * PARTICLE_TAIL_SECONDS, camera);
             let mut color = p.color;
             color.a = p.life / p.max;
-            draw_line(tail.x, tail.y, point.x, point.y, p.size, color);
+            canvas.draw_line(tail.x, tail.y, point.x, point.y, p.size, color);
         }
         for r in &self.rings {
-            let p = screen(r.pos, camera);
+            let p = canvas.screen(r.pos, camera);
             let mut color = r.color;
             color.a = r.life * RING_SCALE;
-            draw_circle_lines(p.x, p.y, (1. - r.life / RING_LIFE) * r.size, 2., color);
+            canvas.draw_circle_lines(p.x, p.y, (1. - r.life / RING_LIFE) * r.size, 2., color);
         }
         if flashes && self.flash > 0. {
-            draw_rectangle(
+            canvas.draw_rectangle(
                 0.,
                 0.,
-                screen_width(),
-                screen_height(),
+                canvas.screen_width(),
+                canvas.screen_height(),
                 Color::new(
                     FLASH_COLOR[0],
                     FLASH_COLOR[1],

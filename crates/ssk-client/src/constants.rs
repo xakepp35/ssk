@@ -3,7 +3,9 @@ pub const GAME_COMMAND_CAPACITY: usize = 4;
 pub const MAX_RENDER_DELTA: f32 = 0.1;
 pub const DEFAULT_WIDTH: i32 = 1600;
 pub const DEFAULT_HEIGHT: i32 = 1000;
-pub const VSYNC_INTERVAL: i32 = 1;
+pub const MAX_FRAMES_IN_FLIGHT: u32 = 2;
+pub const WINDOW_MIN_WIDTH: f32 = 800.;
+pub const WINDOW_MIN_HEIGHT: f32 = 600.;
 pub const OBSERVATION_SAMPLE_SECONDS: f64 = 1.;
 pub const CLIENT_EVENT_QUEUE: usize = 256;
 pub const MAX_RECEIVE_EVENTS: usize = 512;
@@ -86,7 +88,7 @@ pub const BENCH_FRESH_SECONDS: f64 = 0.25;
 
 /// Shared visual theme and layout, in logical pixels before UI scaling.
 pub mod ui {
-    use macroquad::prelude::Color;
+    use crate::graphics::Color;
     pub const BUTTON_SELECTED: Color = Color::new(0.08, 0.27, 0.34, 1.);
     pub const BUTTON_HOVER: Color = Color::new(0.12, 0.2, 0.29, 1.);
     pub const BUTTON_IDLE: Color = Color::new(0.05, 0.09, 0.16, 1.);
@@ -168,8 +170,7 @@ pub const ROCK_VERTICES: u64 = 9;
 pub const ROCK_SHAPE_BUCKETS: u64 = 17;
 pub const ROCK_SHAPE_SCALE: f32 = 0.009;
 pub const ROCK_SHAPE_BASE: f32 = 0.85;
-pub const ROCK_COLOR: macroquad::prelude::Color =
-    macroquad::prelude::Color::new(0.35, 0.4, 0.5, 1.);
+pub const ROCK_COLOR: crate::graphics::Color = crate::graphics::Color::new(0.35, 0.4, 0.5, 1.);
 pub const BULLET_TAIL_SECONDS: f32 = 0.012;
 pub const PICKUP_PULSE_HZ: f32 = 5.;
 pub const PICKUP_PULSE_SCALE: f32 = 0.15;
@@ -194,8 +195,7 @@ pub const EXHAUST_OFFSET: f32 = 8.;
 pub const EXHAUST_PULSE_SPEED: f32 = 67.;
 pub const EXHAUST_PULSE_SIZE: f32 = 4.;
 pub const EXHAUST_WIDTH: f32 = 5.;
-pub const SPACE_COLOR: macroquad::prelude::Color =
-    macroquad::prelude::Color::from_rgba(6, 9, 21, 255);
+pub const SPACE_COLOR: crate::graphics::Color = crate::graphics::Color::from_rgba(6, 9, 21, 255);
 pub const STAR_COUNT: usize = 1320;
 pub const STAR_SEED: u64 = 0x53534b5f53544152;
 pub const STAR_DEPTH_BIAS: f32 = 2.;
@@ -203,8 +203,8 @@ pub const STAR_PARALLAX: std::ops::Range<f32> = 0.025..0.7;
 pub const STAR_BRIGHTNESS: std::ops::Range<f32> = 0.12..0.95;
 pub const STAR_SIZE: std::ops::Range<f32> = 1. ..2.2;
 pub const STAR_TINT: [f32; 3] = [0.78, 0.88, 1.];
-pub const SPACE_GRID_COLOR: macroquad::prelude::Color =
-    macroquad::prelude::Color::new(0.08, 0.16, 0.24, 0.3);
+pub const SPACE_GRID_COLOR: crate::graphics::Color =
+    crate::graphics::Color::new(0.08, 0.16, 0.24, 0.3);
 pub const SPACE_GRID_SIZE: f32 = 256.;
 pub const SPACE_GRID_COLUMNS: i32 = 8;
 pub const SPACE_GRID_ROWS: i32 = 6;
@@ -213,8 +213,8 @@ pub const PEER_DISTANCE_OFFSET: [f32; 2] = [25., 16.];
 pub const PEER_DISTANCE_FONT: f32 = 18.;
 pub const PEER_LABEL_OFFSET: f32 = 40.;
 pub const PEER_LABEL_FONT: f32 = 16.;
-pub const RESULT_BACKGROUND: macroquad::prelude::Color =
-    macroquad::prelude::Color::new(0.01, 0.02, 0.05, 0.8);
+pub const RESULT_BACKGROUND: crate::graphics::Color =
+    crate::graphics::Color::new(0.01, 0.02, 0.05, 0.8);
 pub const RESULT_HALF_WIDTH: f32 = 210.;
 pub const RESULT_TITLE_TOP: f32 = 60.;
 pub const RESULT_TITLE_FONT: f32 = 56.;
@@ -245,4 +245,21 @@ pub enum SoundKind {
     Destroyed,
     Pickup,
     Dry,
+}
+
+/// Presentation palette, in display (sRGB) components.
+pub mod palette {
+    use crate::graphics::Color;
+    pub const WHITE: Color = Color::from_rgba(255, 255, 255, 255);
+    pub const BLACK: Color = Color::from_rgba(0, 0, 0, 255);
+    pub const SKYBLUE: Color = Color::from_rgba(102, 191, 255, 255);
+    pub const GREEN: Color = Color::from_rgba(0, 228, 48, 255);
+    pub const RED: Color = Color::from_rgba(230, 41, 55, 255);
+    pub const PINK: Color = Color::from_rgba(255, 109, 194, 255);
+    pub const ORANGE: Color = Color::from_rgba(255, 161, 0, 255);
+    pub const GOLD: Color = Color::from_rgba(255, 203, 0, 255);
+    pub const GRAY: Color = Color::from_rgba(130, 130, 130, 255);
+    pub const DARKGRAY: Color = Color::from_rgba(80, 80, 80, 255);
+    pub const YELLOW: Color = Color::from_rgba(253, 249, 0, 255);
+    pub const VIOLET: Color = Color::from_rgba(135, 60, 190, 255);
 }

@@ -1,6 +1,6 @@
 use crate::constants::{HUD_WIDTH, ui::*};
+use crate::graphics::*;
 use crate::profile::Profile;
-use macroquad::prelude::*;
 use ssk_sim::*;
 #[derive(Default)]
 pub struct MenuAction {
@@ -8,9 +8,13 @@ pub struct MenuAction {
     pub new_run: bool,
     pub quit: bool,
 }
-fn button(label: &str, x: f32, y: f32, w: f32, s: f32, selected: bool) -> bool {
-    let r = Rect::new(x, y, w * s, BUTTON_HEIGHT * s);
-    let hover = r.contains(mouse_position().into());
+fn button(canvas: &Canvas, label: &str, x: f32, y: f32, w: f32, s: f32, selected: bool) -> bool {
+    let (mx, my) = canvas.mouse_position();
+    let hover = canvas.pointer_inside()
+        && mx >= x
+        && mx < x + w * s
+        && my >= y
+        && my < y + BUTTON_HEIGHT * s;
     let color = if selected {
         BUTTON_SELECTED
     } else if hover {
@@ -18,12 +22,12 @@ fn button(label: &str, x: f32, y: f32, w: f32, s: f32, selected: bool) -> bool {
     } else {
         BUTTON_IDLE
     };
-    draw_rectangle(r.x, r.y, r.w, r.h, color);
-    draw_rectangle_lines(
-        r.x,
-        r.y,
-        r.w,
-        r.h,
+    canvas.draw_rectangle(x, y, w * s, BUTTON_HEIGHT * s, color);
+    canvas.draw_rectangle_lines(
+        x,
+        y,
+        w * s,
+        BUTTON_HEIGHT * s,
         1.,
         if hover || selected {
             SKYBLUE
@@ -31,23 +35,29 @@ fn button(label: &str, x: f32, y: f32, w: f32, s: f32, selected: bool) -> bool {
             BUTTON_BORDER
         },
     );
-    draw_text(
+    canvas.draw_text(
         label,
         x + TEXT_INSET * s,
         y + BUTTON_BASELINE * s,
         FONT_BUTTON * s,
         WHITE,
     );
-    hover && is_mouse_button_pressed(MouseButton::Left)
+    hover && canvas.is_mouse_button_pressed(MouseButton::Primary)
 }
-pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
-    draw_rectangle(0., 0., screen_width(), screen_height(), MENU_BACKGROUND);
-    let s = (screen_height() / MENU_REFERENCE_HEIGHT).min(1.) * profile.ui_scale;
-    let x = screen_width() / 2. - MENU_HALF_WIDTH * s;
-    let y = (screen_height() - MENU_HEIGHT * s) * 0.5;
-    draw_text("SYRUP SPACE", x, y + TITLE_TOP * s, FONT_TITLE * s, WHITE);
-    draw_text("KADET", x, y + SUBTITLE_TOP * s, FONT_TITLE * s, SKYBLUE);
-    draw_text(
+pub fn menu(canvas: &Canvas, profile: &mut Profile, started: bool, online: bool) -> MenuAction {
+    canvas.draw_rectangle(
+        0.,
+        0.,
+        canvas.screen_width(),
+        canvas.screen_height(),
+        MENU_BACKGROUND,
+    );
+    let s = (canvas.screen_height() / MENU_REFERENCE_HEIGHT).min(1.) * profile.ui_scale;
+    let x = canvas.screen_width() / 2. - MENU_HALF_WIDTH * s;
+    let y = (canvas.screen_height() - MENU_HEIGHT * s) * 0.5;
+    canvas.draw_text("SYRUP SPACE", x, y + TITLE_TOP * s, FONT_TITLE * s, WHITE);
+    canvas.draw_text("KADET", x, y + SUBTITLE_TOP * s, FONT_TITLE * s, SKYBLUE);
+    canvas.draw_text(
         if online {
             "PEER DUEL"
         } else {
@@ -60,6 +70,7 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
     );
     for (i, class) in ShipClass::ALL.into_iter().enumerate() {
         if button(
+            canvas,
             class.name(),
             x + i as f32 * COLUMN_STRIDE * s,
             y + CLASSES_TOP * s,
@@ -72,7 +83,7 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
     }
     let class = ShipClass::ALL[profile.class];
     let stats = class.stats();
-    draw_text(
+    canvas.draw_text(
         &format!(
             "HP {:.0}  THRUST {:.0}  TURN {:.0}deg/s  BEST {}",
             stats.hp,
@@ -90,7 +101,7 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
         ShipClass::Cadet => "SHIELD: full absorption, 0.5 energy / damage",
         ShipClass::Thunder => "QUAD: damage x4; slow turn, medium hull",
     };
-    draw_text(
+    canvas.draw_text(
         description,
         x,
         y + CLASS_DESCRIPTION_TOP * s,
@@ -99,6 +110,7 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
     );
     let mut action = MenuAction::default();
     if button(
+        canvas,
         if started {
             "RESUME  [F2 / Esc / Enter]"
         } else {
@@ -109,7 +121,7 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
         MENU_WIDTH,
         s,
         true,
-    ) || is_key_pressed(KeyCode::Enter)
+    ) || canvas.is_key_pressed(KeyCode::Enter)
     {
         if started {
             action.resume = true;
@@ -120,6 +132,7 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
     if started
         && !online
         && button(
+            canvas,
             "NEW RUN WITH SELECTED SHIP  [N]",
             x,
             y + NEW_RUN_TOP * s,
@@ -130,11 +143,11 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
     {
         action.new_run = true;
     }
-    if started && !online && is_key_pressed(KeyCode::N) {
+    if started && !online && canvas.is_key_pressed(KeyCode::N) {
         action.new_run = true;
     }
     if online {
-        draw_text(
+        canvas.draw_text(
             &format!("NEXT RESPAWN: {}  |  combat continues", class.name()),
             x,
             y + NEW_RUN_TOP * s,
@@ -143,6 +156,7 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
         );
     }
     if button(
+        canvas,
         &format!("VOLUME  {:.0}%", profile.volume * crate::constants::PERCENT),
         x,
         y + SETTINGS_TOP * s,
@@ -157,6 +171,7 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
         };
     }
     if button(
+        canvas,
         &format!("SHAKE  {:.0}%", profile.shake * crate::constants::PERCENT),
         x + COLUMN_STRIDE * s,
         y + SETTINGS_TOP * s,
@@ -171,6 +186,7 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
         };
     }
     if button(
+        canvas,
         if profile.flashes {
             "FLASHES  ON"
         } else {
@@ -185,6 +201,7 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
         profile.flashes = !profile.flashes;
     }
     if button(
+        canvas,
         &format!(
             "HUD SCALE  {:.0}%",
             profile.ui_scale * crate::constants::PERCENT
@@ -202,6 +219,7 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
         };
     }
     if button(
+        canvas,
         "FULLSCREEN  [F11]",
         x + FULLSCREEN_X * s,
         y + DISPLAY_TOP * s,
@@ -210,7 +228,7 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
         false,
     ) {
         profile.fullscreen = !profile.fullscreen;
-        set_fullscreen(profile.fullscreen);
+        canvas.set_fullscreen(profile.fullscreen);
     }
     for (i, line) in [
         "W thrust | S reverse/brake | A/D strafe | Mouse steer",
@@ -220,7 +238,7 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
     .into_iter()
     .enumerate()
     {
-        draw_text(
+        canvas.draw_text(
             line,
             x,
             y + (CONTROLS_TOP + i as f32 * HUD_INSET) * s,
@@ -228,22 +246,22 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
             GRAY,
         );
     }
-    if button("QUIT", x, y + QUIT_TOP * s, MENU_WIDTH, s, false) {
+    if button(canvas, "QUIT", x, y + QUIT_TOP * s, MENU_WIDTH, s, false) {
         action.quit = true;
     }
     action
 }
-pub fn hud(world: &World, profile: &Profile, skipped: u64) {
-    let s = (screen_height() / HUD_REFERENCE_HEIGHT).min(1.) * profile.ui_scale;
+pub fn hud(canvas: &Canvas, world: &World, profile: &Profile, skipped: u64) {
+    let s = (canvas.screen_height() / HUD_REFERENCE_HEIGHT).min(1.) * profile.ui_scale;
     let ship = &world.player;
-    draw_rectangle(
+    canvas.draw_rectangle(
         HUD_MARGIN * s,
         HUD_MARGIN * s,
         HUD_WIDTH * s,
         HUD_HEIGHT * s,
         HUD_BACKGROUND,
     );
-    draw_text(
+    canvas.draw_text(
         &format!(
             "{}  SCORE {}  x{:.2}",
             ship.class.name(),
@@ -260,14 +278,14 @@ pub fn hud(world: &World, profile: &Profile, skipped: u64) {
         (1, ship.energy, ENERGY_BASE, SKYBLUE, "ENERGY"),
     ] {
         let y = (TITLE_TOP + row as f32 * BAR_ROW_HEIGHT) * s;
-        draw_rectangle(
+        canvas.draw_rectangle(
             HUD_INSET * s,
             y,
             BAR_WIDTH * s,
             BAR_HEIGHT * s,
             BAR_BACKGROUND,
         );
-        draw_rectangle(
+        canvas.draw_rectangle(
             HUD_INSET * s,
             y,
             BAR_WIDTH * s * (value / base).clamp(0., 1.),
@@ -275,7 +293,7 @@ pub fn hud(world: &World, profile: &Profile, skipped: u64) {
             color,
         );
         if value > base {
-            draw_rectangle(
+            canvas.draw_rectangle(
                 HUD_INSET * s,
                 y,
                 BAR_WIDTH * s * ((value - base) / base).clamp(0., 1.),
@@ -283,7 +301,7 @@ pub fn hud(world: &World, profile: &Profile, skipped: u64) {
                 YELLOW,
             );
         }
-        draw_text(
+        canvas.draw_text(
             &format!("{} {:.0}", label, value.max(0.)),
             BAR_LABEL_X * s,
             y + TEXT_INSET * s,
@@ -300,14 +318,14 @@ pub fn hud(world: &World, profile: &Profile, skipped: u64) {
     } else {
         "LOW E"
     };
-    draw_text(
+    canvas.draw_text(
         &format!("{} | {}", ship.weapon.name(), ready),
         HUD_INSET * s,
         WEAPON_INFO_TOP * s,
         FONT_BODY * s,
         WHITE,
     );
-    draw_text(
+    canvas.draw_text(
         &format!(
             "{:.0}s  |  BEST {}  |  F2 menu / ship",
             world.tick as f32 * DT,
@@ -326,10 +344,10 @@ pub fn hud(world: &World, profile: &Profile, skipped: u64) {
     .into_iter()
     .enumerate()
     {
-        let x = screen_width() / 2. - WEAPONS_HALF_WIDTH * s + i as f32 * WEAPON_STRIDE * s;
-        let y = screen_height() - WEAPONS_BOTTOM * s;
-        draw_rectangle(x, y, WEAPON_WIDTH * s, WEAPON_HEIGHT * s, WEAPON_BACKGROUND);
-        draw_rectangle_lines(
+        let x = canvas.screen_width() / 2. - WEAPONS_HALF_WIDTH * s + i as f32 * WEAPON_STRIDE * s;
+        let y = canvas.screen_height() - WEAPONS_BOTTOM * s;
+        canvas.draw_rectangle(x, y, WEAPON_WIDTH * s, WEAPON_HEIGHT * s, WEAPON_BACKGROUND);
+        canvas.draw_rectangle_lines(
             x,
             y,
             WEAPON_WIDTH * s,
@@ -341,7 +359,7 @@ pub fn hud(world: &World, profile: &Profile, skipped: u64) {
                 DARKGRAY
             },
         );
-        draw_text(
+        canvas.draw_text(
             &format!("{} {}", i + 1, weapon.name()),
             x + WEAPON_TEXT_INSET * s,
             y + FONT_BUTTON * s,
@@ -349,7 +367,7 @@ pub fn hud(world: &World, profile: &Profile, skipped: u64) {
             WHITE,
         );
         let ready = 1. - (ship.cooldowns[i] / weapon.stats().interval).clamp(0., 1.);
-        draw_rectangle(
+        canvas.draw_rectangle(
             x,
             y + COOLDOWN_TOP * s,
             WEAPON_WIDTH * s * ready,
@@ -357,23 +375,29 @@ pub fn hud(world: &World, profile: &Profile, skipped: u64) {
             SKYBLUE,
         );
     }
-    draw_text(
+    canvas.draw_text(
         &format!(
             "{} Hz logic | FPS {} | overload {}",
             TICK_PER_SEC,
-            get_fps(),
+            canvas.get_fps(),
             skipped
         ),
-        screen_width() - PERF_WIDTH * s,
+        canvas.screen_width() - PERF_WIDTH * s,
         PERF_TOP * s,
         FONT_CAPTION * s,
         GRAY,
     );
 }
-pub fn help() {
-    draw_rectangle(0., 0., screen_width(), screen_height(), HELP_BACKGROUND);
-    let x = screen_width() / 2. - HELP_HALF_WIDTH;
-    let y = screen_height() / 2. - COLUMN_STRIDE;
+pub fn help(canvas: &Canvas) {
+    canvas.draw_rectangle(
+        0.,
+        0.,
+        canvas.screen_width(),
+        canvas.screen_height(),
+        HELP_BACKGROUND,
+    );
+    let x = canvas.screen_width() / 2. - HELP_HALF_WIDTH;
+    let y = canvas.screen_height() / 2. - COLUMN_STRIDE;
     for (i, line) in [
         "FLIGHT MANUAL  [F1 to close]",
         "W: nose thrust. S: reverse jet / braking. A/D: strafe.",
@@ -392,7 +416,7 @@ pub fn help() {
     .into_iter()
     .enumerate()
     {
-        draw_text(
+        canvas.draw_text(
             line,
             x,
             y + i as f32 * HELP_ROW_HEIGHT,

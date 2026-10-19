@@ -8,7 +8,9 @@ license.workspace = true
 [dependencies]
 ssk-sim.workspace = true
 ssk-net.workspace = true
-macroquad.workspace = true
+eframe.workspace = true
+wgpu.workspace = true
+raw-window-handle = "0.6"
 quad-snd = "0.2.8"
 serde.workspace = true
 serde_json.workspace = true

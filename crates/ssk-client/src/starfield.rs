@@ -1,6 +1,6 @@
 //! Owned visual state: bounded phases keep parallax continuous across origin rebases.
-use crate::{constants::*, screen};
-use macroquad::prelude::*;
+use crate::constants::*;
+use crate::graphics::*;
 use ssk_sim::{Rng, V2};
 
 struct Star {
@@ -41,12 +41,12 @@ impl Starfield {
     pub fn shift_origin(&mut self, offset: V2) {
         self.previous_camera -= offset;
     }
-    pub fn draw(&mut self, camera: V2) {
-        clear_background(SPACE_COLOR);
+    pub fn draw(&mut self, canvas: &Canvas, camera: V2) {
+        canvas.clear_background(SPACE_COLOR);
         let delta = camera - self.previous_camera;
         self.previous_camera = camera;
-        let width = screen_width().max(1.);
-        let height = screen_height().max(1.);
+        let width = canvas.screen_width().max(1.);
+        let height = canvas.screen_height().max(1.);
         for star in &mut self.stars {
             star.phase[0] =
                 (star.phase[0] + delta.x as f64 * star.parallax as f64).rem_euclid(width as f64);
@@ -55,7 +55,7 @@ impl Starfield {
             let x = (star.uv.x * width - star.phase[0] as f32).rem_euclid(width);
             let y = (star.uv.y * height - star.phase[1] as f32).rem_euclid(height);
             let b = star.brightness;
-            draw_rectangle(
+            canvas.draw_rectangle(
                 x,
                 y,
                 star.size,
@@ -64,24 +64,24 @@ impl Starfield {
             );
         }
         for x in -SPACE_GRID_COLUMNS..=SPACE_GRID_COLUMNS {
-            let p = screen(
+            let p = canvas.screen(
                 V2::new(
                     ((camera.x / SPACE_GRID_SIZE).floor() + x as f32) * SPACE_GRID_SIZE,
                     0.,
                 ),
                 camera,
             );
-            draw_line(p.x, 0., p.x, height, 1., SPACE_GRID_COLOR);
+            canvas.draw_line(p.x, 0., p.x, height, 1., SPACE_GRID_COLOR);
         }
         for y in -SPACE_GRID_ROWS..=SPACE_GRID_ROWS {
-            let p = screen(
+            let p = canvas.screen(
                 V2::new(
                     0.,
                     ((camera.y / SPACE_GRID_SIZE).floor() + y as f32) * SPACE_GRID_SIZE,
                 ),
                 camera,
             );
-            draw_line(0., p.y, width, p.y, 1., SPACE_GRID_COLOR);
+            canvas.draw_line(0., p.y, width, p.y, 1., SPACE_GRID_COLOR);
         }
     }
 }
