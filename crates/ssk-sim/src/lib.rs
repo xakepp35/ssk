@@ -79,6 +79,7 @@ pub struct Ship {
     pub bump_cooldown: f32,
     pub ability_active: bool,
     pub ability_latched: bool,
+    pub invulnerable: f32,
 }
 impl Ship {
     pub fn new(id: u64, class: ShipClass, pos: V2) -> Self {
@@ -97,9 +98,14 @@ impl Ship {
             bump_cooldown: 0.,
             ability_active: false,
             ability_latched: false,
+            invulnerable: 0.,
         }
     }
     pub fn move_step(&mut self, input: InputFrame) {
+        self.invulnerable = (self.invulnerable - DT).max(0.);
+        if input.fire || input.ability {
+            self.invulnerable = 0.;
+        }
         self.previous = self.pos;
         self.ability_step(input.ability);
         let (_, mut speed, mut acceleration, _) = self.class.stats();
@@ -142,6 +148,9 @@ impl Ship {
         }
     }
     pub fn damage(&mut self, amount: f32) -> f32 {
+        if self.invulnerable > 0. {
+            return 0.;
+        }
         let absorbed = if matches!(self.class, ShipClass::Cadet) && self.ability_active {
             self.energy.min(amount * 0.5)
         } else {
@@ -176,6 +185,9 @@ pub struct World {
     pub combo: f32,
     pub last_kill: Option<f32>,
     pub spawn_radius: f32,
+    pub duel: bool,
+    pub last_attacker: u64,
+    pub last_shot: u64,
 }
 impl World {
     pub fn new(seed: u64, class: ShipClass) -> Self {
@@ -199,6 +211,9 @@ impl World {
             combo: 1.,
             last_kill: None,
             spawn_radius: 1200.,
+            duel: false,
+            last_attacker: 0,
+            last_shot: 0,
         }
     }
     pub fn step(&mut self, input: InputFrame) {
@@ -208,8 +223,20 @@ impl World {
         self.tick += 1;
         self.player.move_step(input);
         self.field_step();
-        self.enemies_step();
+        if !self.duel {
+            self.enemies_step();
+        }
         self.combat(input);
         self.resources_step();
+    }
+    pub fn duel(seed: u64, class: ShipClass, id: u64) -> Self {
+        let mut world = Self::new(seed, class);
+        world.duel = true;
+        world.player.id = id;
+        world.player.pos = V2::new(2048., 2048.)
+            + V2::from_angle((id % 100003) as f32 / 100003. * std::f32::consts::TAU) * 240.;
+        world.player.previous = world.player.pos;
+        world.player.invulnerable = 1.;
+        world
     }
 }

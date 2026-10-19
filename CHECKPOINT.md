@@ -14,13 +14,13 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - `cargo check --workspace` passed after A2; no tests/manual session.
 
 ## Live state
-- Completed B3: 50-byte independent snapshots, fixed simulation cadence publishing, sequence rejection, life epochs, 50 ms interpolation and capped 100 ms extrapolation.
+- Completed B4: Bounded ACK/retry events, target-owned damage and death attribution, two-second life-epoch respawn, menu restrictions and duel instructions. Offline graphical session observed earlier; full manual duel acceptance remains pending.
 - `cargo check --workspace` passed at this step. No automated tests run.
 - No manual play session yet. No public hosts for internet acceptance.
 - No active project processes. Source discussions preserved. No push.
 
 ## Next
-B4: reliable/deduplicated shot and death events, target-owned damage, duel respawn and launch documentation.
+B5: signed origin envelopes, two-second history and bounded shot/movement/death validation.
 
 ## Constraints
 240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.

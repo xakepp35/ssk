@@ -108,6 +108,7 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
         }
     }
     if started
+        && !online
         && button(
             "NEW RUN WITH SELECTED SHIP  [N]",
             x,
@@ -119,7 +120,7 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
     {
         action.new_run = true;
     }
-    if started && is_key_pressed(KeyCode::N) {
+    if started && !online && is_key_pressed(KeyCode::N) {
         action.new_run = true;
     }
     if button(

@@ -138,6 +138,9 @@ impl World {
                 }
             }
         }
+        if self.duel {
+            return;
+        }
         self.loaded
             .retain(|s| (s[0] - self.origin[0]).abs() <= 2 && (s[1] - self.origin[1]).abs() <= 2);
         for dx in -1..=1 {

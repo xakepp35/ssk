@@ -33,7 +33,7 @@ impl Snapshot {
             class: ship.class,
             weapon: ship.weapon,
             ability: ship.ability_active,
-            invulnerable: false,
+            invulnerable: ship.invulnerable > 0.,
         }
     }
     pub fn encode(self) -> Vec<u8> {
@@ -105,6 +105,7 @@ impl Snapshot {
         ship.energy = self.energy;
         ship.weapon = self.weapon;
         ship.ability_active = self.ability;
+        ship.invulnerable = if self.invulnerable { 1. } else { 0. };
         ship
     }
 }

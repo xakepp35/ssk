@@ -77,6 +77,7 @@ pub struct Shot {
     pub weapon: WeaponKind,
     pub seed: u64,
     pub damage_scale: f32,
+    pub blocked: bool,
 }
 #[derive(Clone, Debug)]
 pub struct Bullet {
@@ -123,6 +124,7 @@ impl Ship {
                 weapon: self.weapon,
                 seed: rng.next_u64(),
                 damage_scale: scale,
+                blocked: false,
             })
         } else {
             if self.quiet > 0.6 && !self.ability_active && self.energy < 1000. {
@@ -157,7 +159,11 @@ impl World {
             self.events.push(event);
         }
     }
-    pub fn spawn_shot(&mut self, shot: Shot) {
+    pub fn spawn_shot(&mut self, mut shot: Shot) {
+        if shot.blocked {
+            self.emit(WorldEvent::Shot(shot));
+            return;
+        }
         let stats = shot.weapon.stats();
         let mut rng = Rng(shot.seed);
         let firing = if shot.owner == self.player.id {
@@ -176,6 +182,7 @@ impl World {
                 if ship.energy <= 0. {
                     ship.ability_active = false;
                 }
+                shot.blocked = true;
                 self.emit(WorldEvent::Shot(shot));
                 self.emit(WorldEvent::Impact {
                     pos: shot.pos,
@@ -282,6 +289,8 @@ impl World {
                     }
                     _ => {
                         self.player.damage(bullet.damage);
+                        self.last_attacker = bullet.shot.owner;
+                        self.last_shot = bullet.shot.id;
                         self.combo = 1.;
                         self.last_kill = None;
                     }
