@@ -12,6 +12,9 @@ pub(crate) struct Overlay {
     pub last_change: Instant,
     pub routes: crate::routes::Routes,
     pub presence: HashMap<String, crate::contact::Contact>,
+    pub positions: HashMap<String, Snapshot>,
+    pub radius: f32,
+    pub position_seen: HashMap<String, Instant>,
 }
 impl Overlay {
     pub fn new(id: String) -> Self {
@@ -23,10 +26,17 @@ impl Overlay {
             last_change: Instant::now(),
             routes: Default::default(),
             presence: HashMap::new(),
+            positions: HashMap::new(),
+            radius: 3000.,
+            position_seen: HashMap::new(),
         }
     }
     pub fn members(&self) -> Vec<String> {
-        self.contacts.keys().cloned().collect()
+        self.contacts
+            .keys()
+            .filter(|id| self.presence.get(*id).is_some_and(|c| c.playing))
+            .cloned()
+            .collect()
     }
     pub fn learn(&mut self, id: String, bytes: &[u8], signed: &[u8]) -> bool {
         if self.contacts.len() >= 128 && !self.contacts.contains_key(&id) {
@@ -113,7 +123,7 @@ impl Overlay {
         let destinations: Vec<_> = self
             .contacts
             .keys()
-            .filter(|p| *p != &self.id)
+            .filter(|p| *p != &self.id && self.interested(p))
             .cloned()
             .collect();
         for dest in destinations {
@@ -132,6 +142,26 @@ impl Overlay {
                 self.send(&dest, kind, data, peers, seq, 1);
             }
         }
+    }
+    fn interested(&self, id: &str) -> bool {
+        let Some(remote) = self.presence.get(id).filter(|c| c.playing) else {
+            return false;
+        };
+        let Some(local) = self.presence.get(&self.id).filter(|c| c.playing) else {
+            return false;
+        };
+        if self
+            .position_seen
+            .get(id)
+            .is_some_and(|t| t.elapsed().as_secs_f32() < 1.)
+        {
+            if let (Some(a), Some(b)) = (self.positions.get(&self.id), self.positions.get(id)) {
+                return (b.pos.relative_to(a.pos.sector) - a.pos.local).length()
+                    <= self.radius + 1560. + 832. * 0.2;
+            }
+        }
+        (remote.sector[0] as i128 - local.sector[0] as i128).abs() <= 1
+            && (remote.sector[1] as i128 - local.sector[1] as i128).abs() <= 1
     }
     fn send(
         &mut self,
@@ -203,6 +233,8 @@ impl Overlay {
             self.presence.remove(id);
             self.contacts.remove(id);
             self.records.remove(id);
+            self.positions.remove(id);
+            self.position_seen.remove(id);
         }
         if !expired.is_empty() {
             self.last_change = Instant::now();
@@ -248,6 +280,14 @@ impl Overlay {
         let Some((origin, data)) = auth.verify(kind, &frame[34..]) else {
             return;
         };
+        if kind == 0 {
+            if let Some(s) = Snapshot::decode(&data) {
+                if self.contacts.contains_key(&origin) {
+                    self.positions.insert(origin.clone(), s);
+                    self.position_seen.insert(origin.clone(), Instant::now());
+                }
+            }
+        }
         if (hops == 0 && origin != remote)
             || (hops == 1 && !peers.get(remote).is_some_and(|p| p.direct()))
         {

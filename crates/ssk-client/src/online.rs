@@ -39,6 +39,17 @@ impl Online {
         })
     }
     pub fn receive(&mut self, world: &mut World, now: f64) {
+        let stale: Vec<_> = self
+            .replicas
+            .peers
+            .iter()
+            .filter(|(_, q)| q.back().is_none_or(|(t, _)| now - t > 5.))
+            .map(|(p, _)| p.clone())
+            .collect();
+        for peer in stale {
+            self.replicas.peers.remove(&peer);
+            self.guard.forget(&peer);
+        }
         for _ in 0..512 {
             let Ok(event) = self.net.incoming.try_recv() else {
                 break;

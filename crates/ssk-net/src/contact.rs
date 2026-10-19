@@ -5,6 +5,8 @@ pub(crate) struct Contact {
     pub discovery: String,
     pub expires: u64,
     pub sector: [i64; 2],
+    #[serde(default)]
+    pub playing: bool,
 }
 pub(crate) fn unix_time() -> u64 {
     std::time::SystemTime::now()

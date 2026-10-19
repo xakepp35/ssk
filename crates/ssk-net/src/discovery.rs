@@ -76,7 +76,8 @@ impl Discovery {
             let mut previous = None;
             loop {
                 tokio::select! {
-                    _=stop.changed()=>break,
+                _=stop.changed()=>break,
+                changed=rx.changed()=>{if changed.is_err(){break;}timer.reset_immediately();},
                     _=timer.tick()=>{
                         let (value,sector)=rx.borrow_and_update().clone();
                         if value.is_empty(){continue;}

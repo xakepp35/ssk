@@ -18,6 +18,7 @@ pub struct Config {
     pub max_peers: usize,
     pub discovery_bind: SocketAddr,
     pub discovery_advertise: Vec<String>,
+    pub interest_radius: f32,
 }
 impl Default for Config {
     fn default() -> Self {
@@ -33,6 +34,7 @@ impl Default for Config {
             max_peers: 128,
             discovery_bind: "0.0.0.0:0".parse().unwrap(),
             discovery_advertise: vec![],
+            interest_radius: 3000.,
         }
     }
 }
@@ -73,6 +75,11 @@ impl Config {
         anyhow::ensure!(
             !config.world.is_empty() && config.world.len() <= 96,
             "world must contain 1..96 bytes"
+        );
+        anyhow::ensure!(
+            config.interest_radius.is_finite()
+                && (1000. ..=8192.).contains(&config.interest_radius),
+            "interest_radius must be 1000..8192"
         );
         Ok(config)
     }

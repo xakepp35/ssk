@@ -102,6 +102,7 @@ pub(crate) async fn run(
     let (tx, mut rx) = tokio::sync::mpsc::channel(512);
     let mut peers: HashMap<String, crate::reliable::Peer> = HashMap::new();
     let mut overlay = crate::overlay::Overlay::new(endpoint.id().to_string());
+    overlay.radius = config.interest_radius;
     if let Some(ticket) = connect {
         let addr = decode_ticket(&ticket)?;
         let ep = endpoint.clone();
@@ -159,16 +160,19 @@ pub(crate) async fn run(
 
             },
             _=tick.tick()=>{
-                if seq%150==0 {
+                let snapshot=Snapshot::decode(&worker.state.borrow());
+                let sector=snapshot.map(|s|s.pos.sector).unwrap_or([0,0]);
+                let presence_changed=overlay.presence.get(&overlay.id).is_none_or(|c|c.sector!=sector||c.playing!=snapshot.is_some());
+                if seq%(config.net_hz as u64*15)==0||presence_changed {
                     let mut addr=endpoint.addr();if let Some(ip)=config.advertise {addr.addrs.insert(iroh::TransportAddr::Ip(ip));}
                     let ticket=encode_ticket(&addr)?;
-                    let sector=Snapshot::decode(&worker.state.borrow()).map(|s|s.pos.sector).unwrap_or([0,0]);
-                    let contact=crate::contact::Contact{addr:addr.clone(),discovery:discovery_id.clone(),expires:crate::contact::unix_time()+60,sector};
+                    let contact=crate::contact::Contact{addr:addr.clone(),discovery:discovery_id.clone(),expires:crate::contact::unix_time()+60,sector,playing:snapshot.is_some()};
                     let bytes=serde_json::to_vec(&contact)?;let signed=auth.sign(3,&bytes);overlay.learn(overlay.id.clone(),&bytes,&signed);discovery.publish.send_replace((signed,sector));
                     if !published&&!addr.addrs.is_empty(){println!("SSK invite: {ticket}");published=true;}
                     worker.status.send_modify(|s|{s.ticket=ticket;if s.phase=="Starting network"{s.phase="Waiting for peer".into();}});
                 }
                 seq+=1;
+                if let Some(snapshot)=snapshot {overlay.positions.insert(overlay.id.clone(),snapshot);}
                 if worker.state.has_changed().unwrap_or(false) {let state=worker.state.borrow_and_update().clone();signed_state=auth.sign(0,&state);}
                 if !signed_state.is_empty(){overlay.queue(0,&signed_state,&mut peers,seq);}
                 overlay.retry(&mut peers,seq,config.net_hz);
