@@ -10,6 +10,7 @@ pub struct Options {
     pub play: bool,
     pub online: bool,
     pub connect: Option<String>,
+    pub network: ssk_net::Config,
 }
 pub fn launch(options: Options) {
     let profile = profile::Profile::load();

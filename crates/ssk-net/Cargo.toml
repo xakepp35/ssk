@@ -7,3 +7,10 @@ license.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+ssk-sim.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "signal", "macros", "fs", "io-util"] }
+iroh = { version = "1.3.0", default-features = false, features = ["tls-ring"] }
+serde_yaml = "0.9"
+base64 = "0.22"

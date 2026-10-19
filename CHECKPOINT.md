@@ -14,13 +14,13 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - `cargo check --workspace` passed after A2; no tests/manual session.
 
 ## Live state
-- Completed A12: Local gameplay implementation complete. Executable build passed after local ALSA linker fallback; graphical window observed running with HUD and NPC combat. Full class/death/restart manual acceptance remains open.
+- Completed B1: YAML config/init-config, persisted 0600 identity, separate Tokio workers and bounded state/event/status bridge.
 - `cargo check --workspace` passed at this step. No automated tests run.
 - No manual play session yet. No public hosts for internet acceptance.
 - No active project processes. Source discussions preserved. No push.
 
 ## Next
-B1: persisted identity/config, Tokio and bounded network bridge. No automated tests; manual alpha acceptance remains open.
+B2: QUIC datagram transport, invite ticket, handshake and client connection status.
 
 ## Constraints
 240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.

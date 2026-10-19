@@ -34,8 +34,16 @@ enum Class {
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
+    if matches!(cli.command, Some(Command::InitConfig)) {
+        println!(
+            "{}",
+            ssk_net::Config::write_default(cli.config.as_deref())?.display()
+        );
+        return Ok(());
+    }
+    let network = ssk_net::Config::load(cli.config.as_deref())?;
     match cli.command {
-        Some(Command::Node) => ssk_net::run_node(),
+        Some(Command::Node) => ssk_net::run_node(network),
         Some(Command::InitConfig | Command::Bench) => {
             anyhow::bail!("Available in the network phase")
         }
@@ -57,6 +65,7 @@ fn main() -> anyhow::Result<()> {
                 play,
                 online,
                 connect,
+                network,
             });
             Ok(())
         }
