@@ -289,7 +289,7 @@ this freeze. Windows packaging is deferred while J is the active priority.
   through a fresh process exec and Vulkan loader ICD filtering. Reject elevated
   execution/missing software device instead of hardware fallback. Preserve
   wgpu/Vulkan and 360/60 Hz, native Wayland, FIFO; Windows package stays hardware.
-- [ ] K3 — Four-job focused compilation, Linux release/package. Record actual
+- [x] K3 — Four-job focused compilation, Linux release/package. Record actual
   evidence; do not launch GUI, stress or automated tests after hard freezes.
 - [ ] K4 — Attended runtime acceptance of software containment and diagnosis/
   repair of hardware Vulkan trigger. Product release remains blocked until a
@@ -300,3 +300,13 @@ The main-thread rule was already obeyed. 741d1d9 also enabled vsync (0 -> 1),
 so the timing correlation cannot isolate the simulation worker. Actual GUI
 blocking and surface recovery weaknesses repaired; full-host causation unproven.
 Initial four-job cargo check passed in 1.95s. No GUI/system changes/tests.
+
+K3 evidence: final `cargo check --locked -p ssk --jobs 4` passed (0.52s).
+`tools/build-linux.sh` completed four-job release in 1m33s; revision
+`v0.1.0-alpha.1-45-gdb478c33b704`. target/dist executable SHA256 both
+`5eb7d11808ef90d26ed1b1990cef91b783f5646588aefec3c617fa61298432a3`.
+Archive contains only ssk/ssk.yml/PLAY.md, software policy present. Supplied
+incident log hash unchanged. Installed loader1.4.341.0 and Mesa26.0.8 support
+the chosen ICD path; no package/system changes. No active build/collector/game.
+K4 is open; explicit request for one attended 10-second software-only launch
+with kernel-stack capture submitted because AGENTS prohibits automatic GUI.

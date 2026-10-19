@@ -48,9 +48,9 @@ panic flags off; prepared arm/restore script never armed. Vulkan removes GLX,
 but does not establish the cause or prove freeze resolution. No GUI started.
 
 ## Active processes / exact next action
-Linux four-job release/package completed in 4m34s. No active build, game or
-diagnostic collector. Windows rebuild deferred: owner prioritizes finding the
-new freeze after launching the Vulkan dist binary. No push or GUI launch.
+Current Linux four-job release/package completed in 1m33s (K below). No active
+build, game or diagnostic collector. Windows rebuild deferred while freeze
+repair is the sole priority. No push or GUI launch.
 Observability contract/sink remains in docs/OBSERVABILITY.md; resume extra
 coverage only after owner requests it. No independent diagnostic driver active.
 
@@ -93,7 +93,13 @@ Elevated/secure execution and missing CPU device fail without hardware fallback.
 --graphics hardware/software or --gpu-index N; indexes aren't stable PCI IDs.
 Windows packaging explicitly adapter: hardware (not rebuilt yet). Mesa Lavapipe
 manifest already exists; nothing installed, no driver/kernel/VPN changes.
-Four-job cargo check passed1.95s. Full-host cause and software FPS/stability still
-unproven. No GUI/tests/probe/enumeration run. Next: finish focused check and
-four-job Linux release/package, commit K1-K3; K4 attended runtime acceptance and
-hardware failure identification remain release blockers.
+K1/K2 committed db478c3. Final four-job cargo check passed0.52s. Linux release/
+package passed1m33s, revision v0.1.0-alpha.1-45-gdb478c33b704. target/dist SHA256
+5eb7d11808ef90d26ed1b1990cef91b783f5646588aefec3c617fa61298432a3.
+Archive only ssk/ssk.yml/PLAY.md; software config included; old incident log
+hash unchanged. Installed loader1.4.341.0/Mesa26.0.8; no packages installed.
+Full-host cause and software FPS/stability still unproven. No GUI/tests/probe/
+enumeration run. K4 attended acceptance and hardware failure identification
+remain release blockers. Async request submitted for one 10-second CPU Vulkan
+launch with independent kernel stacks: AGENTS bans automatic GUI launches.
+Until explicit approval, no dependent launch/capture. No active processes.
