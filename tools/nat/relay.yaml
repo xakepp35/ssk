@@ -1,7 +1,8 @@
-identity_file: /run/ssk/relay.key
-udp_bind: 0.0.0.0:4200
-contact_cache: null
-relay_server:
-  http_bind: 0.0.0.0:3340
-  max_clients: 16
-  bytes_per_second: 2097152
+network:
+  identity_file: /run/ssk/relay.key
+  udp_bind: 0.0.0.0:4200
+  contact_cache: null
+  relay_server:
+    http_bind: 0.0.0.0:3340
+    max_clients: 16
+    bytes_per_second: 2097152

@@ -113,6 +113,13 @@ pub(crate) async fn run(
     let mut peers: HashMap<String, crate::reliable::Peer> = HashMap::new();
     let mut overlay = crate::overlay::Overlay::new(endpoint.id().to_string());
     overlay.radius = config.interest_radius;
+    if let Some(bind) = config.bootstrap_bind {
+        crate::bootstrap::serve(bind, worker.status.subscribe(), worker.stop.clone()).await?;
+    }
+    let connect = match connect {
+        Some(target) => Some(crate::bootstrap::resolve(&target).await?),
+        None => None,
+    };
     for ticket in config
         .seeds
         .iter()
@@ -261,7 +268,8 @@ pub(crate) async fn run(
                         let ep=endpoint.clone();let cfg=config.clone();let tx=tx.clone();
                         tokio::spawn(async move{match tokio::time::timeout(Duration::from_secs(CONNECT_SECONDS),ep.connect(addr,ALPN)).await{Ok(Ok(conn))=>admit(conn,cfg,tx).await,result=>{let _=tx.try_send(Internal::Failed(format!("Topology connect: {result:?}")));}}});
                     }
-                    if overlay.settled(){let desired=overlay.desired();if desired.iter().all(|id|peers.contains_key(id)){for (id,p) in &peers{if !desired.contains(id){p.conn.close(0u32.into(),b"topology epoch settled");}}}}
+                    // A headless seed stays connected to introduce players; it has no ship in the cover graph.
+                    if snapshot.is_some()&&overlay.settled(){let desired=overlay.desired();if desired.iter().all(|id|peers.contains_key(id)){for (id,p) in &peers{if !desired.contains(id){p.conn.close(0u32.into(),b"topology epoch settled");}}}}
                 }
 
             }

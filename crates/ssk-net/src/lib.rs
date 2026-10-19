@@ -3,6 +3,7 @@ use constants::*;
 use ssk_sim::{CombatEvent, SharedEvent, Snapshot};
 // Bounded bridge between game thread and asynchronous network workers.
 mod auth;
+mod bootstrap;
 mod cache;
 mod metrics;
 mod overlay;
@@ -85,6 +86,7 @@ pub(crate) struct Worker {
 }
 impl Network {
     pub fn start(config: Config, connect: Option<String>) -> anyhow::Result<Self> {
+        config.validate()?;
         let key = load_identity(&config.identity_file)?;
         let player_id = u64::from_le_bytes(key.public().as_bytes()[..8].try_into().unwrap())
             | ssk_sim::PLAYER_ID_BIT;
@@ -187,14 +189,26 @@ pub fn run_node(config: Config) -> anyhow::Result<()> {
             Some(c) => Some(relay::start(c).await?),
             None => None,
         };
-        let network = Network::start(config, None)?;
-        if let Some(server) = &mut relay {
+        let mut network = Network::start(config, None)?;
+        let mut status = network.status.clone();
+        loop {
             tokio::select! {
-                r = tokio::signal::ctrl_c() => r?,
-                r = server.join() => anyhow::bail!("Relay terminated: {r:?}"),
+                r = tokio::signal::ctrl_c() => { r?; break; },
+                r = async {
+                    match &mut relay {
+                        Some(server) => server.join().await,
+                        None => std::future::pending().await,
+                    }
+                } => anyhow::bail!("Relay terminated: {r:?}"),
+                changed = status.changed() => {
+                    changed?;
+                    let phase = status.borrow().phase.clone();
+                    anyhow::ensure!(!phase.starts_with("Network stopped:"), "{phase}");
+                },
+                event = network.incoming.recv() => {
+                    if let Some(NetEvent::Error(error)) = event { eprintln!("Server: {error}"); }
+                },
             }
-        } else {
-            tokio::signal::ctrl_c().await?;
         }
         drop(network);
         if let Some(server) = relay {

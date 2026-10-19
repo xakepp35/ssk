@@ -97,7 +97,7 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
     let mut action = MenuAction::default();
     if button(
         if started {
-            "RESUME  [Esc / Enter]"
+            "RESUME  [F2 / Esc / Enter]"
         } else {
             "START SURVIVAL  [Enter]"
         },
@@ -129,6 +129,15 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
     }
     if started && !online && is_key_pressed(KeyCode::N) {
         action.new_run = true;
+    }
+    if online {
+        draw_text(
+            &format!("NEXT RESPAWN: {}  |  combat continues", class.name()),
+            x,
+            y + NEW_RUN_TOP * s,
+            FONT_BODY * s,
+            GOLD,
+        );
     }
     if button(
         &format!("VOLUME  {:.0}%", profile.volume * crate::constants::PERCENT),
@@ -203,7 +212,7 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
     for (i, line) in [
         "WASD move   |   Mouse aim   |   LMB / Space fire",
         "RMB / Shift ability   |   Q/E / wheel / 1-3 weapon",
-        "Esc menu   |   F1 help   |   R restart after death",
+        "F2 / Esc menu + ship   |   F1 help   |   F3 invite",
     ]
     .into_iter()
     .enumerate()
@@ -297,7 +306,7 @@ pub fn hud(world: &World, profile: &Profile, skipped: u64) {
     );
     draw_text(
         &format!(
-            "{:.0}s  |  BEST {}  |  Esc menu",
+            "{:.0}s  |  BEST {}  |  F2 menu / ship",
             world.tick as f32 * DT,
             profile.records[ship.class.index()]
         ),
@@ -375,7 +384,7 @@ pub fn help() {
         "Blue capsules: energy. Green: hull. Yellow bar: overcap.",
         "Chain kills within 4 s for combo. Enemy hits reset it.",
         "No passive hull regeneration. Stay mobile. R after death.",
-        "Esc pauses local play. Online combat keeps running.",
+        "F2 / Esc: menu and ship selection. Online combat keeps running.",
     ]
     .into_iter()
     .enumerate()

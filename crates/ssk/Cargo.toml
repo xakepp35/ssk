@@ -12,3 +12,5 @@ ssk-client.workspace = true
 clap.workspace = true
 anyhow.workspace = true
 serde_json.workspace = true
+serde.workspace = true
+serde_yaml = "0.9"

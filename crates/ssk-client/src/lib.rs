@@ -2,7 +2,9 @@ use constants::*;
 use macroquad::prelude::*;
 use ssk_sim::{DT, InputFrame, Ship, V2};
 pub mod bench;
+mod config;
 pub mod constants;
+pub use config::WindowConfig;
 mod effects;
 mod game;
 mod online;
@@ -11,14 +13,18 @@ mod render;
 mod ui;
 pub struct Options {
     pub seed: u64,
-    pub class: ssk_sim::ShipClass,
+    pub class: Option<ssk_sim::ShipClass>,
+    pub window: WindowConfig,
     pub play: bool,
     pub online: bool,
     pub connect: Option<String>,
     pub network: ssk_net::Config,
 }
 pub fn launch(options: Options) {
-    let profile = profile::Profile::load();
+    let mut profile = profile::Profile::load();
+    profile.width = options.window.width;
+    profile.height = options.window.height;
+    profile.fullscreen = options.window.fullscreen;
     macroquad::Window::from_config(
         Conf {
             window_title: "Syrup Space Kadet".into(),
@@ -140,14 +146,10 @@ fn background(camera: V2) {
     }
 }
 async fn run(options: Options, mut profile: profile::Profile) {
-    let mut class = if options.play {
-        options.class
-    } else {
-        ssk_sim::ShipClass::ALL[profile.class]
-    };
-    if options.play {
-        profile.class = class.index();
-    }
+    let mut class = options
+        .class
+        .unwrap_or(ssk_sim::ShipClass::ALL[profile.class]);
+    profile.class = class.index();
     let (game, initial) = game::Game::start(&options, class);
     let mut view = initial;
     let mut world = view.world.clone();
@@ -171,7 +173,7 @@ async fn run(options: Options, mut profile: profile::Profile) {
         if is_quit_requested() {
             break;
         }
-        if is_key_pressed(KeyCode::Escape) {
+        if is_key_pressed(KeyCode::Escape) || is_key_pressed(KeyCode::F2) {
             menu = !menu;
             help = false;
         }
@@ -328,9 +330,9 @@ async fn run(options: Options, mut profile: profile::Profile) {
             );
             draw_text(
                 if options.online {
-                    "Respawning...   Esc: choose next ship"
+                    "Respawning...   F2: choose next ship"
                 } else {
-                    "R: fly again     Esc: choose ship"
+                    "R: fly again     F2: choose ship"
                 },
                 x,
                 y + RESULT_HELP_TOP,
@@ -345,6 +347,9 @@ async fn run(options: Options, mut profile: profile::Profile) {
             }
             if action.resume {
                 menu = false;
+                if let Err(e) = profile.save() {
+                    save_error = Some(e.to_string());
+                }
             }
             if action.new_run {
                 class = ssk_sim::ShipClass::ALL[profile.class];
@@ -378,12 +383,12 @@ async fn run(options: Options, mut profile: profile::Profile) {
         }
         if options.online {
             let status = &view.status;
-            if is_key_pressed(KeyCode::F2) {
+            if is_key_pressed(KeyCode::F3) {
                 miniquad::window::clipboard_set(&status.ticket);
             }
             draw_text(
                 &format!(
-                    "{} | {} peers | F2 copy invite (also in terminal)",
+                    "{} | {} peers | F2 menu / ship | F3 copy invite",
                     status.phase, status.peers
                 ),
                 NOTICE_INSET,

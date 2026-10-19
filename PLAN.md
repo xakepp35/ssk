@@ -100,3 +100,15 @@ Old 240 Hz measurements are historical and do not establish 360 Hz capacity.
 C4 evidence: source 962f7bb built release for x86_64-unknown-linux-gnu and
 x86_64-pc-windows-gnu, sequentially with 2 Cargo jobs. Windows ZIP created.
 MSVC script prepared; no Windows execution/manual LAN match yet.
+
+## D: simple LAN launch and portable distribution
+
+- [x] D1 — Root ssk.yml, separate application/window/network configuration,
+  1600×1000 default, optional CLI class, saved selection, F2 menu/F3 invite.
+- [x] D2 — Host (play + accept joins), headless server/node, bounded TCP LAN
+  invitation endpoint and IP-based joining to 192.168.50.155:4202. Preserve
+  headless seed connections while players form the ordinary P2P graph.
+- [ ] D3 — Static Windows compiler runtime, no bundled DLL, root config in both
+  distributions, release builds and PE import evidence; update LAN guide.
+
+No automated tests or heavy swarms. Live cross-platform match remains manual.

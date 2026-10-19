@@ -1,14 +1,17 @@
 use clap::{Parser, Subcommand, ValueEnum};
+mod config;
+mod constants;
 
 #[derive(Parser)]
 #[command(version, about = "Syrup Space Kadet — procedural space arcade")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
-    #[arg(long, global = true, default_value_t = ssk_net::constants::DEFAULT_SEED)]
-    seed: u64,
-    #[arg(long, global = true, value_enum, default_value_t = Class::Cadet)]
-    class: Class,
+    #[arg(long, global = true)]
+    seed: Option<u64>,
+    /// Optional initial ship override; F2 opens the ship selection menu.
+    #[arg(long, global = true, value_enum)]
+    class: Option<Class>,
     #[arg(long, global = true)]
     config: Option<std::path::PathBuf>,
 }
@@ -16,11 +19,15 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     Play,
+    /// Play and accept LAN joins on TCP 4202.
+    Host,
     Online {
         #[arg(long)]
         connect: Option<String>,
     },
-    Node,
+    /// Headless rendezvous/discovery node; players retain ownership of their ships.
+    #[command(alias = "node")]
+    Server,
     InitConfig,
     Bench {
         #[arg(long, default_value_t = ssk_client::constants::BENCH_DEFAULT_PLAYERS)]
@@ -56,14 +63,30 @@ fn main() -> anyhow::Result<()> {
     if matches!(cli.command, Some(Command::InitConfig)) {
         println!(
             "{}",
-            ssk_net::Config::write_default(cli.config.as_deref())?.display()
+            config::Config::write_default(cli.config.as_deref())?.display()
         );
         return Ok(());
     }
-    let network = ssk_net::Config::load(cli.config.as_deref())?;
-    match cli.command {
-        Some(Command::Node) => ssk_net::run_node(network),
-        Some(Command::Bench {
+    let mut app = config::Config::load(cli.config.as_deref())?;
+    if let Some(seed) = cli.seed {
+        app.network.seed = seed;
+    }
+    let command = cli.command.unwrap_or(match app.mode {
+        config::Mode::Offline => Command::Play,
+        config::Mode::Host => Command::Host,
+        config::Mode::Join => Command::Online { connect: None },
+    });
+    if matches!(command, Command::Host | Command::Server) {
+        app.network
+            .bootstrap_bind
+            .get_or_insert(ssk_net::constants::DEFAULT_BOOTSTRAP_BIND.parse()?);
+    } else {
+        app.network.bootstrap_bind = None;
+    }
+    let network = app.network;
+    match command {
+        Command::Server => ssk_net::run_node(network),
+        Command::Bench {
             players,
             seconds,
             warmup,
@@ -73,7 +96,7 @@ fn main() -> anyhow::Result<()> {
             output,
             drop_count,
             workers,
-        }) => {
+        } => {
             let report = ssk_client::bench::run(
                 network,
                 ssk_client::bench::Options {
@@ -99,25 +122,23 @@ fn main() -> anyhow::Result<()> {
             }
             Ok(())
         }
-        Some(Command::InitConfig) => {
-            anyhow::bail!("Available in the network phase")
-        }
+        Command::InitConfig => unreachable!("handled before configuration loading"),
         command => {
-            let online = matches!(command, Some(Command::Online { .. }));
-            let play = command.is_some();
+            let online = matches!(command, Command::Online { .. } | Command::Host);
             let connect = match command {
-                Some(Command::Online { connect }) => connect,
+                Command::Online { connect } => connect.or(app.connect),
                 _ => None,
             };
-            let class = match cli.class {
+            let class = cli.class.map(|class| match class {
                 Class::Spark => ssk_sim::ShipClass::Spark,
                 Class::Cadet => ssk_sim::ShipClass::Cadet,
                 Class::Thunder => ssk_sim::ShipClass::Thunder,
-            };
+            });
             ssk_client::launch(ssk_client::Options {
-                seed: cli.seed,
+                seed: network.seed,
                 class,
-                play,
+                window: app.window,
+                play: true,
                 online,
                 connect,
                 network,

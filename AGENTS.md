@@ -54,3 +54,14 @@ Move game validation/model/physics to ssk-sim. ssk-net owns only transport,
 identity/authentication, serialization, discovery and routing. Centralize tuning
 values in named constants/configuration modules; do not add mutable global state.
 Do not repeat heavy load scenarios after the reported workstation freeze.
+
+## Launch and distribution
+
+Default application config is ssk.yml in the working directory, then beside the
+executable. Window defaults are 1600×1000. Application mode/window settings
+belong to the binary/client; only the nested network settings belong to ssk-net.
+Host combines playable client and LAN rendezvous; server/node is headless P2P
+bootstrap, with no ship or central ownership of player state. F2/Esc opens the
+menu/ship selection; F3 copies the invitation. Online class changes apply on
+respawn. Package only executable, ssk.yml and guide; no external Windows runtime
+DLLs, identities or runtime files. Preserve separate per-computer keys.

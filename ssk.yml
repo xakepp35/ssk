@@ -1,0 +1,23 @@
+# Linux: start ./target/release/ssk (host + playable ship).
+# The Windows package sets mode: join and connects to the Linux address below.
+# Other modes: offline (survival), join (LAN client).
+mode: host
+connect: 192.168.50.155:4202
+window:
+  width: 1600
+  height: 1000
+  fullscreen: false
+network:
+  world: ssk-playground-v1
+  seed: 42
+  # Each computer creates its own key. Never copy runtime/ between players.
+  identity_file: runtime/identity.key
+  contact_cache: null
+  udp_bind: 0.0.0.0:4200
+  discovery_bind: 0.0.0.0:4201
+  # Host/server enables TCP 4202 automatically. Game traffic stays UDP/QUIC.
+  bootstrap_bind: null
+  advertise: null
+  relays: []
+  seeds: []
+  friends: []

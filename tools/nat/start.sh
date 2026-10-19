@@ -11,9 +11,10 @@ iptables -A OUTPUT -p udp -j DROP
 iptables -A INPUT -i lo -j ACCEPT
 iptables -A INPUT -p udp -j DROP
 cat > "/run/ssk/$role.yaml" <<EOF
-identity_file: /run/ssk/$role.key
-contact_cache: null
-relays: [http://relay:3340]
+network:
+  identity_file: /run/ssk/$role.key
+  contact_cache: null
+  relays: [http://relay:3340]
 EOF
 if [ "$role" = a ]; then
     exec ssk bench --players 1 --seconds 45 --warmup 10 --config /run/ssk/a.yaml --invite-file /run/ssk/a.ticket --output /run/ssk/a.json

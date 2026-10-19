@@ -23,15 +23,25 @@ in ssk-sim; Linux/Windows build and LAN play instructions. See AGENTS.md.
 - Protocol 3 handshake and signature domain include both timing constants.
 - Windows paths and Unix-specific file permissions gated for portability.
 
+## Current LAN revision
+D1/D2 implemented: app config in binary composes client WindowConfig and net
+Config. Default ssk.yml from cwd, then executable folder; paths relative to
+config. Window 1600×1000 overrides old saved window size. F2/Esc menu, F3 invite;
+optional --class, saved class; online choice applies at next respawn.
+No-argument root mode host; Windows package mode join to 192.168.50.155:4202.
+Host combines player and bounded TCP invitation endpoint; server/node is
+headless P2P discovery/rendezvous, no ship/central authority. Game remains QUIC.
+Headless seeds keep connections rather than pruning against a ship-only graph.
+Examples removed; NAT tools migrated to nested network section. No tests run.
+
 ## Build evidence / artifacts
-Source 962f7bb: Linux release build succeeded (1m29s), Windows GNU release
-succeeded (1m15s), sequentially with 2 jobs. cargo check passed earlier.
-Linux: target/release/ssk. Windows: dist/ssk-windows-gnu.zip and unpacked exe.
-Archive includes LAN guide/config, excludes identities/profiles. Build tools:
-tools/build-windows.sh, tools/build-windows.ps1. MinGW locally unpacked under
-ignored target/mingw; Rust windows-gnu target installed. No root work.
-No Windows runtime/MSVC run or live Linux↔Windows match yet. No tests run.
-No active build/game/swarm, no push. Update docs/PLAN with future evidence.
+Earlier source 962f7bb builds succeeded on Linux and Windows GNU. Current
+LAN revision cargo check passed; one intermediate Linux release succeeded.
+Final Linux rebuild and Windows static release/package still pending (D3).
+No game/server/swarm kept running. Build with 2 jobs, sequential targets.
+Pending packaging scripts set static runtime, inspect PE imports, package only
+exe+ssk.yml+PLAY.md. Preserve owner's unstaged Cargo.toml authors change.
+No Windows runtime/MSVC run or live Linux↔Windows match yet. No push.
 
 ## Historical measurements / open work
 22a9737 at 240/30: 2/16/64 loopback completed with zero skipped steps or measured

@@ -1,5 +1,0 @@
-# Second local player; never share an identity with the first process.
-identity_file: ./runtime/player-b.key
-contact_cache: null
-udp_bind: 127.0.0.1:0
-discovery_bind: 127.0.0.1:0

@@ -27,7 +27,7 @@ Linux↔Windows ещё требуют ручного прогона. Нагру�
 
 В конфиге `discovery_bind: 0.0.0.0:4201` задаёт UDP-порт libp2p QUIC,
 `udp_bind: 0.0.0.0:4200` — отдельный порт игровой сети Iroh. Запустите
-`ssk node --config node.yaml`. Строка `SSK discovery seed: …/p2p/…` —
+`ssk server`. Строка `SSK discovery seed: …/p2p/…` —
 multiaddr для поля `seeds` других участников; для внешней сети нужен
 доступный адрес и открытые соответствующие UDP-порты. Внешние multiaddr
 можно задать через `discovery_advertise`.
@@ -70,7 +70,7 @@ DHT seed повторно набирается каждые 15 секунд. В�
 Для звука нужна ALSA runtime (`libasound.so.2`); при отсутствии dev-ссылки
 сборка создаёт локальный alias в `OUT_DIR`. Система не изменяется.
 
-Доступны меню, `play`, `online`, `node`, `init-config`, `bench`.
+Доступны `host`, `server` (псевдоним `node`), `play`, `online`, `init-config`, `bench`.
 Профиль: `$XDG_DATA_HOME/ssk/profile.json` (по умолчанию `~/.local/share/ssk/`).
 Каждый рестарт использует следующий seed относительно `--seed`.
 
@@ -78,13 +78,17 @@ DHT seed повторно набирается каждые 15 секунд. В�
 cargo run --release -- play
 cargo run --release -- online
 cargo run --release -- online --connect TICKET
-cargo run --release -- node --config node.yaml
+cargo run --release -- server
 cargo run --release -- init-config
 cargo run --release -- bench
 ```
 
-Без подкоманды открывается меню. `node` и `bench` не создают окно.
-Дополнительные параметры: `--config`, `--seed`, `--class`.
+Без подкоманды используется корневой `ssk.yml`: Linux — host, Windows-пакет — join
+к `192.168.50.155:4202`. Окно по умолчанию **1600×1000**. `server` и `bench`
+не создают окно. **F2 / Esc** открывает меню и выбор класса; **F3** копирует
+приглашение. `--class` необязателен, без него используется сохранённый выбор.
+В сети новый класс применяется при следующем респауне; локально — через New Run.
+`--config` нужен только для альтернативного файла; `--seed` меняет seed мира.
 Инструкция для компьютера Linux и ноутбука Windows: [игра по LAN](docs/LAN.md).
 
 ### Headless-нагрузка
@@ -119,7 +123,8 @@ target/release/ssk bench --players 128 --output /tmp/ssk-128.json
 
 ### Дуэль по приглашению
 
-Первый игрок запускает `online`, копирует приглашение клавишей F2 или из
+Для LAN достаточно запустить host и Windows-клиент без аргументов.
+Для ручного приглашения первый игрок запускает `host`, копирует его клавишей F3 или из
 терминала (`SSK invite: ssk1:…`). Второй запускает
 `cargo run --release -- online --connect 'ssk1:…'`. `world`, `seed` и версия
 правил должны совпадать. В меню выбирается корабль для следующего респауна.
@@ -129,19 +134,11 @@ target/release/ssk bench --players 128 --output /tmp/ssk-128.json
 
 По умолчанию публичных relay нет: используйте LAN, доступный UDP-адрес
 или собственный relay.
-Для двух процессов на одной машине уже подготовлены отдельные конфиги:
-
-```sh
-target/release/ssk online --config examples/player-a.yaml
-# Во втором терминале вставьте приглашение первого:
-target/release/ssk online --config examples/player-b.yaml --connect 'ssk1:…'
-```
-
-Ключи сохраняются в игнорируемом `runtime/`. Эти примеры используют loopback;
-для LAN/интернета уберите `udp_bind`/`discovery_bind` или задайте доступные
-адреса. Свой конфиг создаётся через `init-config --config PATH`. Задайте разные
-`identity_file`: один ключ означает одного игрока. При необходимости задайте
-`advertise: IP:PORT` и соответствующий `udp_bind`. Не публикуйте identity-файлы.
+Для двух процессов на одной машине создайте два конфига через
+`init-config --config PATH`: укажите разные `network.identity_file`, клиенту
+`network.udp_bind: 127.0.0.1:0` и `network.discovery_bind: 127.0.0.1:0`.
+Первый процесс запускается как `host`, второй — `online --connect 127.0.0.1:4202`.
+Папка examples больше не нужна. Не публикуйте ключи идентичности.
 
 В занятом секторе один распорядитель считает NPC, астероиды и капсулы;
 остальные получают снимки. Корабль каждого игрока считается его владельцем.
@@ -166,9 +163,9 @@ target/release/ssk online --config examples/player-b.yaml --connect 'ssk1:…'
 
 ### Собственный relay
 
-`ssk node --config examples/node.yaml` поднимает bootstrap и встроенный
-Iroh relay. HTTP на `127.0.0.1:3340` подходит для локального стенда; клиенты
-задают `relays: [http://127.0.0.1:3340]`. Для LAN замените loopback адресами
+`ssk server` поднимает rendezvous/discovery. Добавление секции
+`network.relay_server` в `ssk.yml` также включает встроенный Iroh relay. HTTP на `127.0.0.1:3340` подходит для локального стенда; клиенты
+задают `network.relays: [http://127.0.0.1:3340]`. Для LAN замените loopback адресами
 сервера. Игроки обмениваются приглашениями или используют `seeds` из журнала
 узла. DHT сам по себе не пробивает NAT.
 
@@ -349,15 +346,17 @@ Payload-бюджет резервирует короткий пакет кажд
 - `ssk-sim/src/constants.rs`: частоты, баланс, физика, NPC, генерация, игровые лимиты.
 - `ssk-net/src/constants.rs`: размеры/лимиты транспорта, очереди, таймауты и маршруты.
 - `ssk-client/src/constants.rs`: оформление, UI layout, эффекты, звук, профиль, стенд.
-- `Config`/YAML: адреса, идентичности, relay/bootstrap и интерес; `Profile`/JSON:
-  громкость, эффекты, разрешение, fullscreen, рекорды. Изменяемых глобальных
+- Корневой `ssk.yml`: режим, connect, window 1600×1000 и `network` с адресами,
+  идентичностью, relay/bootstrap и интересом; `Profile`/JSON: выбранный класс,
+  громкость, эффекты, fullscreen и рекорды. Размер окна при запуске задаёт YAML. Изменяемых глобальных
   переменных нет; состояние принадлежит сеансу.
 
 Числа0/1, размерности, индексы и смещения полей wire-формата — часть алгоритма
 или схемы. Настраиваемые игровые/сетевые/визуальные параметры имеют имена.
 Unix-ключи создаются с0600; на Windows используются права каталога пользователя.
-Данные Windows: `%LOCALAPPDATA%/ssk`, конфиг `%APPDATA%/ssk/config.yaml`;
-на Linux — XDG. Относительные пути в YAML считаются от рабочей папки.
+Профиль Windows: `%LOCALAPPDATA%/ssk`, на Linux — XDG. Конфиг `ssk.yml`
+ищется в текущей папке, затем рядом с бинарём. Относительные пути в YAML
+считаются от папки конфига. Игровой ключ в готовом конфиге — `runtime/identity.key`.
 
 ## Сеть: SSK-P2P
 

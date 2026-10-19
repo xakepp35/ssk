@@ -1,5 +1,4 @@
 use crate::constants::*;
-use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::{
     net::SocketAddr,
@@ -8,6 +7,8 @@ use std::{
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
+    /// Optional LAN TCP endpoint serving this node's current public invitation.
+    pub bootstrap_bind: Option<SocketAddr>,
     pub relay_server: Option<RelayServerConfig>,
     pub world: String,
     pub seed: u64,
@@ -26,6 +27,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            bootstrap_bind: None,
             relay_server: None,
             world: DEFAULT_WORLD.into(),
             seed: DEFAULT_SEED,
@@ -46,9 +48,6 @@ impl Default for Config {
 pub fn data_dir() -> PathBuf {
     app_dir("XDG_DATA_HOME", "LOCALAPPDATA", ".local/share")
 }
-pub fn config_path() -> PathBuf {
-    app_dir("XDG_CONFIG_HOME", "APPDATA", ".config").join("config.yaml")
-}
 fn app_dir(xdg: &str, windows: &str, unix: &str) -> PathBuf {
     if let Some(path) = std::env::var_os(xdg) {
         return PathBuf::from(path).join("ssk");
@@ -68,18 +67,8 @@ fn app_dir(xdg: &str, windows: &str, unix: &str) -> PathBuf {
     base.join("ssk")
 }
 impl Config {
-    pub fn load(path: Option<&Path>) -> anyhow::Result<Self> {
-        let default = config_path();
-        let path = path.unwrap_or(&default);
-        let config = if path.exists() {
-            serde_yaml::from_slice::<Self>(
-                &std::fs::read(path).with_context(|| format!("read {}", path.display()))?,
-            )?
-        } else if path == default {
-            Self::default()
-        } else {
-            anyhow::bail!("Config does not exist: {}", path.display())
-        };
+    pub fn validate(&self) -> anyhow::Result<()> {
+        let config = self;
         anyhow::ensure!(
             config.seeds.len() <= MAX_SEEDS
                 && config.friends.len() <= MAX_FRIENDS
@@ -121,20 +110,7 @@ impl Config {
                 "relay QUIC port must be 7842"
             );
         }
-        Ok(config)
-    }
-    pub fn write_default(path: Option<&Path>) -> anyhow::Result<PathBuf> {
-        use std::io::Write;
-        let path = path.map(Path::to_path_buf).unwrap_or_else(config_path);
-        if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
-            std::fs::create_dir_all(parent)?;
-        }
-        let mut file = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&path)?;
-        file.write_all(serde_yaml::to_string(&Self::default())?.as_bytes())?;
-        Ok(path)
+        Ok(())
     }
 }
 #[derive(Clone, Serialize, Deserialize)]
