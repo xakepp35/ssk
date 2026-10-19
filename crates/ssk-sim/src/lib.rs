@@ -21,9 +21,22 @@ pub struct WorldPos {
 impl WorldPos {
     pub fn relative_to(self, origin: [i64; 2]) -> V2 {
         V2::new(
-            (self.sector[0] - origin[0]) as f32 * SECTOR_SIZE,
-            (self.sector[1] - origin[1]) as f32 * SECTOR_SIZE,
+            (self.sector[0] as i128 - origin[0] as i128) as f32 * SECTOR_SIZE,
+            (self.sector[1] as i128 - origin[1] as i128) as f32 * SECTOR_SIZE,
         ) + self.local
+    }
+    pub fn normalized(mut self) -> Self {
+        for axis in 0..2 {
+            let v = if axis == 0 {
+                &mut self.local.x
+            } else {
+                &mut self.local.y
+            };
+            let shift = (*v / SECTOR_SIZE).floor() as i64;
+            self.sector[axis] = self.sector[axis].saturating_add(shift);
+            *v = v.rem_euclid(SECTOR_SIZE);
+        }
+        self
     }
 }
 #[derive(Clone, Copy, Debug, Default)]
@@ -35,7 +48,7 @@ pub struct InputFrame {
     pub weapon: usize,
 }
 
-#[derive(Clone, Copy, Debug, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum ShipClass {
     Spark,
     #[default]

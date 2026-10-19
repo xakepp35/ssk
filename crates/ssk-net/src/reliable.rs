@@ -62,7 +62,13 @@ impl Peer {
         }
         packet
     }
-    pub fn receive(&mut self, id: &str, bytes: &[u8], worker: &Worker) {
+    pub fn receive(
+        &mut self,
+        id: &str,
+        bytes: &[u8],
+        worker: &Worker,
+        auth: &mut crate::auth::Auth,
+    ) {
         if !bytes.starts_with(b"SSK1") || bytes.len() < 12 {
             return;
         }
@@ -97,12 +103,18 @@ impl Peer {
                     continue;
                 }
             }
+            let Some((origin, data)) = auth.verify(kind, data) else {
+                continue;
+            };
+            if origin != id {
+                continue;
+            }
             if worker
                 .incoming
                 .try_send(NetEvent::Packet {
-                    peer: id.into(),
+                    peer: origin,
                     kind,
-                    bytes: data.to_vec(),
+                    bytes: data,
                 })
                 .is_ok()
             {

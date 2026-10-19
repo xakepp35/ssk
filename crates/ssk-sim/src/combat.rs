@@ -154,6 +154,50 @@ pub fn swept_circle(a: V2, b: V2, center: V2, radius: f32) -> Option<f32> {
 }
 
 impl World {
+    /// Bounded lag compensation against linear target history, capped at 200 ms.
+    pub fn receive_shot(&mut self, shot: Shot, lag: f32, past_target: V2) {
+        let start = self.bullets.len();
+        self.spawn_shot(shot);
+        let lag = lag.clamp(0., 0.2);
+        let current = self.player.pos;
+        let mut impacts = Vec::new();
+        for bullet in &mut self.bullets[start..] {
+            let end = bullet.pos + bullet.velocity * lag;
+            let hit = swept_circle(
+                bullet.pos - past_target,
+                end - current,
+                V2::ZERO,
+                self.player.class.stats().3 + bullet.radius,
+            );
+            let obstacle = self
+                .asteroids
+                .iter()
+                .filter(|a| a.hp > 0.)
+                .filter_map(|a| swept_circle(bullet.pos, end, a.pos, a.radius + bullet.radius))
+                .min_by(f32::total_cmp);
+            if let Some(t) = hit.filter(|t| obstacle.is_none_or(|o| *t < o)) {
+                if self.player.damage(bullet.damage) > 0. {
+                    self.last_attacker = shot.owner;
+                    self.last_shot = shot.id;
+                }
+                impacts.push(WorldEvent::Impact {
+                    pos: bullet.pos.lerp(end, t),
+                    damage: bullet.damage,
+                });
+                bullet.life = 0.;
+            } else if obstacle.is_some() {
+                bullet.life = 0.;
+            } else {
+                bullet.pos = end;
+                bullet.previous = end;
+                bullet.life -= lag;
+            }
+        }
+        self.bullets.retain(|b| b.life > 0.);
+        for impact in impacts {
+            self.emit(impact);
+        }
+    }
     pub fn emit(&mut self, event: WorldEvent) {
         if self.events.len() < 512 {
             self.events.push(event);

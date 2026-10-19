@@ -75,6 +75,7 @@ pub(crate) async fn run(
     connect: Option<String>,
     mut worker: Worker,
 ) -> anyhow::Result<()> {
+    let mut auth = crate::auth::Auth::new(key.clone(), &config);
     let relay = if config.relays.is_empty() {
         RelayMode::Disabled
     } else {
@@ -114,6 +115,7 @@ pub(crate) async fn run(
     tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut seq = 0u64;
     let mut published = false;
+    let mut signed_state = Vec::new();
     loop {
         tokio::select! {
             _=worker.stop.changed()=>break,
@@ -137,11 +139,12 @@ pub(crate) async fn run(
                 Internal::Failed(error)=>{worker.status.send_modify(|s|s.phase=error.clone());let _=worker.incoming.try_send(NetEvent::Error(error));},
                 Internal::Gone(id)=>{peers.remove(&id);let _=worker.incoming.try_send(NetEvent::Disconnected(id));worker.status.send_modify(|s|{s.peers=peers.len();s.phase=if peers.is_empty(){"Waiting for peer".into()}else{"Connected".into()};});},
                 Internal::Data(id,bytes)=>{
-                    if let Some(peer)=peers.get_mut(&id){peer.receive(&id,&bytes,&worker);}
+                    if let Some(peer)=peers.get_mut(&id){peer.receive(&id,&bytes,&worker,&mut auth);}
                 }
             },
             Some(event)=worker.events.recv()=>{
                 event_id+=1;
+                let event=auth.sign(1,&event);
                 for peer in peers.values_mut(){if !peer.queue(event_id,event.clone(),seq){let _=worker.incoming.try_send(NetEvent::Error("Critical event queue full".into()));}}
 
             },
@@ -152,8 +155,9 @@ pub(crate) async fn run(
                     if !published&&!addr.addrs.is_empty(){println!("SSK invite: {ticket}");published=true;}
                     worker.status.send_modify(|s|{s.ticket=ticket;if s.phase=="Starting network"{s.phase="Waiting for peer".into();}});
                 }
-                seq+=1;let state=worker.state.borrow_and_update().clone();
-                for peer in peers.values_mut(){let packet=peer.packet(seq,&state,config.net_hz);if packet.len()<=peer.conn.max_datagram_size().unwrap_or(0){let _=peer.conn.send_datagram(packet.into());}}
+                seq+=1;
+                if worker.state.has_changed().unwrap_or(false) {let state=worker.state.borrow_and_update().clone();signed_state=auth.sign(0,&state);}
+                for peer in peers.values_mut(){let packet=peer.packet(seq,&signed_state,config.net_hz);if packet.len()<=peer.conn.max_datagram_size().unwrap_or(0){let _=peer.conn.send_datagram(packet.into());}}
 
             }
         }

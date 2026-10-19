@@ -1,5 +1,8 @@
 //! Bounded bridge between game thread and asynchronous network workers.
+mod auth;
 mod config;
+mod validation;
+pub use validation::*;
 mod events;
 pub use events::*;
 mod reliable;

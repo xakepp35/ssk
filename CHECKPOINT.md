@@ -14,13 +14,13 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - `cargo check --workspace` passed after A2; no tests/manual session.
 
 ## Live state
-- Completed B4: Bounded ACK/retry events, target-owned damage and death attribution, two-second life-epoch respawn, menu restrictions and duel instructions. Offline graphical session observed earlier; full manual duel acceptance remains pending.
+- Completed B5: Ed25519 world-scoped source envelopes on async workers, bounded replay/history, movement and weapon/energy checks, 200 ms linear target-history compensation and shot-backed death credit. Full world rollback and adversarial acceptance remain open.
 - `cargo check --workspace` passed at this step. No automated tests run.
 - No manual play session yet. No public hosts for internet acceptance.
 - No active project processes. Source discussions preserved. No push.
 
 ## Next
-B5: signed origin envelopes, two-second history and bounded shot/movement/death validation.
+B6: piggyback sequence echo, ACK delay, RTT/loss/load and HUD diagnostics.
 
 ## Constraints
 240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.

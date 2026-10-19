@@ -14,6 +14,9 @@ pub struct Online {
     order: VecDeque<(String, u32, u64)>,
     deaths: HashSet<(String, u32)>,
     death_order: VecDeque<(String, u32)>,
+    guard: ssk_net::CombatGuard,
+    own_history: VecDeque<(f64, WorldPos)>,
+    fired: VecDeque<(u64, f64)>,
 }
 impl Online {
     pub fn new(config: ssk_net::Config, connect: Option<String>) -> Result<Self, String> {
@@ -30,6 +33,9 @@ impl Online {
             order: VecDeque::new(),
             deaths: HashSet::new(),
             death_order: VecDeque::new(),
+            guard: Default::default(),
+            own_history: VecDeque::new(),
+            fired: VecDeque::new(),
         })
     }
     pub fn receive(&mut self, world: &mut World, now: f64) {
@@ -44,7 +50,15 @@ impl Online {
                     bytes,
                 } => {
                     if let Some(snapshot) = Snapshot::decode(&bytes) {
-                        self.replicas.push(peer, snapshot, now);
+                        let old = self
+                            .replicas
+                            .peers
+                            .get(&peer)
+                            .and_then(|q| q.back())
+                            .map(|(_, s)| *s);
+                        if self.guard.snapshot(old, snapshot) {
+                            self.replicas.push(peer, snapshot, now);
+                        }
                     }
                 }
                 NetEvent::Packet {
@@ -53,12 +67,17 @@ impl Online {
                     bytes,
                 } => {
                     if let Some(event) = CombatEvent::decode(&bytes) {
+                        if matches!(&event, CombatEvent::Shot { .. })
+                            && !self.guard.shot(&peer, &event, &self.replicas)
+                        {
+                            continue;
+                        }
                         match event {
                             CombatEvent::Shot {
                                 mut shot,
                                 sector,
                                 life,
-                                ..
+                                tick,
                             } => {
                                 let key = (peer.clone(), life, shot.id);
                                 if self.seen.contains(&key) {
@@ -93,20 +112,42 @@ impl Online {
                                 if self.order.len() > 4096 {
                                     self.seen.remove(&self.order.pop_front().unwrap());
                                 }
-                                world.spawn_shot(shot);
+                                let lag = self
+                                    .replicas
+                                    .peers
+                                    .get(&peer)
+                                    .and_then(|q| q.back())
+                                    .map(|(time, s)| {
+                                        ((now - time) + (s.tick as f64 - tick as f64) / 240.)
+                                            .clamp(0., 0.2)
+                                            as f32
+                                    })
+                                    .unwrap_or(0.);
+                                let past = self
+                                    .own_history
+                                    .iter()
+                                    .min_by(|(a, _), (b, _)| {
+                                        (a - (now - lag as f64))
+                                            .abs()
+                                            .total_cmp(&(b - (now - lag as f64)).abs())
+                                    })
+                                    .map(|(_, p)| p.relative_to(world.origin))
+                                    .unwrap_or(world.player.pos);
+                                world.receive_shot(shot, lag, past);
                             }
-                            CombatEvent::Death {
-                                life,
-                                killer,
-                                shot: _,
-                            } => {
+                            CombatEvent::Death { life, killer, shot } => {
                                 let key = (peer, life);
                                 if self.deaths.insert(key.clone()) {
                                     self.death_order.push_back(key);
                                     if self.death_order.len() > 1024 {
                                         self.deaths.remove(&self.death_order.pop_front().unwrap());
                                     }
-                                    if killer == world.player.id {
+                                    if killer == world.player.id
+                                        && self
+                                            .fired
+                                            .iter()
+                                            .any(|(id, time)| *id == shot && now - time <= 2.)
+                                    {
                                         self.frags += 1;
                                         world.award(500);
                                     }
@@ -117,6 +158,7 @@ impl Online {
                 }
                 NetEvent::Disconnected(peer) => {
                     self.replicas.peers.remove(&peer);
+                    self.guard.forget(&peer);
                 }
                 NetEvent::Error(error) => self.error = error,
                 _ => {}
@@ -136,12 +178,34 @@ impl Online {
         }
     }
     pub fn after_frame(&mut self, world: &World, dt: f32) -> bool {
+        let now = macroquad::time::get_time();
+        self.own_history.push_back((
+            now,
+            WorldPos {
+                sector: world.origin,
+                local: world.player.pos,
+            },
+        ));
+        while self.own_history.front().is_some_and(|(t, _)| now - t > 2.) {
+            self.own_history.pop_front();
+        }
+        while self.fired.front().is_some_and(|(_, t)| now - t > 2.) {
+            self.fired.pop_front();
+        }
         for event in &world.events {
             if let WorldEvent::Shot(shot) = event {
                 if shot.owner == world.player.id {
-                    self.event(CombatEvent::Shot {
-                        shot: *shot,
+                    self.fired.push_back((shot.id, now));
+                    let pos = WorldPos {
                         sector: world.origin,
+                        local: shot.pos,
+                    }
+                    .normalized();
+                    let mut shot = *shot;
+                    shot.pos = pos.local;
+                    self.event(CombatEvent::Shot {
+                        shot,
+                        sector: pos.sector,
                         life: self.life,
                         tick: world.tick,
                     });

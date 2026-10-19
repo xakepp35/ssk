@@ -127,7 +127,7 @@ impl Replicas {
         {
             queue.clear();
         }
-        if queue.len() >= 16 {
+        while queue.len() >= 128 || queue.front().is_some_and(|(time, _)| now - time > 2.) {
             queue.pop_front();
         }
         queue.push_back((now, snapshot));
