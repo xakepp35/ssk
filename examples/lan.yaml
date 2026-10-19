@@ -1,0 +1,8 @@
+# Each computer creates its OWN identity under this directory.
+# Do not copy runtime/ from one player to another.
+identity_file: ./runtime/identity.key
+contact_cache: null
+udp_bind: 0.0.0.0:4200
+# Invitations contain discovered LAN addresses. Set advertise: 192.168.x.x:4200
+# only if the computer has several adapters and the invitation needs an override.
+discovery_bind: 0.0.0.0:4201

@@ -92,7 +92,11 @@ Public hosts are currently unavailable; real internet acceptance remains open.
 - [x] C3 — Independent fixed-step game worker, bounded render handoff and explicit
   overload disconnect. No hidden slow-motion online, no unbounded catch-up.
 - [x] C3b — Reserve all peer slots within the payload budget; stop/disconnect an overloaded transport worker.
-- [ ] C4 — Windows portability/build scripts, Linux release build, LAN duel guide.
+- [x] C4 — Windows portability/build scripts, Linux release build, LAN duel guide.
 
 Avoid further heavy swarm runs on this workstation after a reported OS freeze.
 Old 240 Hz measurements are historical and do not establish 360 Hz capacity.
+
+C4 evidence: source 962f7bb built release for x86_64-unknown-linux-gnu and
+x86_64-pc-windows-gnu, sequentially with 2 Cargo jobs. Windows ZIP created.
+MSVC script prepared; no Windows execution/manual LAN match yet.

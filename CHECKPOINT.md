@@ -1,48 +1,45 @@
 # SSK checkpoint
 
 ## Objective / authority
-Implement README and PLAN in small committed steps; no push, no automated tests.
-Latest owner revision: 360 simulation ticks/s, one packet each 6 ticks (60 Hz),
-monitor-vsync render independently; remove magic tuning numbers; game validation
-and model in ssk-sim; build Linux and prepare Windows/LAN play. See AGENTS.md.
+Implement README/PLAN in small committed steps. No push, no automated tests.
+Latest owner revision: 360 logic ticks/s, packet each 6 ticks, fixed 60 Hz;
+monitor vsync independently; named global parameters; game model/validation
+in ssk-sim; Linux/Windows build and LAN play instructions. See AGENTS.md.
 
-## Completed / evidence
-A0–A12, B1–B15, B16a–d committed; alpha tag v0.1.0-alpha.1. No beta tag.
-Historical HEAD 22a9737 (240 Hz /30 Hz): 2/16/64 loopback clients, zero skipped
-steps or measured event expiry. 64: p95 replica age96.8 ms, shared image502.4 ms,
-client work1.02 ms. 128 overloaded this host (p95 age3524 ms,3121 skipped steps).
-Final reports /tmp/ssk-final-{2,16,64,128}.json, sanitized artifact being saved.
-Blocked-UDP two-bridge Docker relay scenario completed: both sides received
-replicas over relay, p95 age32.4/34.0 ms, measured expiry0; not public internet.
-Reports /tmp/ssk-nat-{a,b}.json. Containers/temporary volume removed.
-One short offline window observation only; full manual class/death/restart and
-real LAN/internet acceptance remain open. Latest offline launch exited.
+## Delivered
+- A0–A12, B1–B15, B16a–e committed. Alpha tag v0.1.0-alpha.1; no beta tag.
+- C1a/b/c, C2/a/b, C3/a/b and C4 complete. Three libraries, one binary.
+- ssk-sim/constants.rs owns TICK_PER_SEC = 360, TICK_PER_PACKET = 6 and derived
+  timing plus game balance/physics. No configurable 30 Hz mode remains.
+- ssk-sim owns World, CombatGuard, PeerCombat, Snapshot/Replicas, shared sector
+  ownership/leases/loot/rewards, lag compensation, frags, death and respawn.
+- ssk-net owns QUIC/Iroh, authentication, codecs/framing, discovery and routes.
+  Named constants cover limits, queues, timing and message/frame schema IDs.
+- ssk-client owns a dedicated game worker, bounded render handoff, input,
+  Macroquad UI/vsync/audio and a transport adapter. Presentation defaults in
+  constants.rs; runtime settings remain owned Config/Profile, no mutable globals.
+- Logic or transport lag >100 ms stops/disconnects the session. Per-slot payload
+  reservation keeps a short datagram for every remaining physical connection.
+- Protocol 3 handshake and signature domain include both timing constants.
+- Windows paths and Unix-specific file permissions gated for portability.
 
-## Active work / next
-C1a/b, C2/a/b, C3 implemented; cargo check workspace passed, no automated tests.
-TICK_PER_SEC360/TICK_PER_PACKET6 derives DT, packet60 Hz and timing windows.
-Protocol3 handshake and signature domain include timing. 30 Hz config/CLI gone.
-Game worker owns World and Online; render gets bounded snapshots under monitor
-vsync. Lag >100 ms stops session and disconnects; no busy-spin/unbounded catch-up.
-CombatGuard, Snapshot/Replicas, CombatEvent/SharedEvent, shared sector leases,
-pickups/rewards/ownership all live in ssk-sim. Network retains codecs and framing.
-Constants in all three libraries now own tuning, UI theme/layout, audio, queues,
-timeouts and defaults. Wire offsets/indices/unit conversions remain schema/math.
-Pure PeerCombat owns the entire gameplay side of Online; no network dependency
-in ssk-sim. Windows paths and Unix-only permissions gated for portability.
-C4 first Windows GNU release build succeeded (4m20s), no Windows runtime run.
-Final follow-up reserves a heartbeat per peer and disconnects a transport worker
-that misses the100ms deadline; constants name message/frame IDs. cargo check
-passed. Both Windows+Linux release builds succeeded at3762445. Final parameter-only
-cleanup names remaining queue bounds/retry/snapshot quantization; rebuilding
-from current source sequentially with jobs2. MinGW unpacked under
-ignored target/mingw; target installed. tools/build-windows.{sh,ps1}, examples/lan
-and docs/LAN.md prepared. After GNU build, build Linux release jobs2 and record
-actual artifact paths. No Windows runtime session yet.
-Historical measurements saved in docs/MEASUREMENTS.md; raw /tmp JSON disappeared
-across the workstation incident and are not committed. No new capacity claims.
-No active game/swarm. Build concurrency2. Do not run stress scenarios.
+## Build evidence / artifacts
+Source 962f7bb: Linux release build succeeded (1m29s), Windows GNU release
+succeeded (1m15s), sequentially with 2 jobs. cargo check passed earlier.
+Linux: target/release/ssk. Windows: dist/ssk-windows-gnu.zip and unpacked exe.
+Archive includes LAN guide/config, excludes identities/profiles. Build tools:
+tools/build-windows.sh, tools/build-windows.ps1. MinGW locally unpacked under
+ignored target/mingw; Rust windows-gnu target installed. No root work.
+No Windows runtime/MSVC run or live Linux↔Windows match yet. No tests run.
+No active build/game/swarm, no push. Update docs/PLAN with future evidence.
 
-## Constraints
-Three library crates, one binary. Bounded queues, one transit maximum.
-Old 240 Hz measurements cannot establish new 360 Hz performance.
+## Historical measurements / open work
+22a9737 at 240/30: 2/16/64 loopback completed with zero skipped steps or measured
+expiry; 64 p95 replica age 96.8 ms, shared image 502.4 ms. 128 overloaded this host.
+Blocked-UDP Docker relay scenario delivered replicas both ways; not internet.
+See docs/MEASUREMENTS.md. Raw /tmp reports disappeared across workstation
+incident; only previously read aggregate results retained. No 360/60 capacity
+claim. Do not repeat heavy swarms after the owner's reported OS freeze.
+Next B16 acceptance: short manual new-client/LAN match when available, then
+separately planned distributed capacity/failure/internet evidence. 128 remains
+unaccepted. No public hosts currently supplied; no beta tag until justified.
