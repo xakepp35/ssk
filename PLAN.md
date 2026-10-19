@@ -458,3 +458,9 @@ L5 headless-GPU static:20261019T234558Z,PCI17:00.0,10.702s/exit0,
 errors. GPU choice alone did not reproduce in static scene. Prepared20261019T234738Z:
 same full host/audio as successful primary comparison, change GPU only;20s
 observation with60s stack capture, one SIGINT if no manual close.
+
+L5 headless full host/audio:20261019T234738Z,29.344s,~138.3FPS,
+10080world/clock ticks,0overload/ERROR,60kernel records/0errors,29app samples/
+0read errors. One SIGINT; normal exit unverified. No GPU-dependent failure yet.
+Next20261019T234933Z: same headless host, default implicit layers allowed in child;
+only remove VK_LOADER_LAYERS_DISABLE, keep NVIDIA-only ICD and all other settings.
