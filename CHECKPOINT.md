@@ -14,13 +14,21 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - `cargo check --workspace` passed after A2; no tests/manual session.
 
 ## Live state
-- Completed B15: Implemented real headless moving/firing clients with JSON metrics, signed preintroduced roster, external single-agent mode and bounded peer removal; isolated two-bridge forced-relay Docker scenario supplied. Release build in progress; measurement and NAT execution remain B16 acceptance work.
-- `cargo check --workspace` passed at this step. No automated tests run.
-- One short offline window observation completed; full class/death/restart and internet acceptance remain open.
-- No active project processes. Source discussions preserved. No push.
+- A0–A12 and B1–B15 committed. B16 is in progress; no beta tag.
+- B16 first fixes: verified-envelope cache, cached structural graph, compact
+  protocol v2 events, cached end-to-end ACKs, pending-event deduplication,
+  fair ship/checkpoint queues and staggered control with payload token bucket.
+- `cargo check --workspace` passes. No automated tests run.
+- Baseline loopback 2/16 clients stayed fresh; 64 failed: median fresh fraction
+  0.492, p95 replica age 3548 ms, 4585 unconfirmed events. These are diagnostic
+  baselines, not beta acceptance. JSON/logs in /tmp/ssk-baseline-{2,16,64}.*.
+- One short offline window observation completed; full class/death/restart
+  and real internet acceptance remain open. No push.
 
 ## Next
-B16: run 2/16/64/128 measurements, fix observed bottlenecks, exercise isolated relay and document limits. Active release build exec session 89999.
+Build release, rerun isolated 64 then 128 moving/firing clients, measure shared
+object freshness too. Execute tools/nat two-bridge relay scenario, document
+actual results and remaining acceptance limits. No active project processes.
 
 ## Constraints
 240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.

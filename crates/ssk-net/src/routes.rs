@@ -14,6 +14,7 @@ pub(crate) struct Routes {
     pub pending: VecDeque<Pending>,
     pub seen: HashSet<(String, [u8; 16])>,
     pub order: VecDeque<(String, [u8; 16])>,
+    pub acks: HashMap<(String, [u8; 16]), Vec<u8>>,
     pub legs: HashMap<(String, String), (LinkStats, Instant)>,
     pub chosen: HashMap<String, (String, f32, Instant)>,
     pub changes: u64,
@@ -46,13 +47,13 @@ impl Routes {
                 ),
             );
         }
-        self.legs.retain(|_, (_, t)| t.elapsed().as_secs() < 5);
+        self.legs.retain(|_, (_, t)| t.elapsed().as_secs() < 6);
     }
     pub fn advertise(peers: &HashMap<String, crate::reliable::Peer>, cursor: usize) -> Vec<u8> {
         let mut ids: Vec<_> = peers.keys().collect();
         ids.sort();
         let mut b = Vec::new();
-        for i in 0..ids.len().min(12) {
+        for i in 0..ids.len().min(20) {
             let id = ids[(cursor + i) % ids.len()];
             let p = &peers[id];
             let s = &p.metrics.stats;

@@ -41,6 +41,7 @@ no automated tests unless requested. A short manual game session when available.
 - [x] B13 — Embedded self-hosted relay and NAT traversal. `feat: add self-hosted relay support`
 - [x] B14 — Multiple seeds/relays, cache, reconnect, friends. `feat: handle network interruptions`
 - [x] B15 — Headless swarm, measurements, isolated NAT/relay setup. `feat: add network load scenarios`
+- [x] B16a — Fix measured signature/graph recomputation and queue starvation; focused compilation. `perf: bound routing and prioritize fresh game state`
 - [ ] B16 — Measured bottlenecks, operating docs, beta tag. `release: prepare network beta`
 
 ## Network implementation invariants

@@ -7,7 +7,7 @@ use iroh::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
-const ALPN: &[u8] = b"ssk/game/1";
+const ALPN: &[u8] = b"ssk/game/2";
 #[derive(Serialize, Deserialize)]
 struct Hello {
     version: u16,
@@ -143,8 +143,14 @@ pub(crate) async fn run(
     let mut last_addr = None;
     let mut signed_state = Vec::new();
     let mut metric_record = Vec::new();
-    let mut control_budget = 8192f32;
+    let mut control_budget = 65536f32;
     let mut control_cursor = 0usize;
+    let payload_rate = if config.net_hz == 30 {
+        1024 * 1024
+    } else {
+        2 * 1024 * 1024
+    };
+    let mut payload_budget = payload_rate as f32 / 10.;
     loop {
         tokio::select! {
             _=worker.stop.changed()=>break,
@@ -200,21 +206,23 @@ pub(crate) async fn run(
                 if !signed_state.is_empty(){overlay.queue(0,&signed_state,&mut peers,seq);}
                 if worker.shared.has_changed().unwrap_or(false){let frames=worker.shared.borrow_and_update().clone().into_iter().take(256).filter(|f| f.len()<=420).map(|f| auth.sign(6,&f)).collect::<Vec<_>>();overlay.shared(&frames,&mut peers);}
                 overlay.retry(&mut peers,seq,config.net_hz);
-                control_budget=(control_budget+8192./config.net_hz as f32).min(8192.);
+                control_budget=(control_budget+65536./config.net_hz as f32).min(65536.);
+                payload_budget=(payload_budget+payload_rate as f32/config.net_hz as f32).min(payload_rate as f32/10.);
                 let mut ids:Vec<_>=peers.keys().cloned().collect();ids.sort();let count=ids.len();if count>0{ids.rotate_left(seq as usize%count);}
                 for id in ids{let peer=peers.get_mut(&id).unwrap();
-                    let (kind,contact)=if control_cursor%4==0{(5,metric_record.clone())}else{(3,overlay.records.values().nth((control_cursor/4)%overlay.records.len().max(1)).cloned().unwrap_or_default())};
-                    let control=if !contact.is_empty()&&control_budget>=contact.len() as f32{control_budget-=contact.len() as f32;control_cursor+=1;contact}else{Vec::new()};
-                    let budget=if config.net_hz==30{1024*1024}else{2*1024*1024};
-                    let limit=1100.min(peer.conn.max_datagram_size().unwrap_or(0)).min(budget/config.net_hz as usize/count.max(1));
+                    let phase=id.bytes().fold(0u64,|h,b| h.wrapping_mul(31).wrapping_add(b as u64))%config.net_hz as u64;
+                    let slot=(seq+phase)%config.net_hz as u64;
+                    let (kind,contact)=if slot==0{(5,metric_record.clone())}else if slot==config.net_hz as u64/2{(3,overlay.records.values().nth(control_cursor%overlay.records.len().max(1)).cloned().unwrap_or_default())}else{(3,Vec::new())};
+                    let limit=1100.min(peer.conn.max_datagram_size().unwrap_or(0)).min(payload_budget as usize);
                     if limit<64{continue;}
-                    let packet=peer.packet(seq,kind,&control,config.net_hz,limit);let len=packet.len();if peer.conn.send_datagram(packet.into()).is_ok(){peer.metrics.sent(len);}
+                    let control=if !contact.is_empty()&&control_budget>=contact.len() as f32&&contact.len()+27<=limit{control_budget-=contact.len() as f32;control_cursor+=usize::from(kind==3);contact}else{Vec::new()};
+                    let packet=peer.packet(seq,kind,&control,config.net_hz,limit);let len=packet.len();if peer.conn.send_datagram(packet.into()).is_ok(){payload_budget-=len as f32;peer.metrics.sent(len);}
                 }
                 if seq%config.net_hz as u64==0 {
                     for id in overlay.prune(){if let Some(p)=peers.remove(&id){p.conn.close(0u32.into(),b"presence expired");}let _=worker.incoming.try_send(NetEvent::Disconnected(id));}
                     let links=peers.iter_mut().map(|(id,p)|{p.metrics.stats.peer=id.clone();p.metrics.stats.direct=p.conn.paths().iter().any(|path|path.is_selected()&&path.is_ip());p.metrics.sample()}).collect();
                     worker.status.send_modify(|s|{s.links=links;s.crypto=auth.stats.clone();});
-                    let data=crate::routes::Routes::advertise(&peers,(seq/config.net_hz as u64*12) as usize);metric_record=auth.sign(5,&data);
+                    let data=crate::routes::Routes::advertise(&peers,(seq/config.net_hz as u64*20) as usize);metric_record=auth.sign(5,&data);
                     worker.status.send_modify(|s|{s.routes=overlay.routes.chosen.len();s.route_changes=overlay.routes.changes;s.unconfirmed=overlay.routes.expired;});
                     if seq%(config.net_hz as u64*15)==0 {if let Some(path)=&config.contact_cache {
                         let records=overlay.records.iter().filter(|(id,_)| *id!=&overlay.id).map(|(_,r)|r.clone()).take(128).collect();

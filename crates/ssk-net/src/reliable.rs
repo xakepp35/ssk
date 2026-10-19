@@ -2,6 +2,7 @@ use iroh::endpoint::Connection;
 use std::collections::{HashMap, HashSet, VecDeque};
 struct Pending {
     id: u64,
+    digest: [u8; 32],
     data: Vec<u8>,
     last: u64,
     born: u64,
@@ -9,6 +10,7 @@ struct Pending {
 pub(crate) struct Peer {
     pub conn: Connection,
     pending: VecDeque<Pending>,
+    queued: HashSet<[u8; 32]>,
     acks: VecDeque<u64>,
     seen: HashSet<u64>,
     order: VecDeque<u64>,
@@ -22,6 +24,7 @@ impl Peer {
         Self {
             conn,
             pending: VecDeque::new(),
+            queued: HashSet::new(),
             acks: VecDeque::new(),
             seen: HashSet::new(),
             order: VecDeque::new(),
@@ -32,6 +35,10 @@ impl Peer {
         }
     }
     pub fn queue(&mut self, _id: u64, data: Vec<u8>, tick: u64) -> bool {
+        let digest = *blake3::hash(&data).as_bytes();
+        if self.queued.contains(&digest) {
+            return true;
+        }
         if self.pending.len() >= 128 || data.len() > 960 {
             return false;
         }
@@ -41,14 +48,16 @@ impl Peer {
                 .iter()
                 .filter(|p| p.data.get(34..66) == Some(origin))
                 .count()
-                >= 8
+                >= 32
             {
                 return false;
             }
         }
         self.next_event += 1;
+        self.queued.insert(digest);
         self.pending.push_back(Pending {
             id: self.next_event,
+            digest,
             data,
             last: 0,
             born: tick,
@@ -90,17 +99,32 @@ impl Peer {
         limit: usize,
     ) -> Vec<u8> {
         let mut packet = self.metrics.header(seq);
+        append(&mut packet, control_kind, contact, limit);
         for _ in 0..16 {
-            if let Some(id) = self.acks.pop_front() {
-                append(&mut packet, 2, &id.to_le_bytes(), limit);
-            } else {
+            let Some(id) = self.acks.front() else {
+                break;
+            };
+            if !append(&mut packet, 2, &id.to_le_bytes(), limit) {
                 break;
             }
+            self.acks.pop_front();
         }
-        append(&mut packet, control_kind, contact, limit);
+        // Ship positions must advance even while reliable combat traffic is busy.
+        let ship_limit = limit.min(packet.len() + 420);
+        self.drain_states(&mut packet, false, ship_limit);
+        // Give sector checkpoints a bounded share instead of starving indefinitely.
+        if seq % 4 == 0 {
+            let shared_limit = limit.min(packet.len() + 570);
+            self.drain_states(&mut packet, true, shared_limit);
+        }
         let before = self.pending.len();
-        self.pending
-            .retain(|e| seq.saturating_sub(e.born) < hz as u64 * 5);
+        self.pending.retain(|e| {
+            let keep = seq.saturating_sub(e.born) < hz as u64 * 5;
+            if !keep {
+                self.queued.remove(&e.digest);
+            }
+            keep
+        });
         self.metrics.stats.expired += (before - self.pending.len()) as u64;
         self.metrics.stats.queued = self.pending.len();
         for _ in 0..self.pending.len() {
@@ -114,16 +138,23 @@ impl Peer {
             }
             self.pending.push_back(event);
         }
+        self.drain_states(&mut packet, false, limit);
+        self.drain_states(&mut packet, true, limit);
+        packet
+    }
+    fn drain_states(&mut self, packet: &mut Vec<u8>, shared: bool, limit: usize) {
         for _ in 0..self.state_order.len() {
             let key = self.state_order.pop_front().unwrap();
+            if key.starts_with("shared:") != shared {
+                self.state_order.push_back(key);
+                continue;
+            }
             let data = self.states.remove(&key).unwrap();
-            if !append(&mut packet, 4, &data, limit) {
+            if !append(packet, 4, &data, limit) {
                 self.states.insert(key.clone(), data);
-                self.state_order.push_front(key);
-                break;
+                self.state_order.push_back(key);
             }
         }
-        packet
     }
     pub fn receive(&mut self, bytes: &[u8]) -> Vec<(u8, Vec<u8>)> {
         let mut frames = Vec::new();
@@ -142,7 +173,14 @@ impl Peer {
             rest = &rest[len..];
             if kind == 2 && len == 8 {
                 let ack = u64::from_le_bytes(payload.try_into().unwrap());
-                self.pending.retain(|e| e.id != ack);
+                self.pending.retain(|e| {
+                    if e.id == ack {
+                        self.queued.remove(&e.digest);
+                        false
+                    } else {
+                        true
+                    }
+                });
                 continue;
             }
             let (event_id, data) = if kind == 1 && len > 8 {

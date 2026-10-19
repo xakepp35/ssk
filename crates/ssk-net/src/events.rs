@@ -17,12 +17,12 @@ pub enum CombatEvent {
 }
 impl CombatEvent {
     pub fn encode(&self) -> Vec<u8> {
-        serde_json::to_vec(self).unwrap_or_default()
+        postcard::to_allocvec(self).unwrap_or_default()
     }
     pub fn decode(bytes: &[u8]) -> Option<Self> {
         if bytes.len() > 880 {
             return None;
         }
-        serde_json::from_slice(bytes).ok()
+        postcard::from_bytes(bytes).ok()
     }
 }

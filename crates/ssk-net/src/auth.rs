@@ -1,5 +1,5 @@
 use crate::*;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 /// Sign on the async worker, never on the 240 Hz simulation thread.
 pub(crate) struct Auth {
     pub stats: CryptoStats,
@@ -7,8 +7,8 @@ pub(crate) struct Auth {
     domain: Vec<u8>,
     session: [u8; 8],
     serial: u64,
-    seen: HashSet<(String, [u8; 8], u64)>,
-    order: VecDeque<(String, [u8; 8], u64)>,
+    verified: HashMap<[u8; 32], (String, Vec<u8>)>,
+    order: VecDeque<[u8; 32]>,
     latest: HashMap<(String, [u8; 8]), u64>,
 }
 impl Auth {
@@ -25,7 +25,7 @@ impl Auth {
                 .try_into()
                 .unwrap(),
             serial: 0,
-            seen: HashSet::new(),
+            verified: HashMap::new(),
             order: VecDeque::new(),
             latest: HashMap::new(),
         }
@@ -55,7 +55,6 @@ impl Auth {
         let session: [u8; 8] = payload[32..40].try_into().ok()?;
         let serial = u64::from_le_bytes(payload[40..48].try_into().ok()?);
         let peer = key.to_string();
-        let id = (peer.clone(), session, serial);
         let latest = self
             .latest
             .get(&(peer.clone(), session))
@@ -63,6 +62,11 @@ impl Auth {
             .unwrap_or(0);
         if serial.saturating_add(4096) < latest {
             return None;
+        }
+        let digest = *blake3::hash(payload).as_bytes();
+        if let Some(value) = self.verified.get(&digest) {
+            self.stats.cache_hits += 1;
+            return Some(value.clone());
         }
         let end = payload.len() - 64;
         let signature = iroh::Signature::from_bytes(payload[end..].try_into().ok()?);
@@ -82,11 +86,12 @@ impl Auth {
         if self.latest.len() > 512 {
             self.latest.retain(|(p, _), _| p == &peer);
         }
-        self.seen.insert(id.clone());
-        self.order.push_back(id);
+        let result = (peer, payload[49..end].to_vec());
+        self.verified.insert(digest, result.clone());
+        self.order.push_back(digest);
         if self.order.len() > 16384 {
-            self.seen.remove(&self.order.pop_front()?);
+            self.verified.remove(&self.order.pop_front()?);
         }
-        Some((peer, payload[49..end].to_vec()))
+        Some(result)
     }
 }

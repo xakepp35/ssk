@@ -23,8 +23,8 @@ pub use replication::*;
 mod transport;
 pub use config::*;
 pub use transport::{decode_ticket, encode_ticket};
-pub const PROTOCOL_VERSION: u16 = 1;
-pub const RULES_ID: &str = "ssk-rules-1-240hz";
+pub const PROTOCOL_VERSION: u16 = 2;
+pub const RULES_ID: &str = "ssk-rules-2-240hz";
 #[derive(Clone, Debug, Default)]
 pub struct Status {
     pub contact: Vec<u8>,

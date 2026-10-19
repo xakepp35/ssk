@@ -18,6 +18,8 @@ pub(crate) struct Overlay {
     pub fallback: BTreeMap<String, EndpointAddr>,
     pub friends: std::collections::BTreeSet<String>,
     retries: HashMap<String, (u32, Instant)>,
+    cover: HashMap<String, std::collections::BTreeSet<String>>,
+    dirty: bool,
 }
 impl Overlay {
     pub fn new(id: String) -> Self {
@@ -35,6 +37,8 @@ impl Overlay {
             fallback: BTreeMap::new(),
             friends: Default::default(),
             retries: HashMap::new(),
+            cover: HashMap::new(),
+            dirty: true,
         }
     }
     pub fn members(&self) -> Vec<String> {
@@ -65,6 +69,13 @@ impl Overlay {
         if !self.contacts.contains_key(&id) {
             self.last_change = Instant::now();
         }
+        if self
+            .presence
+            .get(&id)
+            .is_none_or(|old| old.playing != contact.playing)
+        {
+            self.dirty = true;
+        }
         self.contacts.insert(id.clone(), addr);
         self.presence.insert(id.clone(), contact);
         self.records.insert(id, signed.to_vec());
@@ -81,7 +92,11 @@ impl Overlay {
         {
             return vec![dest.into()];
         }
-        let candidates = topology::intermediaries(&self.members(), &self.id, dest);
+        self.refresh_graph();
+        let candidates: Vec<_> = match (self.cover.get(&self.id), self.cover.get(dest)) {
+            (Some(a), Some(b)) => a.intersection(b).cloned().collect(),
+            _ => vec![],
+        };
         let ranked = candidates
             .into_iter()
             .filter_map(|id| {
@@ -94,7 +109,7 @@ impl Overlay {
                 }
                 let (remote, time) = self.routes.legs.get(&(id.clone(), dest.into()))?;
                 if !remote.direct
-                    || time.elapsed().as_secs() > 3
+                    || time.elapsed().as_secs() > 5
                     || remote.age_ms > 2000.
                     || remote.queued >= 96
                 {
@@ -109,8 +124,20 @@ impl Overlay {
             .collect();
         self.routes.select(dest, ranked)
     }
-    pub fn desired(&self) -> std::collections::BTreeSet<String> {
-        let mut desired = topology::neighbours(&self.members(), &self.id);
+    fn refresh_graph(&mut self) {
+        if !self.dirty {
+            return;
+        }
+        let members = self.members();
+        self.cover = members
+            .iter()
+            .map(|id| (id.clone(), topology::neighbours(&members, id)))
+            .collect();
+        self.dirty = false;
+    }
+    pub fn desired(&mut self) -> std::collections::BTreeSet<String> {
+        self.refresh_graph();
+        let mut desired = self.cover.get(&self.id).cloned().unwrap_or_default();
         desired.extend(self.friends.iter().cloned());
         desired
     }
@@ -248,7 +275,12 @@ impl Overlay {
                 continue;
             }
             if p.last == 0 || seq - p.last >= (hz / 10) as u64 {
-                self.send(&p.dest, 1, &p.data, peers, seq, 3);
+                let copies = if seq.saturating_sub(p.born) >= hz as u64 / 3 {
+                    3
+                } else {
+                    1
+                };
+                self.send(&p.dest, 1, &p.data, peers, seq, copies);
                 p.last = seq;
             }
             self.routes.pending.push_back(p);
@@ -321,6 +353,7 @@ impl Overlay {
             self.position_seen.remove(id);
         }
         if !expired.is_empty() {
+            self.dirty = true;
             self.last_change = Instant::now();
         }
         expired
@@ -411,12 +444,17 @@ impl Overlay {
                         self.routes.order.push_back(key.clone());
                     }
                     while self.routes.order.len() > 8192 {
-                        self.routes
-                            .seen
-                            .remove(&self.routes.order.pop_front().unwrap());
+                        let old = self.routes.order.pop_front().unwrap();
+                        self.routes.seen.remove(&old);
+                        self.routes.acks.remove(&old);
                     }
-                    let ack = auth.sign(2, &key.1);
-                    self.send(&origin, 2, &ack, peers, seq, 3);
+                    let ack = self
+                        .routes
+                        .acks
+                        .entry(key.clone())
+                        .or_insert_with(|| auth.sign(2, &key.1))
+                        .clone();
+                    self.send(&origin, 2, &ack, peers, seq, 1);
                 }
             }
             return;
