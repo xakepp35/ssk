@@ -15,13 +15,16 @@ kernel/driver/VPN/display/service/watchdog changes. After reboot read
 runtime/freeze-sessions/current.json and the pointed session.json/app.ndjson/
 console.ndjson, compare boot ID and preserve previous-boot evidence BEFORE
 any new launch. A start without finish is not itself proof of a host freeze.
-Current prepared session: runtime/freeze-sessions/20261019T233451Z.
-Stage offline: real game/render, class Cadet/seed42, primary PCI0000:65:00.0,
-FIFO, no net/audio, child ICD/layer isolation unchanged. Owner asked to rotate
-ship and close normally after10–15s. Root capture120s. One-shot runtime helper
-records PID without killing if35s exceeded: don't confuse manual game still
-open with a freeze. No active collector/game at preparation. Prior CPU/static
-GPU/worker probes completed. Remote observer/human confirmation still absent.
+Current ACTIVE session: runtime/freeze-sessions/20261019T233451Z.
+Offline full game PID1491412 remains alive beyond120s capture, ~140FPS/360Hz,
+no errors/overloads. Class Cadet/seed42, primary PCI0000:65:00.0/FIFO, no net/
+audio, same NVIDIA-only ICD/implicit layers off. Launcher35s limit only returned
+status wall_timeout_process_not_killed; this is NOT a host/application freeze.
+Root collector ended:120records/0errors,106SSK samples/632thread observations/
+0stack-read errors. Kernel report saved in session; KMS/NVIDIA idle at capture
+end, main DRM wait90/106observations with ongoing frames. Owner normal-close
+request pending; no visual confirmation/remote observer. Do not launch another
+game until this PID exits. Next: finish offline process/review, then network.
 
 ## Latest worker comparison
 Session runtime/freeze-sessions/20261019T233145Z completed10.548s/exit0,

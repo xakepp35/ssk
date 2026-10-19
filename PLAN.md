@@ -412,3 +412,9 @@ Next offline full game without audio/network, manual10–15s and normal exit.
 L5 next prepared offline game on same GPU/FIFO/layers, no audio/network, class
 Cadet/seed42 as probe worker. Owner normal window exit after10–15s; this game
 mode has no timed close. Durable session/checkpoint saved before launch.
+
+L5 offline live: game PID1491412 continues beyond120s capture, ~140FPS/360Hz,
+no logged errors/overloads.120kernel records/0errors,106SSK samples/632thread
+observations/0stack errors, main DRM wait90/106with frames continuing, final
+KMS/NVIDIA idle. Window remains open;35s launcher timeout did not kill it and
+is not a freeze. Owner normal-close request pending; do not start second game.
