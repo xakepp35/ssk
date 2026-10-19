@@ -8,16 +8,20 @@ jobs, targets sequential. No automated tests, GUI/probe/stress/crash launches
 without attended owner authorization. No driver/kernel/VPN/service changes.
 No active build, game, collector or other mutation driver.
 
-## Next action / pending input
-L1–L4 implemented/compiled/packaged. L5 waits for owner presence and explicit
-approval for exactly ONE10s software Vulkan probe (--simulation off, no net/
-audio), independent120s kernel capture. Async request submitted2026-10-20;
-no answer yet. Silence is not approval. AGENTS prohibits automatic GUI launches.
-Before launching, follow FREEZE_RUNBOOK: Windows ICMP observer with successful
-baseline if laptop available; root collector via graphical Polkit, wait for
-First sample persisted; collector ready. Never retry after first freeze.
-If approved, collect/inspect CPU baseline before choosing a hardware stage.
-Hardware release blockers J3/K4/L5/L6 remain open. CPU success is not a GPU fix.
+## Active authorized experiment / reboot recovery
+Owner explicitly approved staged attended experiments2026-10-20 and will report
+any freeze after reboot. No repeated permission needed for this sequence. Stop
+at first freeze; no automatic retries, driver/kernel/VPN/display changes, panic
+arming or crashes. CPU-only10s scene first, independent120s kernel stacks.
+Before any resumed action read runtime/freeze-sessions/current.json and the
+session.json/app.ndjson/console.ndjson there; inspect boot ID and preserve
+previous boot evidence. Prepared session: runtime/freeze-sessions/20261019T232406Z.
+Current stage cpu-graphics (software Vulkan/FIFO, simulation off, no net/audio).
+Status prepared, game not started. Next: root read-only collector via Polkit,
+wait for durable-ready, one launch, bounded readout. Remote Windows observer is
+not attached; no claim about remote liveness. No kernel/driver changes authorized.
+If session has a start without a finish, don't rerun; correlate with owner report
+and boot change first. L5/L6 and hardware freeze remain open.
 
 ## Completed current work
 - 50efcb3/L1: timed probe1–120s/default10s; --simulation off|worker reuses actual

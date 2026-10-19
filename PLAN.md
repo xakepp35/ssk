@@ -366,3 +366,9 @@ worker/net/audio, with independent120s kernel capture. Request sent; do not
 interpret silence as authorization. No collector/game/build currently active.
 Windows build/script runtime acceptance and all hardware comparisons deferred.
 L6/K4/J3 remain open; no root-cause or hardware-fix claim.
+
+L5 activation2026-10-20: owner explicitly authorized staged attended
+experiments, with stop at first freeze and reboot recovery from saved session.
+First cpu-graphics10s scene, independent120s procfs collector; remote Windows
+observer not attached. Before launch persist session/build/config/boot/command
+and update checkpoint. No implicit driver/kernel/watchdog/VPN changes or retry.
