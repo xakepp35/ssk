@@ -116,3 +116,11 @@ pub mod frame {
     pub const METRICS: u8 = 5;
     pub const MULTICAST: u8 = 7;
 }
+
+pub const PEER_ACK_QUEUE: usize = 128;
+pub const CONNECT_INITIAL_RETRY_SECONDS: u64 = 1;
+pub const POSITION_FRESH_SECONDS: f32 = 1.;
+pub const SNAPSHOT_BYTES: usize = 50;
+pub const SNAPSHOT_VERSION: u8 = 1;
+pub const SNAPSHOT_VELOCITY_UNITS: f32 = 16.;
+pub const SNAPSHOT_POSITION_EPSILON: f32 = 0.001;

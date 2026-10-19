@@ -75,7 +75,7 @@ impl Peer {
     }
     pub fn state(&mut self, key: String, data: Vec<u8>) {
         if !self.states.contains_key(&key) {
-            if self.states.len() >= 256 {
+            if self.states.len() >= PEER_STATE_QUEUE {
                 return;
             }
             self.state_order.push_back(key.clone());
@@ -105,7 +105,7 @@ impl Peer {
             let Some(id) = self.acks.front() else {
                 break;
             };
-            if !append(&mut packet, 2, &id.to_le_bytes(), limit) {
+            if !append(&mut packet, frame::ACK, &id.to_le_bytes(), limit) {
                 break;
             }
             self.acks.pop_front();
@@ -121,7 +121,7 @@ impl Peer {
         // A lost receipt is regenerated when the source retries the event.
         for _ in 0..self.receipts.len() {
             let data = self.receipts.pop_front().unwrap();
-            if !append(&mut packet, 4, &data, limit) {
+            if !append(&mut packet, frame::ROUTED, &data, limit) {
                 self.receipts.push_front(data);
                 break;
             }
@@ -141,7 +141,7 @@ impl Peer {
             if event.last == 0 || seq.saturating_sub(event.last) >= EVENT_RETRY_PACKETS {
                 let mut payload = event.id.to_le_bytes().to_vec();
                 payload.extend(&event.data);
-                if append(&mut packet, 1, &payload, limit) {
+                if append(&mut packet, frame::RELIABLE, &payload, limit) {
                     event.last = seq;
                 }
             }
@@ -167,9 +167,9 @@ impl Peer {
             }
             let data = self.states.remove(&key).unwrap();
             let kind = if key.starts_with("multi:") || key.starts_with("shared:multi:") {
-                7
+                frame::MULTICAST
             } else {
-                4
+                frame::ROUTED
             };
             if !append(packet, kind, &data, limit) {
                 self.states.insert(key.clone(), data);
@@ -187,17 +187,17 @@ impl Peer {
         if !self.metrics.receive(bytes) {
             return frames;
         }
-        let mut rest = &bytes[24..];
-        while rest.len() >= 3 {
+        let mut rest = &bytes[METRIC_HEADER_BYTES..];
+        while rest.len() >= FRAME_HEADER_BYTES {
             let kind = rest[0];
             let len = u16::from_le_bytes([rest[1], rest[2]]) as usize;
-            rest = &rest[3..];
+            rest = &rest[FRAME_HEADER_BYTES..];
             if rest.len() < len {
                 break;
             }
             let payload = &rest[..len];
             rest = &rest[len..];
-            if kind == 2 && len == 8 {
+            if kind == frame::ACK && len == 8 {
                 let ack = u64::from_le_bytes(payload.try_into().unwrap());
                 self.pending.retain(|e| {
                     if e.id == ack {
@@ -209,12 +209,16 @@ impl Peer {
                 });
                 continue;
             }
-            let (event_id, data) = if kind == 1 && len > 8 {
+            let (event_id, data) = if kind == frame::RELIABLE && len > 8 {
                 (
                     Some(u64::from_le_bytes(payload[..8].try_into().unwrap())),
                     &payload[8..],
                 )
-            } else if kind == 4 || kind == 3 || kind == 5 || kind == 7 {
+            } else if kind == frame::ROUTED
+                || kind == frame::CONTACT
+                || kind == frame::METRICS
+                || kind == frame::MULTICAST
+            {
                 (None, payload)
             } else {
                 continue;
@@ -225,11 +229,18 @@ impl Peer {
                     continue;
                 }
             }
-            frames.push((if kind == 1 { 4 } else { kind }, data.to_vec()));
+            frames.push((
+                if kind == frame::RELIABLE {
+                    frame::ROUTED
+                } else {
+                    kind
+                },
+                data.to_vec(),
+            ));
             if let Some(e) = event_id {
                 self.seen.insert(e);
                 self.order.push_back(e);
-                if self.order.len() > 2048 {
+                if self.order.len() > PEER_EVENT_MEMORY {
                     self.seen.remove(&self.order.pop_front().unwrap());
                 }
                 self.ack(e);
@@ -238,7 +249,7 @@ impl Peer {
         frames
     }
     fn ack(&mut self, id: u64) {
-        if self.acks.len() < 128 && !self.acks.contains(&id) {
+        if self.acks.len() < PEER_ACK_QUEUE && !self.acks.contains(&id) {
             self.acks.push_back(id);
         }
     }
@@ -247,7 +258,7 @@ fn append(packet: &mut Vec<u8>, kind: u8, bytes: &[u8], limit: usize) -> bool {
     if bytes.is_empty() {
         return true;
     }
-    if packet.len() + bytes.len() + 3 > limit {
+    if packet.len() + bytes.len() + FRAME_HEADER_BYTES > limit {
         return false;
     }
     packet.push(kind);

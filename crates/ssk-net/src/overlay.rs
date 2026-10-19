@@ -146,8 +146,13 @@ impl Overlay {
     }
     pub fn connected(&mut self, id: &str) {
         self.connecting.remove(id);
-        self.retries
-            .insert(id.into(), (0, Instant::now() + Duration::from_secs(1)));
+        self.retries.insert(
+            id.into(),
+            (
+                0,
+                Instant::now() + Duration::from_secs(CONNECT_INITIAL_RETRY_SECONDS),
+            ),
+        );
     }
     pub fn envelope(dest: &str, kind: u8, hops: u8, data: &[u8]) -> Option<Vec<u8>> {
         let key: iroh::PublicKey = dest.parse().ok()?;
@@ -271,7 +276,7 @@ impl Overlay {
         if self
             .position_seen
             .get(id)
-            .is_some_and(|t| t.elapsed().as_secs_f32() < 1.)
+            .is_some_and(|t| t.elapsed().as_secs_f32() < POSITION_FRESH_SECONDS)
         {
             if let (Some(a), Some(b)) = (self.positions.get(&self.id), self.positions.get(id)) {
                 return ssk_sim::in_interest(a.pos, b.pos, self.radius);

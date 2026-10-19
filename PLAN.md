@@ -85,6 +85,7 @@ Public hosts are currently unavailable; real internet acceptance remains open.
 
 - [x] C1a — One timing source: TICK_PER_SEC=360, TICK_PER_PACKET=6; fixed 60 Hz transport and compatible handshake.
 - [x] C1b — Finish named simulation/network/client tuning parameters.
+- [x] C1c — Name remaining queue bounds, retry/freshness and snapshot quantization parameters.
 - [x] C2 — Move CombatGuard, replicated game model/history and shared game rules
   into ssk-sim. Keep authentication/framing/discovery/routing in ssk-net.
 - [x] C2b — Pure PeerCombat owns damage, history, frags, death and respawn; Online only adapts authenticated transport.

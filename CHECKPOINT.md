@@ -33,7 +33,9 @@ in ssk-sim. Windows paths and Unix-only permissions gated for portability.
 C4 first Windows GNU release build succeeded (4m20s), no Windows runtime run.
 Final follow-up reserves a heartbeat per peer and disconnects a transport worker
 that misses the100ms deadline; constants name message/frame IDs. cargo check
-passed. Final Windows+Linux rebuild starting, jobs2, sequential. MinGW unpacked under
+passed. Both Windows+Linux release builds succeeded at3762445. Final parameter-only
+cleanup names remaining queue bounds/retry/snapshot quantization; rebuilding
+from current source sequentially with jobs2. MinGW unpacked under
 ignored target/mingw; target installed. tools/build-windows.{sh,ps1}, examples/lan
 and docs/LAN.md prepared. After GNU build, build Linux release jobs2 and record
 actual artifact paths. No Windows runtime session yet.

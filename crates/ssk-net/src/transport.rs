@@ -234,7 +234,7 @@ pub(crate) async fn run(
                 for (index,id) in ids.into_iter().enumerate(){let peer=peers.get_mut(&id).unwrap();
                     let phase=id.bytes().fold(0u64,|h,b| h.wrapping_mul(PHASE_HASH_MULTIPLIER).wrapping_add(b as u64))%ssk_sim::PACKET_PER_SEC as u64;
                     let slot=(seq+phase)%ssk_sim::PACKET_PER_SEC as u64;
-                    let (kind,contact)=if slot==0{(5,metric_record.clone())}else if slot==ssk_sim::PACKET_PER_SEC as u64/2{(3,overlay.records.values().nth(control_cursor%overlay.records.len().max(1)).cloned().unwrap_or_default())}else{(3,Vec::new())};
+                    let (kind,contact)=if slot==0{(message::METRICS,metric_record.clone())}else if slot==ssk_sim::PACKET_PER_SEC as u64/2{(message::CONTACT,overlay.records.values().nth(control_cursor%overlay.records.len().max(1)).cloned().unwrap_or_default())}else{(message::CONTACT,Vec::new())};
                     // Reserve a heartbeat for every remaining connection in this slot.
                     let reserve=(count-index-1)*MIN_DATAGRAM_BYTES;
                     let available=(payload_budget as usize).saturating_sub(reserve);
