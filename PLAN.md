@@ -16,7 +16,7 @@ split oversized steps. Never treat compilation as proof of playability.
 - [x] A7 — Three classes and one ability each. `feat: add ship classes and abilities`
 - [x] A8 — Pickups, overcap resources, combos. `feat: add pickups and score chains`
 - [x] A9 — Three AI types, director, spawn telegraphs. `feat: add varied enemies and pressure`
-- [ ] A10 — Bounded effects and prepared audio. `feat: add combat effects and audio`
+- [x] A10 — Bounded effects and prepared audio. `feat: add combat effects and audio`
 - [ ] A11 — Menu, HUD, settings, per-class records, help. `feat: complete local game flow`
 - [ ] A12 — Remove gameplay blockers, launch docs, alpha tag. `release: finish playable alpha`
 

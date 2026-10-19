@@ -14,13 +14,13 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - `cargo check --workspace` passed after A2; no tests/manual session.
 
 ## Live state
-- Completed A9: Three weapon/class AI roles, reaction/aim noise, burst rests, obstacle avoidance, increasing bounded population, at most three shooters, telegraphs.
+- Completed A10: Bounded/reused particles and rings, render-only shake, hit flash, seven synthesized PCM sounds prepared at startup.
 - `cargo check --workspace` passed at this step. No automated tests run.
 - No manual play session yet. No public hosts for internet acceptance.
 - No active project processes. Source discussions preserved. No push.
 
 ## Next
-A10: bounded particles, flashes, camera shake and synthesized startup audio.
+A11: menu, settings, help, persisted profile and complete HUD.
 
 ## Constraints
 240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.

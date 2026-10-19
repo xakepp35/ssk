@@ -1,5 +1,6 @@
 use macroquad::prelude::*;
 use ssk_sim::{DT, InputFrame, Ship, V2, World};
+mod effects;
 pub struct Options {
     pub seed: u64, pub class: ssk_sim::ShipClass, pub play: bool,
     pub online: bool, pub connect: Option<String>,
@@ -54,12 +55,13 @@ fn background(camera: V2) {
 }
 async fn run(options: Options) {
     let mut world=World::new(options.seed,options.class);
+    let mut effects=effects::Effects::new().await;
     let mut accumulator=0.; let mut camera=V2::ZERO; let mut fullscreen=false; let mut dropped_steps=0u64; let mut weapon=0;
     loop {
         let frame_start=std::time::Instant::now();
         if is_key_pressed(KeyCode::Escape) { break; }
         if is_key_pressed(KeyCode::F11) { fullscreen=!fullscreen; set_fullscreen(fullscreen); }
-        if world.player.hp<=0. && is_key_pressed(KeyCode::R) { world=World::new(options.seed,options.class);camera=V2::ZERO;accumulator=0.; }
+        if world.player.hp<=0. && is_key_pressed(KeyCode::R) { world=World::new(options.seed,options.class);camera=V2::ZERO;accumulator=0.;effects.clear(); }
         let dt=get_frame_time().min(0.1);
         world.spawn_radius=screen_width().hypot(screen_height())*0.5+200.;
         if is_key_pressed(KeyCode::Q)||mouse_wheel().1>0. { weapon=(weapon+2)%3; }
@@ -72,14 +74,19 @@ async fn run(options: Options) {
             fire:is_mouse_button_down(MouseButton::Left)||is_key_down(KeyCode::Space),
             ability:is_mouse_button_down(MouseButton::Right)||is_key_down(KeyCode::LeftShift)||is_key_down(KeyCode::RightShift), weapon,
         };
+        let previous_hp=world.player.hp;
         accumulator+=dt; let mut steps=0;
         while accumulator>=DT && steps<8 { world.step(input); accumulator-=DT; steps+=1; }
         if accumulator>=DT { dropped_steps+=(accumulator/DT) as u64; accumulator=accumulator.rem_euclid(DT); }
         let alpha=accumulator/DT;
-        camera-=world.origin_shift; world.origin_shift=V2::ZERO;
+        camera-=world.origin_shift;effects.shift(world.origin_shift); world.origin_shift=V2::ZERO;
         let target=world.player.previous.lerp(world.player.pos,alpha)+mouse.clamp_length(200.)*0.25;
         camera=camera.lerp(target,1.-(-12.*dt).exp());
-        background(camera);
+        effects.events(&world.events,camera,0.6);effects.update(dt);
+        if world.player.hp<previous_hp {effects.shake=(effects.shake+3.).min(8.);effects.flash=1.;}
+        let render_camera=camera+effects.offset(1.);
+        background(render_camera);
+        let aim_camera=camera;let camera=render_camera;
         for target in &world.asteroids {
             let p=screen(target.pos,camera);
             if p.x < -100. || p.y < -100. || p.x>screen_width()+100. || p.y>screen_height()+100. { continue; }
@@ -112,6 +119,9 @@ async fn run(options: Options) {
                 draw_circle_lines(edge.x,edge.y,12.,2.,RED);
             } else { draw_ship(&npc.ship,camera,alpha,PINK); }
         }
+        effects.draw(camera,true);
+        let camera=aim_camera;
+        let _=camera;
         draw_rectangle(24.,52.,240.,10.,DARKGRAY);
         draw_rectangle(24.,52.,240.*world.player.energy/1000.,10.,SKYBLUE);
         draw_text(&format!("[{}] {}  | Q/E or wheel",weapon+1,world.player.weapon.name()),24.,90.,24.,WHITE);

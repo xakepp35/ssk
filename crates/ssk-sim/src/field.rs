@@ -67,6 +67,7 @@ impl World {
             for pickup in &mut self.pickups { pickup.pos-=offset; }
             for b in &mut self.bullets { b.pos-=offset;b.previous-=offset;b.shot.pos-=offset; }
             self.origin_shift+=offset;
+            for event in &mut self.events { match event {WorldEvent::Shot(s)=>s.pos-=offset,WorldEvent::Impact{pos,..}|WorldEvent::Destroyed{pos,..}|WorldEvent::Pickup{pos,..}=>*pos-=offset,_=>{}} }
         }
         self.loaded.retain(|s|(s[0]-self.origin[0]).abs()<=2&&(s[1]-self.origin[1]).abs()<=2);
         for dx in -1..=1 { for dy in -1..=1 {
