@@ -387,3 +387,13 @@ L5 next prepared: gpu-graphics,10s static scene on primary PCI0000:65:00.0,
 FIFO/no worker/net/audio; child NVIDIA-only ICD/implicit layers off, same layer
 policy as CPU baseline. Session saved before root capture/application launch;
 if reboot occurs, preserve it and previous boot before another experiment.
+
+L5 gpu-graphics: session20261019T232806Z, primary PCI0000:65:00.0 on
+NVIDIA615.71.09/Wayland/Vulkan/FIFO,10.701s/exit0,1388callbacks, no ERROR or
+new matching kernel fault.120kernel samples/0sampling errors,11SSK samples/
+53thread observations/0stack-read errors. Main DRM timeline wait occurs8/11
+samples despite continuing callbacks and successful exit: that signature alone
+cannot identify the previous freeze. Final KMS ppoll/NVIDIA idle. Capture and
+root report persisted under runtime; visual confirmation/remote liveness absent.
+Next controlled change: add actual offline360Hz worker on SAME physical GPU,
+static scene/FIFO/ICD/layer policy unchanged. Not hardware acceptance.

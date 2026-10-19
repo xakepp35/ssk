@@ -22,6 +22,15 @@ matching CPU isolation policy. No root game. Next: independent120s root stacks,
 wait for durable-ready, ONE launch, review. Remote observer absent, human visual
 confirmation of CPU window still pending. No collector/game active at preparation.
 
+## Latest completed hardware scene
+Session runtime/freeze-sessions/20261019T232806Z:10.701s/exit0,1388callbacks,
+NVIDIA615.71.09/Wayland/Vulkan/FIFO, explicit primary PCI0000:65:00.0.120kernel
+samples/0sample errors,11SSK samples/53thread observations/0stack errors. Main
+DRM timeline wait8/11samples with progress/clean exit; it is not by itself a
+freeze signature. Final KMS ppoll/NVIDIA idle. kernel-summary.json and all
+metadata saved in session. Human visual confirmation still pending; no remote
+observer. No hardware stability/fix claim. Next: same GPU+360Hz worker only.
+
 ## L5 runtime evidence / current stage
 CPU session runtime/freeze-sessions/20261019T232406Z finished: exit0/10.444s,
 Wayland/Vulkan/Mesa llvmpipe/Cpu/FIFO,837update callbacks, duration_elapsed,

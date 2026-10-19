@@ -134,15 +134,18 @@ def main():
                            for thread in record["sample"]["threads"] if thread["pid"] == args.pid]
         signatures = Counter((thread["tid"], thread["thread"], thread["state"], str(thread["wchan"]),
                               str(thread["kernel_stack"])) for thread in process_threads)
+        def stack_rows(counter):
+            return [{"tid": key[0], "is_main": key[0] == args.pid,
+                     "thread": key[1], "state": key[2], "wchan": key[3],
+                     "kernel_stack": key[4].splitlines()[:MAX_SUMMARY_FRAMES], "observations": count}
+                    for key, count in counter.most_common(MAX_SUMMARY_STACKS)]
         process_summary = {"pid": args.pid, "samples_present": len(process_samples),
                            "first_ms": process_samples[0]["ts_unix_ms"] if process_samples else None,
                            "last_ms": process_samples[-1]["ts_unix_ms"] if process_samples else None,
                            "observations": len(process_threads),
                            "stack_read_errors": sum(isinstance(thread["kernel_stack"], dict) for thread in process_threads),
-                           "common_stacks": [{"tid": key[0], "is_main": key[0] == args.pid,
-                                              "thread": key[1], "state": key[2], "wchan": key[3],
-                                              "kernel_stack": key[4].splitlines()[:MAX_SUMMARY_FRAMES], "observations": count}
-                                             for key, count in signatures.most_common(MAX_SUMMARY_STACKS)]} if args.pid else None
+                           "common_stacks": stack_rows(signatures),
+                           "main_thread_stacks": stack_rows(Counter({key: count for key, count in signatures.items() if key[0] == args.pid}))} if args.pid else None
         print(json.dumps({"records": len(records), "first_ms": records[0]["ts_unix_ms"],
                           "last_ms": records[-1]["ts_unix_ms"], "threads": len(threads),
                           "boot_id": records[0]["boot_id"], "session": records[0].get("session"),
