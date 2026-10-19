@@ -14,13 +14,13 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - `cargo check --workspace` passed after A2; no tests/manual session.
 
 ## Live state
-- Completed A7: Boost/shield/quad, activation and sustained energy, release-to-rearm, shield hull split and own-shot interception.
+- Completed A8: Exclusive loot drops, attraction/expiry, HP/E overcap, HP decay, owner-attributed scoring and bounded combo.
 - `cargo check --workspace` passed at this step. No automated tests run.
 - No manual play session yet. No public hosts for internet acceptance.
 - No active project processes. Source discussions preserved. No push.
 
 ## Next
-A8: pickups, overcap resources, combo scoring.
+A9: class-specific enemies, bounded director and spawn telegraphs.
 
 ## Constraints
 240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.

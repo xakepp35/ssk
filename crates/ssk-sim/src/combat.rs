@@ -25,6 +25,7 @@ pub struct Bullet { pub shot:Shot, pub pos:V2, pub previous:V2, pub velocity:V2,
 #[derive(Clone, Copy, Debug)]
 pub enum WorldEvent {
     Shot(Shot), Dry, Impact { pos:V2, damage:f32 }, Destroyed { pos:V2, size:f32 },
+    Pickup { pos:V2,kind:PickupKind },
 }
 
 impl Ship {
@@ -104,7 +105,11 @@ impl World {
                 if first.is_none_or(|(best,_,_)|t<best) { first=Some((t,2,0)); }
             }
             if let Some((t,kind,index))=first {
-                match kind { 0=>self.asteroids[index].hp-=bullet.damage,1=>{self.npcs[index].ship.damage(bullet.damage);},_=>{self.player.damage(bullet.damage);} }
+                match kind {
+                    0=>{self.asteroids[index].hp-=bullet.damage;self.asteroids[index].last_hit=bullet.shot.owner;},
+                    1=>{self.npcs[index].ship.damage(bullet.damage);self.npcs[index].last_hit=bullet.shot.owner;},
+                    _=>{self.player.damage(bullet.damage);self.combo=1.;self.last_kill=None;}
+                }
                 bullet.life=0.;
                 impacts.push(WorldEvent::Impact { pos:bullet.previous.lerp(bullet.pos,t), damage:bullet.damage });
             }

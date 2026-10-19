@@ -96,6 +96,14 @@ async fn run(options: Options) {
             draw_line(tail.x,tail.y,p.x,p.y,2.,color); draw_circle(p.x,p.y,bullet.radius,color);
         }
         draw_ship(&world.player,camera,alpha,SKYBLUE);
+        for pickup in &world.pickups {
+            let p=screen(pickup.pos,camera);
+            let color=match pickup.kind { ssk_sim::PickupKind::Energy=>SKYBLUE,ssk_sim::PickupKind::Health=>GREEN };
+            let pulse=1.+(get_time() as f32*5.+pickup.id as f32).sin()*0.15;
+            draw_poly_lines(p.x,p.y,4,10.*pulse,45.,2.,color);
+            draw_line(p.x-4.,p.y,p.x+4.,p.y,2.,color);
+            if matches!(pickup.kind,ssk_sim::PickupKind::Health) { draw_line(p.x,p.y-4.,p.x,p.y+4.,2.,color); }
+        }
         for npc in &world.npcs {
             if npc.telegraph>0. {
                 let p=screen(npc.ship.pos,camera);draw_circle_lines(p.x,p.y,45.*npc.telegraph/0.8,2.,RED);
@@ -104,7 +112,7 @@ async fn run(options: Options) {
         draw_rectangle(24.,52.,240.,10.,DARKGRAY);
         draw_rectangle(24.,52.,240.*world.player.energy/1000.,10.,SKYBLUE);
         draw_text(&format!("[{}] {}  | Q/E or wheel",weapon+1,world.player.weapon.name()),24.,90.,24.,WHITE);
-        draw_text(&format!("HP {:.0}  |  SCORE {}  |  {:.1}s",world.player.hp.max(0.),world.score,world.tick as f32*DT),24.,120.,24.,WHITE);
+        draw_text(&format!("HP {:.0}  |  SCORE {} x{:.2}  |  {:.1}s",world.player.hp.max(0.),world.score,world.combo,world.tick as f32*DT),24.,120.,24.,WHITE);
         let ability=match world.player.class { ssk_sim::ShipClass::Spark=>"BOOST",ssk_sim::ShipClass::Cadet=>"SHIELD",ssk_sim::ShipClass::Thunder=>"QUAD" };
         draw_text(&format!("RMB / SHIFT: {}  {}",ability,if world.player.ability_active { "ACTIVE" } else if world.player.ability_latched { "RELEASE TO REARM" } else { "READY AT 160 E" }),24.,150.,20.,GREEN);
         if world.player.hp<=0. {

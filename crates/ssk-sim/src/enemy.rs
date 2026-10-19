@@ -1,6 +1,6 @@
 use crate::*;
 
-pub struct Npc { pub ship:Ship, pub input:InputFrame, pub think:f32, pub age:f32, pub telegraph:f32 }
+pub struct Npc { pub ship:Ship, pub input:InputFrame, pub think:f32, pub age:f32, pub telegraph:f32,pub last_hit:u64 }
 impl World {
     pub(crate) fn enemies_step(&mut self) {
         let time=self.tick as f32*DT;
@@ -9,7 +9,7 @@ impl World {
             let pos=self.player.pos+direction*1100.;
             let mut ship=Ship::new(self.next_id,ShipClass::Spark,pos); self.next_id+=1;
             ship.hp*=0.6;
-            self.npcs.push(Npc { ship, input:InputFrame::default(), think:0.25, age:0., telegraph:0.8 });
+            self.npcs.push(Npc { ship, input:InputFrame::default(), think:0.25, age:0., telegraph:0.8,last_hit:0 });
             self.next_spawn=time+3.;
         }
         let mut shots=Vec::new();
@@ -33,9 +33,9 @@ impl World {
         for shot in shots { self.spawn_shot(shot); }
     }
     pub(crate) fn destroy_enemies(&mut self) {
-        let dead:Vec<_>=self.npcs.iter().filter(|n|n.ship.hp<=0.).map(|n|(n.ship.pos,n.ship.class)).collect();
+        let dead:Vec<_>=self.npcs.iter().filter(|n|n.ship.hp<=0.).map(|n|(n.ship.pos,n.ship.class,n.last_hit==self.player.id)).collect();
         self.npcs.retain(|n|n.ship.hp>0.);
-        for (pos,class) in dead { self.score+=match class { ShipClass::Spark=>100,ShipClass::Cadet=>150,ShipClass::Thunder=>250 };self.emit(WorldEvent::Destroyed { pos,size:30. }); }
+        for (pos,class,owned) in dead { if owned { self.award(match class { ShipClass::Spark=>100,ShipClass::Cadet=>150,ShipClass::Thunder=>250 }); } self.drop_loot(pos,true);self.emit(WorldEvent::Destroyed { pos,size:30. }); }
         self.npcs.retain(|n|(n.ship.pos-self.player.pos).length()<3500.);
     }
 }

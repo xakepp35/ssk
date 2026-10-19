@@ -5,6 +5,7 @@ use std::collections::{HashMap, HashSet};
 pub struct Asteroid {
     pub id:u64, pub pos:V2, pub radius:f32, pub hp:f32,
     pub velocity:V2, pub angle:f32, pub spin:f32, pub small:bool,
+    pub last_hit:u64,
 }
 #[derive(Default)]
 pub struct SpatialGrid { cells:HashMap<(i32,i32),Vec<usize>> }
@@ -63,6 +64,7 @@ impl World {
             self.player.pos-=offset;self.player.previous-=offset;
             for a in &mut self.asteroids { a.pos-=offset; }
             for npc in &mut self.npcs { npc.ship.pos-=offset;npc.ship.previous-=offset; }
+            for pickup in &mut self.pickups { pickup.pos-=offset; }
             for b in &mut self.bullets { b.pos-=offset;b.previous-=offset;b.shot.pos-=offset; }
             self.origin_shift+=offset;
         }
@@ -75,22 +77,25 @@ impl World {
                 let local=V2::new(rng.range(0.,SECTOR_SIZE),rng.range(0.,SECTOR_SIZE));
                 let pos=WorldPos { sector, local }.relative_to(self.origin);
                 if (pos-self.player.pos).length()<500. { continue; }
-                let a=Asteroid { id:self.next_id, pos, radius:rng.range(30.,64.), hp:360., velocity:V2::from_angle(rng.range(0.,6.2831855))*rng.range(3.,20.), angle:rng.range(0.,6.2831855), spin:rng.range(-0.3,0.3), small:false };
+                let a=Asteroid { id:self.next_id, pos, radius:rng.range(30.,64.), hp:360., velocity:V2::from_angle(rng.range(0.,6.2831855))*rng.range(3.,20.), angle:rng.range(0.,6.2831855), spin:rng.range(-0.3,0.3), small:false,last_hit:0 };
                 self.next_id+=1;self.asteroids.push(a);
             }
         }}
     }
     pub(crate) fn destroy_asteroids(&mut self) {
         let mut children=Vec::new(); let mut events=Vec::new();
+        let mut rewards=Vec::new();
         for a in &self.asteroids { if a.hp<=0. {
             events.push(WorldEvent::Destroyed { pos:a.pos, size:a.radius });
+            rewards.push((a.pos,a.small,a.last_hit==self.player.id));
             if !a.small { for sign in [-1.,1.] {
                 let normal=V2::from_angle(a.angle)*sign;
-                children.push(Asteroid { id:self.next_id, pos:a.pos+normal*a.radius*0.45, radius:a.radius*0.48, hp:100., velocity:a.velocity+normal*45., angle:a.angle, spin:sign*0.8, small:true });self.next_id+=1;
+                children.push(Asteroid { id:self.next_id, pos:a.pos+normal*a.radius*0.45, radius:a.radius*0.48, hp:100., velocity:a.velocity+normal*45., angle:a.angle, spin:sign*0.8, small:true,last_hit:0 });self.next_id+=1;
             }}
         }}
         self.asteroids.retain(|a|a.hp>0.);self.asteroids.extend(children);
         for event in events { self.emit(event); }
+        for (pos,small,owned) in rewards { if owned { self.award(if small {10}else{30}); } self.drop_loot(pos,false); }
     }
 }
 
