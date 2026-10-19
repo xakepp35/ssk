@@ -75,7 +75,7 @@ impl World {
                 let normal = delta.normalized();
                 let (range, weapon, strafe) = NPC_TACTICS[npc.ship.class.index()];
                 let retreat = matches!(npc.ship.class, ShipClass::Cadet)
-                    && npc.ship.hp < npc.ship.class.stats().0 * NPC_RETREAT_HEALTH
+                    && npc.ship.hp < npc.ship.class.stats().hp * NPC_RETREAT_HEALTH
                     && distance < NPC_RETREAT_RANGE;
                 let phase = (npc.age + npc.ship.id as f32 * NPC_PHASE_ID_SCALE) % NPC_PHASE_SECONDS;
                 let ability = match npc.ship.class {
@@ -111,19 +111,20 @@ impl World {
                             away.normalized() * ((NPC_AVOID_MARGIN - gap) / NPC_AVOID_FORCE);
                     }
                 }
+                npc.input.movement = npc.ship.local_thrust(npc.input.movement);
                 npc.think = NPC_REACTION_SECONDS + self.rng.range(0., NPC_REACTION_JITTER);
             }
             npc.ship.move_step(npc.input);
             self.grid.query(
                 npc.ship.pos,
                 npc.ship.pos,
-                npc.ship.class.stats().3,
+                npc.ship.class.stats().radius,
                 &mut nearby,
             );
             for &index in &nearby {
                 let rock = &self.asteroids[index];
                 let away = npc.ship.pos - rock.pos;
-                let min = rock.radius + npc.ship.class.stats().3;
+                let min = rock.radius + npc.ship.class.stats().radius;
                 if away.length() < min {
                     npc.ship.pos = rock.pos + away.normalized() * (min + 1.);
                     npc.ship.velocity = away.normalized() * NPC_BUMP_SPEED;

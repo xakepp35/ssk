@@ -337,7 +337,7 @@ impl SharedWorld {
                 let pos = player.pos.relative_to(sector);
                 let Some(index) = owner.world.pickups.iter().position(|p| {
                     p.id == pickup
-                        && (p.pos - pos).length() < player.class.stats().3 + PICKUP_CLAIM_REACH
+                        && (p.pos - pos).length() < player.class.stats().radius + PICKUP_CLAIM_REACH
                 }) else {
                     return vec![];
                 };
@@ -405,7 +405,7 @@ impl SharedWorld {
                     }
                     PickupKind::Health => {
                         w.player.hp =
-                            (w.player.hp + amount).min(w.player.class.stats().0 * HEALTH_OVERCAP)
+                            (w.player.hp + amount).min(w.player.class.stats().hp * HEALTH_OVERCAP)
                     }
                 };
                 w.emit(WorldEvent::Pickup {
@@ -593,7 +593,7 @@ impl SharedWorld {
                 p.pos += offset;
                 if w.player.hp > 0.
                     && (p.pos - w.player.pos).length()
-                        < w.player.class.stats().3 + PICKUP_REQUEST_REACH
+                        < w.player.class.stats().radius + PICKUP_REQUEST_REACH
                     && self
                         .claims
                         .get(&(sector, p.id))

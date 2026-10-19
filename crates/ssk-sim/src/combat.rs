@@ -89,7 +89,8 @@ impl Ship {
             Some(Shot {
                 id: shot_id,
                 owner: self.id,
-                pos: self.pos + V2::from_angle(self.angle) * (self.class.stats().3 + MUZZLE_OFFSET),
+                pos: self.pos
+                    + V2::from_angle(self.angle) * (self.class.stats().radius + MUZZLE_OFFSET),
                 angle: self.angle,
                 weapon: self.weapon,
                 seed: rng.next_u64(),
@@ -138,7 +139,7 @@ impl World {
                 bullet.pos - past_target,
                 end - current,
                 V2::ZERO,
-                self.player.class.stats().3 + bullet.radius,
+                self.player.class.stats().radius + bullet.radius,
             );
             let obstacle = self
                 .asteroids
@@ -192,7 +193,10 @@ impl World {
         if let Some(ship) = firing {
             if matches!(ship.class, ShipClass::Cadet) && ship.ability_active {
                 ship.energy = (ship.energy
-                    - stats.damage * shot.damage_scale * stats.pellets as f32 * SHIELD_ABSORPTION)
+                    - stats.damage
+                        * shot.damage_scale
+                        * stats.pellets as f32
+                        * SHIELD_ENERGY_PER_DAMAGE)
                     .max(0.);
                 if ship.energy <= 0. {
                     ship.ability_active = false;
@@ -278,7 +282,7 @@ impl World {
                         bullet.previous,
                         bullet.pos,
                         npc.ship.pos,
-                        npc.ship.class.stats().3 + bullet.radius,
+                        npc.ship.class.stats().radius + bullet.radius,
                     ) {
                         if first.is_none_or(|(best, _, _)| t < best) {
                             first = Some((t, 1, index));
@@ -289,7 +293,7 @@ impl World {
                 bullet.previous,
                 bullet.pos,
                 self.player.pos,
-                self.player.class.stats().3 + bullet.radius,
+                self.player.class.stats().radius + bullet.radius,
             ) {
                 if first.is_none_or(|(best, _, _)| t < best) {
                     first = Some((t, 2, 0));

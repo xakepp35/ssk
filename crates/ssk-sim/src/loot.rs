@@ -57,7 +57,7 @@ impl World {
         }
     }
     pub(crate) fn resources_step(&mut self) {
-        let base = self.player.class.stats().0;
+        let base = self.player.class.stats().hp;
         if self.player.hp > base {
             self.player.hp = (self.player.hp - base * HEALTH_DECAY * DT).max(base);
         }
@@ -75,7 +75,7 @@ impl World {
                         + (PICKUP_MAGNET_RADIUS - distance) * PICKUP_MAGNET_ACCELERATION)
                     * DT;
             }
-            if distance < self.player.class.stats().3 + PICKUP_REACH && pickup.life > 0. {
+            if distance < self.player.class.stats().radius + PICKUP_REACH && pickup.life > 0. {
                 match pickup.kind {
                     PickupKind::Energy => {
                         self.player.energy = (self.player.energy + pickup.amount).min(ENERGY_MAX)

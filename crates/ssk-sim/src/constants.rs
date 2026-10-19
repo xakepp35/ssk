@@ -19,11 +19,26 @@ pub const EXTRAPOLATION_SECONDS: f64 = 0.1;
 const _: () =
     assert!(TICK_PER_SEC > 0 && TICK_PER_PACKET > 0 && TICK_PER_SEC % TICK_PER_PACKET == 0);
 
-// Ship balance: health, top speed, acceleration, collision radius.
-pub const SHIP_STATS: [(f32, f32, f32, f32); 3] = [
-    (750., 520., 2800., 13.),
-    (1000., 420., 1900., 17.),
-    (1400., 320., 1200., 22.),
+// Ship tuning: velocity emerges from traction and shared linear drag.
+pub const SHIP_STATS: [crate::ShipStats; 3] = [
+    crate::ShipStats {
+        hp: 750.,
+        traction: 900.,
+        turn_rate: 300f32.to_radians(),
+        radius: 13.,
+    },
+    crate::ShipStats {
+        hp: 1400.,
+        traction: 675.,
+        turn_rate: 240f32.to_radians(),
+        radius: 17.,
+    },
+    crate::ShipStats {
+        hp: 1000.,
+        traction: 480.,
+        turn_rate: 180f32.to_radians(),
+        radius: 22.,
+    },
 ];
 pub const WEAPON_COUNT: usize = 3;
 pub const ENERGY_BASE: f32 = 1000.;
@@ -35,13 +50,13 @@ pub const HEALTH_DECAY: f32 = 0.025;
 pub const ABILITY_MIN_ENERGY: f32 = 160.;
 pub const ABILITY_START_COST: f32 = 128.;
 pub const ABILITY_DRAIN: [f32; 3] = [64., 16., 8.];
-pub const BOOST_SPEED: f32 = 1.6;
-pub const BOOST_ACCELERATION: f32 = 2.4;
-pub const MAX_SHIP_SPEED: f32 = SHIP_STATS[0].1 * BOOST_SPEED;
+pub const BOOST_TRACTION: f32 = 4.;
+pub const BOOST_TURN_RATE: f32 = 2.;
+/// Validation/interest bound, not a velocity clamp in the flight model.
+pub const MAX_SHIP_SPEED: f32 = SHIP_STATS[0].traction * BOOST_TRACTION / DRAG;
 pub const QUAD_DAMAGE: f32 = 4.;
-pub const SHIELD_ABSORPTION: f32 = 0.5;
-pub const MOVEMENT_EPSILON_SQ: f32 = 0.001;
-pub const DRAG: f32 = 5.5;
+pub const SHIELD_ENERGY_PER_DAMAGE: f32 = 0.5;
+pub const DRAG: f32 = 1.5;
 pub const MAX_BULLETS: usize = 4096;
 pub const MAX_WORLD_EVENTS: usize = 512;
 pub const ASTEROID_RESERVE: usize = 512;

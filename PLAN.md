@@ -142,3 +142,21 @@ E3 evidence: application fixes ba34ebd/e2d50e0, Linux release completed in
 import check reports system DLLs only. Default Linux host / Windows join to
 192.168.50.155:4202 preserved. Owner confirms second freeze happened without
 launching the game; cause remains unknown. No live post-fix match performed.
+
+
+## F: requested flight model, continuity and starfield
+
+- [x] F1 — Named ship traction/turn stats; inertial nose-relative thrusters,
+  limited mouse steering, class HP rebalance, full shield at 0.5 E/damage,
+  stronger scout thrust and double boost turning; update AI/validation/UI/docs.
+- [ ] F2 — Fix coordinate handoff/camera jumps and sector-content continuity;
+  preserve nearby objects across sector boundaries and ownership changes.
+- [ ] F3 — Fourfold stars with individual depth, brightness and parallax;
+  retain background continuity across coordinate rebases.
+- [ ] F4 — Sequential one-job Linux/Windows static release builds and packages.
+
+No automated tests, GUI launch or heavy swarms. Compilation and package build
+only; gameplay improvements require a later manual session.
+
+F1 evidence: cargo check --locked -p ssk --jobs 1 passed (2.47s). Rules ID
+ssk-rules-4-inertial prevents matches with old flight/balance clients. No tests.

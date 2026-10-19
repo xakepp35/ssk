@@ -56,7 +56,7 @@ fn draw_ship(ship: &Ship, camera: V2, alpha: f32, color: Color) {
     let pos = ship.previous.lerp(ship.pos, alpha);
     let forward = V2::from_angle(ship.angle);
     let side = forward.perp();
-    let radius = ship.class.stats().3;
+    let radius = ship.class.stats().radius;
     let a = screen(pos + forward * radius * SHIP_NOSE_SCALE, camera);
     let b = screen(
         pos - forward * radius + side * radius * SHIP_WING_SCALE,
@@ -237,7 +237,7 @@ async fn run(options: Options, mut profile: profile::Profile) {
             InputFrame {
                 movement: V2::new(
                     (is_key_down(KeyCode::D) as i8 - is_key_down(KeyCode::A) as i8) as f32,
-                    (is_key_down(KeyCode::S) as i8 - is_key_down(KeyCode::W) as i8) as f32,
+                    (is_key_down(KeyCode::W) as i8 - is_key_down(KeyCode::S) as i8) as f32,
                 ),
                 aim: (camera + mouse - world.player.pos).angle(),
                 fire: is_mouse_button_down(MouseButton::Left) || is_key_down(KeyCode::Space),

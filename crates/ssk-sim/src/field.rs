@@ -70,14 +70,14 @@ impl World {
         self.grid.query(
             self.player.pos,
             self.player.pos,
-            self.player.class.stats().3,
+            self.player.class.stats().radius,
             &mut nearby,
         );
         for i in nearby {
             let a = &self.asteroids[i];
             let delta = self.player.pos - a.pos;
             let distance = delta.length();
-            let min = a.radius + self.player.class.stats().3;
+            let min = a.radius + self.player.class.stats().radius;
             if distance < min {
                 let normal = if distance > CONTACT_EPSILON {
                     delta / distance

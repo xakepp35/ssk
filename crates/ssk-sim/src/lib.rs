@@ -42,11 +42,21 @@ impl WorldPos {
 }
 #[derive(Clone, Copy, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct InputFrame {
+    /// Nose-relative thrusters: x = right strafe, y = forward thrust.
     pub movement: V2,
     pub aim: f32,
     pub fire: bool,
     pub ability: bool,
     pub weapon: usize,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct ShipStats {
+    pub hp: f32,
+    /// Acceleration produced by full thrust, in world units/s².
+    pub traction: f32,
+    pub turn_rate: f32,
+    pub radius: f32,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -69,7 +79,7 @@ impl ShipClass {
             Self::Thunder => "THUNDER",
         }
     }
-    pub fn stats(self) -> (f32, f32, f32, f32) {
+    pub fn stats(self) -> ShipStats {
         SHIP_STATS[self.index()]
     }
 }
@@ -100,7 +110,7 @@ impl Ship {
             previous: pos,
             velocity: V2::ZERO,
             angle: 0.,
-            hp: class.stats().0,
+            hp: class.stats().hp,
             energy: ENERGY_BASE,
             cooldowns: [0.; WEAPON_COUNT],
             quiet: 0.,
@@ -118,20 +128,27 @@ impl Ship {
         }
         self.previous = self.pos;
         self.ability_step(input.ability);
-        let (_, mut speed, mut acceleration, _) = self.class.stats();
+        let stats = self.class.stats();
+        let mut traction = stats.traction;
+        let mut turn_rate = stats.turn_rate;
         if matches!(self.class, ShipClass::Spark) && self.ability_active {
-            speed *= BOOST_SPEED;
-            acceleration *= BOOST_ACCELERATION;
+            traction *= BOOST_TRACTION;
+            turn_rate *= BOOST_TURN_RATE;
         }
+        let rotation = angle_delta(self.angle, input.aim).clamp(-turn_rate * DT, turn_rate * DT);
+        self.angle = wrap_angle(self.angle + rotation);
         let movement = input.movement.clamp_length(1.);
-        if movement.length_squared() > MOVEMENT_EPSILON_SQ {
-            self.velocity += movement * (acceleration * DT);
-        } else {
-            self.velocity *= (-DRAG * DT).exp();
-        }
-        self.velocity = self.velocity.clamp_length(speed);
+        let forward = V2::from_angle(self.angle);
+        let thrust = forward * movement.y + forward.perp() * movement.x;
+        // Integrate thrust + linear drag. Turning never rotates existing momentum,
+        // and switching off boost never hard-clamps the velocity.
+        let decay = (-DRAG * DT).exp();
+        self.velocity = self.velocity * decay + thrust * (traction * (1. - decay) / DRAG);
         self.pos += self.velocity * DT;
-        self.angle = input.aim;
+    }
+    pub fn local_thrust(&self, world: V2) -> V2 {
+        let forward = V2::from_angle(self.angle);
+        V2::new(world.dot(forward.perp()), world.dot(forward))
     }
     pub fn ability_step(&mut self, held: bool) {
         if !held {
@@ -158,11 +175,11 @@ impl Ship {
             return 0.;
         }
         let absorbed = if matches!(self.class, ShipClass::Cadet) && self.ability_active {
-            self.energy.min(amount * SHIELD_ABSORPTION)
+            amount.min(self.energy / SHIELD_ENERGY_PER_DAMAGE)
         } else {
             0.
         };
-        self.energy -= absorbed;
+        self.energy = (self.energy - absorbed * SHIELD_ENERGY_PER_DAMAGE).max(0.);
         if self.energy <= 0. {
             self.ability_active = false;
         }

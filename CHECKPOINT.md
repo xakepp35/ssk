@@ -78,7 +78,13 @@ that occurrence. Cause unknown; no system/driver settings changed. Initial
 build was interrupted and /tmp log lost, later explicit 1-job rebuild succeeded.
 See docs/LINUX_FREEZE.md. No automatic reproduction or heavy swarms.
 
-## Exact next action
-Artifacts ready for owner. Short manual two-computer follow-up can check NPC
-motion and SECTOR LOCAL/REMOTE/image age; runtime outcome remains unverified.
-Resume B16 only with separate capacity/internet evidence and no local heavy load.
+## Active request / F
+Owner requests nose-relative inertial thrusters, finite class turn rates,
+750/1400/1000 class HP, full shield for half damage in energy, stronger scout
+boost/double turning, no sector/camera teleports, fourfold depth-based stars.
+F1 complete: nose-relative inertial thrust and finite turning, named ShipStats,
+full shield absorption at 0.5 E/damage, HP 750/1400/1000; cargo check passed
+(2.47s), no tests. Rules ID ssk-rules-4-inertial. Next bounded sector/camera continuity,
+starfield, sequential one-job Linux/Windows packages. No tests/GUI/stress runs.
+Current working tree initially clean. Next: fix nearby sector retention,
+prefetch, camera/input rebase order, then starfield and rebuild.

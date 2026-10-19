@@ -71,10 +71,13 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
         }
     }
     let class = ShipClass::ALL[profile.class];
-    let (hp, speed, _, _) = class.stats();
+    let stats = class.stats();
     draw_text(
         &format!(
-            "HP {hp:.0}    SPEED {speed:.0}    BEST {}",
+            "HP {:.0}  THRUST {:.0}  TURN {:.0}deg/s  BEST {}",
+            stats.hp,
+            stats.traction,
+            stats.turn_rate.to_degrees(),
             profile.records[profile.class]
         ),
         x,
@@ -83,9 +86,9 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
         WHITE,
     );
     let description = match class {
-        ShipClass::Spark => "BOOST: fast flanking, fragile hull",
-        ShipClass::Cadet => "SHIELD: absorb half damage; stop firing!",
-        ShipClass::Thunder => "QUAD: devastating bursts, heavy energy use",
+        ShipClass::Spark => "BOOST: thrust x4, turn x2; fragile scout",
+        ShipClass::Cadet => "SHIELD: full absorption, 0.5 energy / damage",
+        ShipClass::Thunder => "QUAD: damage x4; slow turn, medium hull",
     };
     draw_text(
         description,
@@ -210,7 +213,7 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
         set_fullscreen(profile.fullscreen);
     }
     for (i, line) in [
-        "WASD move   |   Mouse aim   |   LMB / Space fire",
+        "W thrust | S reverse/brake | A/D strafe | Mouse steer",
         "RMB / Shift ability   |   Q/E / wheel / 1-3 weapon",
         "F2 / Esc menu + ship   |   F1 help   |   F3 invite",
     ]
@@ -253,7 +256,7 @@ pub fn hud(world: &World, profile: &Profile, skipped: u64) {
         WHITE,
     );
     for (row, value, base, color, label) in [
-        (0, ship.hp, ship.class.stats().0, GREEN, "HULL"),
+        (0, ship.hp, ship.class.stats().hp, GREEN, "HULL"),
         (1, ship.energy, ENERGY_BASE, SKYBLUE, "ENERGY"),
     ] {
         let y = (TITLE_TOP + row as f32 * BAR_ROW_HEIGHT) * s;
@@ -373,8 +376,8 @@ pub fn help() {
     let y = screen_height() / 2. - COLUMN_STRIDE;
     for (i, line) in [
         "FLIGHT MANUAL  [F1 to close]",
-        "WASD: accelerate; release to coast and slow down.",
-        "Aim with mouse. LMB OR Space fires.",
+        "W: nose thrust. S: reverse jet / braking. A/D: strafe.",
+        "Mouse: limited-rate steering. LMB OR Space fires.",
         "RMB OR Shift holds your class ability (costs energy).",
         "Spark boosts. Cadet shields. Thunder deals quad damage.",
         "Release ability to rearm after energy depletion.",

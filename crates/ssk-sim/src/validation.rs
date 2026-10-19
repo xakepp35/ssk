@@ -8,13 +8,13 @@ pub struct CombatGuard {
 }
 impl CombatGuard {
     pub fn snapshot(&mut self, old: Option<Snapshot>, s: Snapshot) -> bool {
-        let speed = s.class.stats().1
+        let speed = s.class.stats().traction / DRAG
             * if s.class == ShipClass::Spark {
-                BOOST_SPEED
+                BOOST_TRACTION
             } else {
                 1.
             };
-        let mut valid = s.hp <= s.class.stats().0 * HEALTH_OVERCAP
+        let mut valid = s.hp <= s.class.stats().hp * HEALTH_OVERCAP
             && s.energy <= ENERGY_MAX
             && s.velocity.length() <= speed + VALIDATION_SPEED_MARGIN;
         if let Some(old) = old {
@@ -75,7 +75,7 @@ impl CombatGuard {
         }
         .relative_to(source.pos.sector);
         valid &= (muzzle - source.pos.local).length()
-            <= source.class.stats().3
+            <= source.class.stats().radius
                 + VALIDATION_MUZZLE_MARGIN
                 + MAX_SHIP_SPEED * LAG_COMPENSATION_SECONDS;
         let shots = self.shots.entry(peer.into()).or_default();

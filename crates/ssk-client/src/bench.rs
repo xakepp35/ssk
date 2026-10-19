@@ -205,7 +205,10 @@ pub fn run(mut config: Config, opt: Options) -> Result<serde_json::Value, String
                         let target = V2::new(SECTOR_SIZE / 2., SECTOR_SIZE / 2.)
                             + V2::from_angle(t) * BENCH_ORBIT_RADIUS;
                         let input = InputFrame {
-                            movement: (target - b.world.player.pos).normalized(),
+                            movement: b
+                                .world
+                                .player
+                                .local_thrust((target - b.world.player.pos).normalized()),
                             aim: (V2::new(SECTOR_SIZE / 2., SECTOR_SIZE / 2.) - b.world.player.pos)
                                 .angle(),
                             fire: opt.fire && now % BENCH_FIRE_PERIOD < BENCH_FIRE_SECONDS,
