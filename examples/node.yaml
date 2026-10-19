@@ -1,0 +1,17 @@
+# Local self-hosted bootstrap and relay. Copy and edit addresses for a LAN/VPS.
+world: ssk-playground-v1
+seed: 42
+identity_file: ./node-identity.key
+udp_bind: 127.0.0.1:4200
+discovery_bind: 127.0.0.1:4201
+discovery_advertise: [/ip4/127.0.0.1/udp/4201/quic-v1]
+relay_server:
+  http_bind: 127.0.0.1:3340
+  max_clients: 128
+  bytes_per_second: 2097152
+  allow: []
+# Internet TLS example (certificate paths stay outside git):
+#  https_bind: 0.0.0.0:3341
+#  quic_bind: 0.0.0.0:7842
+#  cert_file: /etc/ssk/fullchain.pem
+#  key_file: /etc/ssk/privkey.pem

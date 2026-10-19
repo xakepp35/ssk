@@ -2,6 +2,7 @@
 mod auth;
 mod metrics;
 mod overlay;
+mod relay;
 mod routes;
 pub mod topology;
 pub use metrics::LinkStats;
@@ -129,11 +130,28 @@ impl Drop for Network {
     }
 }
 pub fn run_node(config: Config) -> anyhow::Result<()> {
-    let network = Network::start(config, None)?;
-    let rt = tokio::runtime::Builder::new_current_thread()
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
         .enable_all()
         .build()?;
-    rt.block_on(tokio::signal::ctrl_c())?;
-    drop(network);
-    Ok(())
+    rt.block_on(async move {
+        let mut relay = match &config.relay_server {
+            Some(c) => Some(relay::start(c).await?),
+            None => None,
+        };
+        let network = Network::start(config, None)?;
+        if let Some(server) = &mut relay {
+            tokio::select! {
+                r = tokio::signal::ctrl_c() => r?,
+                r = server.join() => anyhow::bail!("Relay terminated: {r:?}"),
+            }
+        } else {
+            tokio::signal::ctrl_c().await?;
+        }
+        drop(network);
+        if let Some(server) = relay {
+            server.shutdown().await?;
+        }
+        Ok(())
+    })
 }

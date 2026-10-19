@@ -14,13 +14,13 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - `cargo check --workspace` passed after A2; no tests/manual session.
 
 ## Live state
-- Completed B12: Two-second renewable leases, monotonic epochs with deterministic tie break, complete checkpoint restore, stale-authority rejection and best-effort departure. Partition rollback and missing old projectiles are documented.
+- Completed B13: Optional embedded Iroh relay in node mode with HTTP/TLS/QUIC configuration, admitted-client cap, authenticated allowlist and per-client rate limits. NAT path accounting rejects nested app/transport relay. External deployment remains unverified.
 - `cargo check --workspace` passed at this step. No automated tests run.
 - No manual play session yet. No public hosts for internet acceptance.
 - No active project processes. Source discussions preserved. No push.
 
 ## Next
-B13: embedded self-hosted relay, configured NAT traversal, path limits.
+B14: multiple seeds/relays, signed contact cache, bounded reconnect and friends.
 
 ## Constraints
 240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.

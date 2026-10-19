@@ -7,6 +7,7 @@ use std::{
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
+    pub relay_server: Option<RelayServerConfig>,
     pub world: String,
     pub seed: u64,
     pub net_hz: u32,
@@ -23,6 +24,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            relay_server: None,
             world: "ssk-playground-v1".into(),
             seed: 42,
             net_hz: 30,
@@ -81,6 +83,28 @@ impl Config {
                 && (1000. ..=8192.).contains(&config.interest_radius),
             "interest_radius must be 1000..8192"
         );
+        if let Some(r) = &config.relay_server {
+            anyhow::ensure!(
+                (1..=4096).contains(&r.max_clients),
+                "relay max_clients must be 1..4096"
+            );
+            anyhow::ensure!(
+                r.bytes_per_second > 0,
+                "relay bytes_per_second must be positive"
+            );
+            anyhow::ensure!(
+                r.https_bind.is_some() == (r.cert_file.is_some() && r.key_file.is_some()),
+                "relay HTTPS requires both cert_file and key_file"
+            );
+            anyhow::ensure!(
+                r.quic_bind.is_none() || r.https_bind.is_some(),
+                "relay QUIC requires TLS"
+            );
+            anyhow::ensure!(
+                r.quic_bind.is_none_or(|a| a.port() == 7842),
+                "relay QUIC port must be 7842"
+            );
+        }
         Ok(config)
     }
     pub fn write_default(path: Option<&Path>) -> anyhow::Result<PathBuf> {
@@ -95,6 +119,32 @@ impl Config {
             .open(&path)?;
         file.write_all(serde_yaml::to_string(&Self::default())?.as_bytes())?;
         Ok(path)
+    }
+}
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct RelayServerConfig {
+    pub http_bind: SocketAddr,
+    pub https_bind: Option<SocketAddr>,
+    pub quic_bind: Option<SocketAddr>,
+    pub cert_file: Option<PathBuf>,
+    pub key_file: Option<PathBuf>,
+    pub max_clients: usize,
+    pub bytes_per_second: u32,
+    pub allow: Vec<String>,
+}
+impl Default for RelayServerConfig {
+    fn default() -> Self {
+        Self {
+            http_bind: "127.0.0.1:3340".parse().unwrap(),
+            https_bind: None,
+            quic_bind: None,
+            cert_file: None,
+            key_file: None,
+            max_clients: 128,
+            bytes_per_second: 2 * 1024 * 1024,
+            allow: vec![],
+        }
     }
 }
 pub fn load_identity(path: &Path) -> anyhow::Result<iroh::SecretKey> {
