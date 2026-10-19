@@ -21,7 +21,7 @@ wait snapshots are followed by further frames. The full evidence remains in
 | --- | --- |
 | One native event loop on the process main thread | [winit 0.30.13 EventLoopBuilder](https://docs.rs/winit/0.30.13/winit/event_loop/struct.EventLoopBuilder.html#method.build). Current Linux winit checks this before backend initialization; SSK never enables `any_thread`. |
 | Window/device creation and painting stay in that event loop | [eframe 0.33.3 native runner](https://docs.rs/crate/eframe/0.33.3/source/src/native/run.rs) invokes `resumed`, window events and `run_ui_and_paint` from `ApplicationHandler`. [wgpu integration](https://docs.rs/crate/eframe/0.33.3/source/src/native/wgpu_integration.rs) creates the painter/window within that lifecycle and paints on the same callback thread. SSK calls it synchronously from `main`. |
-| Vulkan synchronization follows object ownership, not CPU affinity or a current GL context | [Khronos threading guide](https://docs.vulkan.org/guide/latest/threading.html). Shared queues/command pools require synchronization; SSK has no raw Vulkan calls, custom pools or concurrent queue access. Eframe/wgpu own those resources; the simulation gets none. Moving a CPU thread between cores does not require reinitializing its graphics state. |
+| Vulkan synchronization follows object ownership, not CPU affinity or a current GL context | [Khronos threading guide](https://docs.vulkan.org/guide/latest/threading.html). Shared queues/command pools require synchronization; SSK has no custom pools or concurrent queue access; its later optional HAL query reads only physical-device identity properties under the adapter guard. Eframe/wgpu own those resources; the simulation gets none. Moving a CPU thread between cores does not require reinitializing its graphics state. |
 | Workers cannot move the application or issue graphics calls | New `GraphicsThread` contains a `!Send + !Sync` marker, checks the Linux thread-group leader before device setup, and checks ownership in creation/update/exit/drop. The probe follows the same rule. World snapshots contain only CPU game data. |
 | Native callbacks must not wait on world copying/network locks | Previously `take_frame()` blocked on the same mutex held during world clone, peer sampling and network watch reads. Replaced with capacity-one request/frame channels using `try_recv`/`try_send`. Session identity/socket startup moved to the simulation worker. |
 | Shutdown must not first wait for free command-queue space | The previous blocking `send(Stop)` precedes `unpark`. Replaced with an atomic stop flag and `unpark`; the worker still joins for orderly cleanup. A stuck native network destructor can still delay shutdown. |
@@ -88,3 +88,26 @@ hardware mode remains an open release blocker until incident stacks or a
 controlled comparison identify and resolve its trigger. Software success alone
 would implicate the changed application driver/presentation path, not prove a
 specific NVIDIA bug or exclude the compositor/OS.
+
+## Attended comparisons on2026-10-20
+
+The owner authorized the staged experiments. The same binary has completed CPU
+static, explicit display-GPU static, same GPU+production worker, offline game,
+host/no-audio and host/audio-enabled runs without reproducing the hard freeze.
+A static scene also passed on the other/headless GPU. Exact durations, hashes,
+caveats and session paths are in CHECKPOINT/PLAN; private captures stay in runtime.
+These are short comparisons, not the hardware release gate. Healthy samples
+include completed DRM timeline waits; those waits alone are not a deadlock.
+Hardware comparisons explicitly selected an adapter, NVIDIA-only ICD and disabled
+implicit layers. The original incident's physical GPU/loader policy is unknown.
+
+Additional primary incident reports inspected2026-10-20:
+[NVIDIA #1289](https://github.com/NVIDIA/open-gpu-kernel-modules/issues/1289),
+[#1371](https://github.com/NVIDIA/open-gpu-kernel-modules/issues/1371),
+[#1394](https://github.com/NVIDIA/open-gpu-kernel-modules/issues/1394).
+Reporters describe modeset/DPMS/resume-triggered display hangs, including
+615.71.09, with KMS blocked in NVIDIA locking and a stuck modeset worker. Their
+triggers/hardware differ; no matching local freeze stack has been captured.
+Do not infer a driver fix, perform DPMS/power-cycle reproduction, or update the
+driver based on these reports alone. Compare concrete KMS/NVIDIA stacks if a
+local incident occurs. No power/kernel/driver settings were changed.

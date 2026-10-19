@@ -15,11 +15,12 @@ kernel/driver/VPN/display/service/watchdog changes. After reboot read
 runtime/freeze-sessions/current.json and the pointed session.json/app.ndjson/
 console.ndjson, compare boot ID and preserve previous-boot evidence BEFORE
 any new launch. A start without finish is not itself proof of a host freeze.
-Current prepared session: runtime/freeze-sessions/20261019T234558Z.
-Next: gpu-graphics/static10s on headless PCI0000:17:00.0. Baseline primary
-PCI0000:65:00.0 static scene passed; change GPU only. Same build/FIFO/NVIDIA-only
-ICD/implicit layers disabled. Start60s1Hz collector, await durable ready, then
-ONE timed launch. No active SSK/collector. The original crash GPU is unknown.
+Current prepared session: runtime/freeze-sessions/20261019T234738Z.
+Next: full host/audio20s on headless PCI0000:17:00.0. Its static10s scene passed.
+Compared with successful primary host/audio, change GPU only. Same build/FIFO/
+NVIDIA-only ICD/implicit layers off/class. Start60s1Hz capture, await durable
+ready, launch ONCE, observe20s, then one verified SIGINT if owner has not closed.
+No active SSK/collector. Original crash GPU unknown; no freeze reproduced yet.
 
 ## L5 completed comparisons (current boot, same Linux binary)
 
@@ -31,6 +32,7 @@ ONE timed launch. No active SSK/collector. The original crash GPU is unknown.
 |20261019T233451Z|offline/no audio|230.496s|~140.5FPS,360Hz,no overload/ERROR|
 |20261019T234020Z|host/no audio|32.555s|~141.6FPS,360Hz,no peers/overload/ERROR|
 |20261019T234225Z|host/audio enabled|12.599s|~140.4FPS,4320ticks,no overload/ERROR|
+|20261019T234558Z|headless GPU static|10.702s|exit0,1303updates,60kernel records/0errors|
 
 Each directory is under runtime/freeze-sessions; durable metadata/logs and kernel
 summaries saved. First six stages did not reproduce freeze. Hardware stages pin

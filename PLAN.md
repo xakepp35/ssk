@@ -452,3 +452,9 @@ records/0errors,13SSK samples/0read errors, final display idle. All first six
 stages passed short observation; original intermittent freeze remains open.
 Next prepared 20261019T234558Z: isolated static10s on headless PCI17:00.0;
 change only GPU from successful primary scene, same FIFO/ICD/layers policy.
+
+L5 headless-GPU static:20261019T234558Z,PCI17:00.0,10.702s/exit0,
+1303updates/world_tick0/0ERROR,60kernel records/0errors,11app samples/0read
+errors. GPU choice alone did not reproduce in static scene. Prepared20261019T234738Z:
+same full host/audio as successful primary comparison, change GPU only;20s
+observation with60s stack capture, one SIGINT if no manual close.
