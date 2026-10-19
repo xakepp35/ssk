@@ -1,5 +1,7 @@
 //! Bounded bridge between game thread and asynchronous network workers.
 mod config;
+mod replication;
+pub use replication::*;
 mod transport;
 pub use config::*;
 pub use transport::{decode_ticket, encode_ticket};

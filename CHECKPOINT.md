@@ -14,13 +14,13 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - `cargo check --workspace` passed after A2; no tests/manual session.
 
 ## Live state
-- Completed B2: Iroh QUIC datagrams, bounded multiplexing, world/rules handshake, public invite tickets, connection HUD and F2 copy. No connection session run.
+- Completed B3: 50-byte independent snapshots, fixed simulation cadence publishing, sequence rejection, life epochs, 50 ms interpolation and capped 100 ms extrapolation.
 - `cargo check --workspace` passed at this step. No automated tests run.
 - No manual play session yet. No public hosts for internet acceptance.
 - No active project processes. Source discussions preserved. No push.
 
 ## Next
-B3: independent quantized snapshots and remote interpolation.
+B4: reliable/deduplicated shot and death events, target-owned damage, duel respawn and launch documentation.
 
 ## Constraints
 240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.

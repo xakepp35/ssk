@@ -119,7 +119,14 @@ async fn run(options: Options, mut profile: profile::Profile) {
     if options.play {
         profile.class = class.index();
     }
-    let mut world = World::new(options.seed, class);
+    let mut world = World::new(
+        if options.online {
+            options.network.seed
+        } else {
+            options.seed
+        },
+        class,
+    );
     let mut network = if options.online {
         match ssk_net::Network::start(options.network.clone(), options.connect.clone()) {
             Ok(net) => Some(net),
@@ -134,6 +141,8 @@ async fn run(options: Options, mut profile: profile::Profile) {
     if let Some(net) = &network {
         world.player.id = net.player_id;
     }
+    let mut replicas = ssk_net::Replicas::default();
+    let mut sequence = 0u32;
     let mut effects = effects::Effects::new().await;
     let mut accumulator = 0.;
     let mut camera = V2::ZERO;
@@ -149,7 +158,23 @@ async fn run(options: Options, mut profile: profile::Profile) {
     loop {
         let frame_start = std::time::Instant::now();
         if let Some(net) = &mut network {
-            while let Ok(_event) = net.incoming.try_recv() {}
+            while let Ok(event) = net.incoming.try_recv() {
+                match event {
+                    ssk_net::NetEvent::Packet {
+                        peer,
+                        kind: 0,
+                        bytes,
+                    } => {
+                        if let Some(snapshot) = ssk_net::Snapshot::decode(&bytes) {
+                            replicas.push(peer, snapshot, get_time());
+                        }
+                    }
+                    ssk_net::NetEvent::Disconnected(peer) => {
+                        replicas.peers.remove(&peer);
+                    }
+                    _ => {}
+                }
+            }
         }
         let dt = get_frame_time().min(0.1);
         if is_quit_requested() {
@@ -221,6 +246,17 @@ async fn run(options: Options, mut profile: profile::Profile) {
             let mut steps = 0;
             while accumulator >= DT && steps < 8 {
                 world.step(input);
+                if let Some(net) = &network {
+                    if world.tick % (240 / options.network.net_hz as u64) == 0
+                        || world.player.hp <= 0.
+                    {
+                        sequence = sequence.wrapping_add(1);
+                        net.publish(
+                            ssk_net::Snapshot::capture(&world, sequence, run_number as u32)
+                                .encode(),
+                        );
+                    }
+                }
                 accumulator -= DT;
                 steps += 1;
             }
@@ -248,6 +284,31 @@ async fn run(options: Options, mut profile: profile::Profile) {
         let render_camera = camera + effects.offset(profile.shake);
         background(render_camera);
         render::scene(&world, render_camera, alpha);
+        for peer in replicas.peers.keys() {
+            if let Some((snapshot, age)) = replicas.sample(peer, get_time()) {
+                let ship = snapshot.ship(ssk_net::player_id(peer).unwrap_or(0), world.origin);
+                if ship.hp > 0. {
+                    draw_ship(
+                        &ship,
+                        render_camera,
+                        1.,
+                        if age > 0.15 { GRAY } else { GOLD },
+                    );
+                    let p = screen(ship.pos, render_camera);
+                    draw_text(
+                        &format!(
+                            "PEER {:.0} HP{}",
+                            ship.hp,
+                            if age > 0.15 { " !" } else { "" }
+                        ),
+                        p.x - 40.,
+                        p.y - 40.,
+                        16.,
+                        GOLD,
+                    );
+                }
+            }
+        }
         effects.draw(render_camera, profile.flashes);
         ui::hud(&world, &profile, skipped);
         if world.player.hp <= 0. && !menu {
