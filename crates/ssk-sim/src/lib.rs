@@ -90,13 +90,14 @@ pub struct World {
     pub grid:SpatialGrid, pub loaded:std::collections::HashSet<[i64;2]>, pub origin_shift:V2,
     pub npcs:Vec<Npc>, pub score:u64, pub next_spawn:f32,
     pub pickups:Vec<Pickup>,pub combo:f32,pub last_kill:Option<f32>,
+    pub spawn_radius:f32,
 }
 impl World {
     pub fn new(seed: u64, class: ShipClass) -> Self {
         Self { player: Ship::new(1, class, V2::ZERO), origin: [0, 0], tick: 0, seed,
             bullets:Vec::with_capacity(4096), asteroids:Vec::with_capacity(512), events:Vec::with_capacity(512), rng:Rng(seed), next_id:2,
             grid:SpatialGrid::default(),loaded:field::empty_loaded(),origin_shift:V2::ZERO,
-            npcs:Vec::with_capacity(24),score:0,next_spawn:2.,pickups:Vec::with_capacity(256),combo:1.,last_kill:None }
+            npcs:Vec::with_capacity(24),score:0,next_spawn:2.,pickups:Vec::with_capacity(256),combo:1.,last_kill:None,spawn_radius:1200. }
     }
     pub fn step(&mut self, input: InputFrame) {
         if self.player.hp<=0. { return; }

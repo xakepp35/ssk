@@ -14,13 +14,13 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - `cargo check --workspace` passed after A2; no tests/manual session.
 
 ## Live state
-- Completed A8: Exclusive loot drops, attraction/expiry, HP/E overcap, HP decay, owner-attributed scoring and bounded combo.
+- Completed A9: Three weapon/class AI roles, reaction/aim noise, burst rests, obstacle avoidance, increasing bounded population, at most three shooters, telegraphs.
 - `cargo check --workspace` passed at this step. No automated tests run.
 - No manual play session yet. No public hosts for internet acceptance.
 - No active project processes. Source discussions preserved. No push.
 
 ## Next
-A9: class-specific enemies, bounded director and spawn telegraphs.
+A10: bounded particles, flashes, camera shake and synthesized startup audio.
 
 ## Constraints
 240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.

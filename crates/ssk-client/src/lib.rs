@@ -61,6 +61,7 @@ async fn run(options: Options) {
         if is_key_pressed(KeyCode::F11) { fullscreen=!fullscreen; set_fullscreen(fullscreen); }
         if world.player.hp<=0. && is_key_pressed(KeyCode::R) { world=World::new(options.seed,options.class);camera=V2::ZERO;accumulator=0.; }
         let dt=get_frame_time().min(0.1);
+        world.spawn_radius=screen_width().hypot(screen_height())*0.5+200.;
         if is_key_pressed(KeyCode::Q)||mouse_wheel().1>0. { weapon=(weapon+2)%3; }
         if is_key_pressed(KeyCode::E)||mouse_wheel().1<0. { weapon=(weapon+1)%3; }
         for (i,key) in [KeyCode::Key1,KeyCode::Key2,KeyCode::Key3].into_iter().enumerate() { if is_key_pressed(key) { weapon=i; } }
@@ -107,6 +108,8 @@ async fn run(options: Options) {
         for npc in &world.npcs {
             if npc.telegraph>0. {
                 let p=screen(npc.ship.pos,camera);draw_circle_lines(p.x,p.y,45.*npc.telegraph/0.8,2.,RED);
+                let edge=vec2(p.x.clamp(24.,screen_width()-24.),p.y.clamp(180.,screen_height()-24.));
+                draw_circle_lines(edge.x,edge.y,12.,2.,RED);
             } else { draw_ship(&npc.ship,camera,alpha,PINK); }
         }
         draw_rectangle(24.,52.,240.,10.,DARKGRAY);
