@@ -1,122 +1,303 @@
 use crate::*;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum WeaponKind { #[default] MachineGun, Shotgun, Plasma }
+pub enum WeaponKind {
+    #[default]
+    MachineGun,
+    Shotgun,
+    Plasma,
+}
 impl WeaponKind {
-    pub fn from_index(i: usize) -> Self { match i % 3 { 1 => Self::Shotgun, 2 => Self::Plasma, _ => Self::MachineGun } }
-    pub fn name(self) -> &'static str { match self { Self::MachineGun => "MACHINE GUN", Self::Shotgun => "SHOTGUN", Self::Plasma => "PLASMA" } }
+    pub fn from_index(i: usize) -> Self {
+        match i % 3 {
+            1 => Self::Shotgun,
+            2 => Self::Plasma,
+            _ => Self::MachineGun,
+        }
+    }
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::MachineGun => "MACHINE GUN",
+            Self::Shotgun => "SHOTGUN",
+            Self::Plasma => "PLASMA",
+        }
+    }
     pub fn stats(self) -> WeaponStats {
         match self {
-            Self::MachineGun => WeaponStats { damage:40., interval:0.1, energy:18., speed:1300., radius:2., life:1.2, pellets:1, spread:2f32.to_radians() },
-            Self::Shotgun => WeaponStats { damage:35., interval:0.75, energy:112., speed:1000., radius:3., life:0.6, pellets:8, spread:16f32.to_radians() },
-            Self::Plasma => WeaponStats { damage:240., interval:0.7, energy:108., speed:720., radius:12., life:1.6, pellets:1, spread:0. },
+            Self::MachineGun => WeaponStats {
+                damage: 40.,
+                interval: 0.1,
+                energy: 18.,
+                speed: 1300.,
+                radius: 2.,
+                life: 1.2,
+                pellets: 1,
+                spread: 2f32.to_radians(),
+            },
+            Self::Shotgun => WeaponStats {
+                damage: 35.,
+                interval: 0.75,
+                energy: 112.,
+                speed: 1000.,
+                radius: 3.,
+                life: 0.6,
+                pellets: 8,
+                spread: 16f32.to_radians(),
+            },
+            Self::Plasma => WeaponStats {
+                damage: 240.,
+                interval: 0.7,
+                energy: 108.,
+                speed: 720.,
+                radius: 12.,
+                life: 1.6,
+                pellets: 1,
+                spread: 0.,
+            },
         }
     }
 }
-pub struct WeaponStats { pub damage:f32, pub interval:f32, pub energy:f32, pub speed:f32, pub radius:f32, pub life:f32, pub pellets:usize, pub spread:f32 }
+pub struct WeaponStats {
+    pub damage: f32,
+    pub interval: f32,
+    pub energy: f32,
+    pub speed: f32,
+    pub radius: f32,
+    pub life: f32,
+    pub pellets: usize,
+    pub spread: f32,
+}
 
 #[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Shot {
-    pub id:u64, pub owner:u64, pub pos:V2, pub angle:f32,
-    pub weapon:WeaponKind, pub seed:u64, pub damage_scale:f32,
+    pub id: u64,
+    pub owner: u64,
+    pub pos: V2,
+    pub angle: f32,
+    pub weapon: WeaponKind,
+    pub seed: u64,
+    pub damage_scale: f32,
 }
 #[derive(Clone, Debug)]
-pub struct Bullet { pub shot:Shot, pub pos:V2, pub previous:V2, pub velocity:V2, pub life:f32, pub damage:f32, pub radius:f32 }
+pub struct Bullet {
+    pub shot: Shot,
+    pub pos: V2,
+    pub previous: V2,
+    pub velocity: V2,
+    pub life: f32,
+    pub damage: f32,
+    pub radius: f32,
+}
 #[derive(Clone, Copy, Debug)]
 pub enum WorldEvent {
-    Shot(Shot), Dry, Impact { pos:V2, damage:f32 }, Destroyed { pos:V2, size:f32 },
-    Pickup { pos:V2,kind:PickupKind },
+    Shot(Shot),
+    Dry,
+    Impact { pos: V2, damage: f32 },
+    Destroyed { pos: V2, size: f32 },
+    Pickup { pos: V2, kind: PickupKind },
 }
 
 impl Ship {
-    pub fn combat_step(&mut self, input:InputFrame, rng:&mut Rng, shot_id:u64) -> Option<Shot> {
-        for c in &mut self.cooldowns { *c=(*c-DT).max(0.); }
-        self.quiet+=DT;
-        self.weapon=WeaponKind::from_index(input.weapon);
-        let index=self.weapon as usize;
-        let stats=self.weapon.stats();
-        let scale=if matches!(self.class,ShipClass::Thunder)&&self.ability_active { 4. } else { 1. };
-        if input.fire && self.cooldowns[index]<=0. && self.energy>=stats.energy*scale {
-            self.energy-=stats.energy*scale; self.quiet=0.; self.cooldowns[index]=stats.interval;
-            Some(Shot { id:shot_id, owner:self.id, pos:self.pos+V2::from_angle(self.angle)*(self.class.stats().3+5.), angle:self.angle, weapon:self.weapon, seed:rng.next_u64(), damage_scale:scale })
+    pub fn combat_step(&mut self, input: InputFrame, rng: &mut Rng, shot_id: u64) -> Option<Shot> {
+        for c in &mut self.cooldowns {
+            *c = (*c - DT).max(0.);
+        }
+        self.quiet += DT;
+        self.weapon = WeaponKind::from_index(input.weapon);
+        let index = self.weapon as usize;
+        let stats = self.weapon.stats();
+        let scale = if matches!(self.class, ShipClass::Thunder) && self.ability_active {
+            4.
         } else {
-            if self.quiet>0.6 && !self.ability_active && self.energy<1000. { self.energy=(self.energy+80.*DT).min(1000.); }
+            1.
+        };
+        if input.fire && self.cooldowns[index] <= 0. && self.energy >= stats.energy * scale {
+            self.energy -= stats.energy * scale;
+            self.quiet = 0.;
+            self.cooldowns[index] = stats.interval;
+            Some(Shot {
+                id: shot_id,
+                owner: self.id,
+                pos: self.pos + V2::from_angle(self.angle) * (self.class.stats().3 + 5.),
+                angle: self.angle,
+                weapon: self.weapon,
+                seed: rng.next_u64(),
+                damage_scale: scale,
+            })
+        } else {
+            if self.quiet > 0.6 && !self.ability_active && self.energy < 1000. {
+                self.energy = (self.energy + 80. * DT).min(1000.);
+            }
             None
         }
     }
 }
 
 /// Fraction of the first intersection, including starting inside the circle.
-pub fn swept_circle(a:V2,b:V2,center:V2,radius:f32) -> Option<f32> {
-    let m=a-center; let d=b-a; let c=m.dot(m)-radius*radius;
-    if c<=0. { return Some(0.); }
-    let aa=d.dot(d); let bb=m.dot(d); let disc=bb*bb-aa*c;
-    if aa<1e-8 || bb>=0. || disc<0. { return None; }
-    let t=(-bb-disc.sqrt())/aa;
-    (t<=1.).then_some(t)
+pub fn swept_circle(a: V2, b: V2, center: V2, radius: f32) -> Option<f32> {
+    let m = a - center;
+    let d = b - a;
+    let c = m.dot(m) - radius * radius;
+    if c <= 0. {
+        return Some(0.);
+    }
+    let aa = d.dot(d);
+    let bb = m.dot(d);
+    let disc = bb * bb - aa * c;
+    if aa < 1e-8 || bb >= 0. || disc < 0. {
+        return None;
+    }
+    let t = (-bb - disc.sqrt()) / aa;
+    (t <= 1.).then_some(t)
 }
 
 impl World {
-    pub fn emit(&mut self,event:WorldEvent) { if self.events.len()<512 { self.events.push(event); } }
-    pub fn spawn_shot(&mut self,shot:Shot) {
-        let stats=shot.weapon.stats(); let mut rng=Rng(shot.seed);
-        let firing=if shot.owner==self.player.id { Some(&mut self.player) } else { self.npcs.iter_mut().find(|n|n.ship.id==shot.owner).map(|n|&mut n.ship) };
-        if let Some(ship)=firing {
-            if matches!(ship.class,ShipClass::Cadet)&&ship.ability_active {
-                ship.energy=(ship.energy-stats.damage*shot.damage_scale*stats.pellets as f32*0.5).max(0.);
-                if ship.energy<=0. { ship.ability_active=false; }
+    pub fn emit(&mut self, event: WorldEvent) {
+        if self.events.len() < 512 {
+            self.events.push(event);
+        }
+    }
+    pub fn spawn_shot(&mut self, shot: Shot) {
+        let stats = shot.weapon.stats();
+        let mut rng = Rng(shot.seed);
+        let firing = if shot.owner == self.player.id {
+            Some(&mut self.player)
+        } else {
+            self.npcs
+                .iter_mut()
+                .find(|n| n.ship.id == shot.owner)
+                .map(|n| &mut n.ship)
+        };
+        if let Some(ship) = firing {
+            if matches!(ship.class, ShipClass::Cadet) && ship.ability_active {
+                ship.energy = (ship.energy
+                    - stats.damage * shot.damage_scale * stats.pellets as f32 * 0.5)
+                    .max(0.);
+                if ship.energy <= 0. {
+                    ship.ability_active = false;
+                }
                 self.emit(WorldEvent::Shot(shot));
-                self.emit(WorldEvent::Impact { pos:shot.pos,damage:20. });return;
+                self.emit(WorldEvent::Impact {
+                    pos: shot.pos,
+                    damage: 20.,
+                });
+                return;
             }
         }
         for pellet in 0..stats.pellets {
-            if self.bullets.len()>=4096 { break; }
-            let spread=if stats.pellets>1 { -stats.spread+2.*stats.spread*(pellet as f32+rng.range(0.1,0.9))/stats.pellets as f32 } else { rng.range(-stats.spread,stats.spread) };
-            let direction=V2::from_angle(shot.angle+spread);
-            self.bullets.push(Bullet { shot, pos:shot.pos, previous:shot.pos, velocity:direction*stats.speed, life:stats.life, damage:stats.damage*shot.damage_scale, radius:stats.radius });
+            if self.bullets.len() >= 4096 {
+                break;
+            }
+            let spread = if stats.pellets > 1 {
+                -stats.spread
+                    + 2. * stats.spread * (pellet as f32 + rng.range(0.1, 0.9))
+                        / stats.pellets as f32
+            } else {
+                rng.range(-stats.spread, stats.spread)
+            };
+            let direction = V2::from_angle(shot.angle + spread);
+            self.bullets.push(Bullet {
+                shot,
+                pos: shot.pos,
+                previous: shot.pos,
+                velocity: direction * stats.speed,
+                life: stats.life,
+                damage: stats.damage * shot.damage_scale,
+                radius: stats.radius,
+            });
         }
         self.emit(WorldEvent::Shot(shot));
     }
-    pub(crate) fn combat(&mut self,input:InputFrame) {
-        let shot_id=self.next_id;
-        if let Some(shot)=self.player.combat_step(input,&mut self.rng,shot_id) { self.next_id+=1; self.spawn_shot(shot); }
-        else if input.fire && self.player.cooldowns[self.player.weapon as usize]<=0. && self.tick%36==0 { self.emit(WorldEvent::Dry); }
-        let mut impacts=Vec::new();
-        let mut nearby=Vec::new();
+    pub(crate) fn combat(&mut self, input: InputFrame) {
+        let shot_id = self.next_id;
+        if let Some(shot) = self.player.combat_step(input, &mut self.rng, shot_id) {
+            self.next_id += 1;
+            self.spawn_shot(shot);
+        } else if input.fire
+            && self.player.cooldowns[self.player.weapon as usize] <= 0.
+            && self.tick % 36 == 0
+        {
+            self.emit(WorldEvent::Dry);
+        }
+        let mut impacts = Vec::new();
+        let mut nearby = Vec::new();
         for bullet in &mut self.bullets {
-            bullet.previous=bullet.pos; bullet.pos+=bullet.velocity*DT; bullet.life-=DT;
-            let mut first:Option<(f32,u8,usize)>=None;
-            self.grid.query(bullet.previous,bullet.pos,bullet.radius,&mut nearby);
+            bullet.previous = bullet.pos;
+            bullet.pos += bullet.velocity * DT;
+            bullet.life -= DT;
+            let mut first: Option<(f32, u8, usize)> = None;
+            self.grid
+                .query(bullet.previous, bullet.pos, bullet.radius, &mut nearby);
             for &index in &nearby {
-                let target=&self.asteroids[index];
-                if target.hp<=0. { continue; }
-                if let Some(t)=swept_circle(bullet.previous,bullet.pos,target.pos,target.radius+bullet.radius) {
-                    if first.is_none_or(|(best,_,_)| t<best) { first=Some((t,0,index)); }
+                let target = &self.asteroids[index];
+                if target.hp <= 0. {
+                    continue;
                 }
-            }
-            if bullet.shot.owner==self.player.id {
-                for (index,npc) in self.npcs.iter().enumerate() {
-                    if npc.telegraph>0. || npc.ship.hp<=0. { continue; }
-                    if let Some(t)=swept_circle(bullet.previous,bullet.pos,npc.ship.pos,npc.ship.class.stats().3+bullet.radius) {
-                        if first.is_none_or(|(best,_,_)|t<best) { first=Some((t,1,index)); }
+                if let Some(t) = swept_circle(
+                    bullet.previous,
+                    bullet.pos,
+                    target.pos,
+                    target.radius + bullet.radius,
+                ) {
+                    if first.is_none_or(|(best, _, _)| t < best) {
+                        first = Some((t, 0, index));
                     }
                 }
-            } else if let Some(t)=swept_circle(bullet.previous,bullet.pos,self.player.pos,self.player.class.stats().3+bullet.radius) {
-                if first.is_none_or(|(best,_,_)|t<best) { first=Some((t,2,0)); }
             }
-            if let Some((t,kind,index))=first {
-                match kind {
-                    0=>{self.asteroids[index].hp-=bullet.damage;self.asteroids[index].last_hit=bullet.shot.owner;},
-                    1=>{self.npcs[index].ship.damage(bullet.damage);self.npcs[index].last_hit=bullet.shot.owner;},
-                    _=>{self.player.damage(bullet.damage);self.combo=1.;self.last_kill=None;}
+            if bullet.shot.owner == self.player.id {
+                for (index, npc) in self.npcs.iter().enumerate() {
+                    if npc.telegraph > 0. || npc.ship.hp <= 0. {
+                        continue;
+                    }
+                    if let Some(t) = swept_circle(
+                        bullet.previous,
+                        bullet.pos,
+                        npc.ship.pos,
+                        npc.ship.class.stats().3 + bullet.radius,
+                    ) {
+                        if first.is_none_or(|(best, _, _)| t < best) {
+                            first = Some((t, 1, index));
+                        }
+                    }
                 }
-                bullet.life=0.;
-                impacts.push(WorldEvent::Impact { pos:bullet.previous.lerp(bullet.pos,t), damage:bullet.damage });
+            } else if let Some(t) = swept_circle(
+                bullet.previous,
+                bullet.pos,
+                self.player.pos,
+                self.player.class.stats().3 + bullet.radius,
+            ) {
+                if first.is_none_or(|(best, _, _)| t < best) {
+                    first = Some((t, 2, 0));
+                }
+            }
+            if let Some((t, kind, index)) = first {
+                match kind {
+                    0 => {
+                        self.asteroids[index].hp -= bullet.damage;
+                        self.asteroids[index].last_hit = bullet.shot.owner;
+                    }
+                    1 => {
+                        self.npcs[index].ship.damage(bullet.damage);
+                        self.npcs[index].last_hit = bullet.shot.owner;
+                    }
+                    _ => {
+                        self.player.damage(bullet.damage);
+                        self.combo = 1.;
+                        self.last_kill = None;
+                    }
+                }
+                bullet.life = 0.;
+                impacts.push(WorldEvent::Impact {
+                    pos: bullet.previous.lerp(bullet.pos, t),
+                    damage: bullet.damage,
+                });
             }
         }
-        self.bullets.retain(|b| b.life>0.);
+        self.bullets.retain(|b| b.life > 0.);
         self.destroy_asteroids();
         self.destroy_enemies();
-        for event in impacts { self.emit(event); }
+        for event in impacts {
+            self.emit(event);
+        }
     }
 }

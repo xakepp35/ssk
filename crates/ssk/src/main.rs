@@ -16,26 +16,48 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     Play,
-    Online { #[arg(long)] connect: Option<String> },
+    Online {
+        #[arg(long)]
+        connect: Option<String>,
+    },
     Node,
     InitConfig,
     Bench,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
-enum Class { Spark, Cadet, Thunder }
+enum Class {
+    Spark,
+    Cadet,
+    Thunder,
+}
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Some(Command::Node) => ssk_net::run_node(),
-        Some(Command::InitConfig | Command::Bench) => anyhow::bail!("Available in the network phase"),
+        Some(Command::InitConfig | Command::Bench) => {
+            anyhow::bail!("Available in the network phase")
+        }
         command => {
             let online = matches!(command, Some(Command::Online { .. }));
             let play = command.is_some();
-            let connect = match command { Some(Command::Online { connect }) => connect, _ => None };
-            let class = match cli.class { Class::Spark => ssk_sim::ShipClass::Spark, Class::Cadet => ssk_sim::ShipClass::Cadet, Class::Thunder => ssk_sim::ShipClass::Thunder };
-            ssk_client::launch(ssk_client::Options { seed: cli.seed, class, play, online, connect });
+            let connect = match command {
+                Some(Command::Online { connect }) => connect,
+                _ => None,
+            };
+            let class = match cli.class {
+                Class::Spark => ssk_sim::ShipClass::Spark,
+                Class::Cadet => ssk_sim::ShipClass::Cadet,
+                Class::Thunder => ssk_sim::ShipClass::Thunder,
+            };
+            ssk_client::launch(ssk_client::Options {
+                seed: cli.seed,
+                class,
+                play,
+                online,
+                connect,
+            });
             Ok(())
         }
     }

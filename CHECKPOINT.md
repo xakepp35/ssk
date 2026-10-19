@@ -14,13 +14,13 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - `cargo check --workspace` passed after A2; no tests/manual session.
 
 ## Live state
-- Completed A11: Menu/class selection, pause/help, complete resource/cooldown HUD, settings and atomic XDG profile/records persistence.
+- Completed A12: Local gameplay implementation complete. Executable build passed after local ALSA linker fallback; graphical window observed running with HUD and NPC combat. Full class/death/restart manual acceptance remains open.
 - `cargo check --workspace` passed at this step. No automated tests run.
 - No manual play session yet. No public hosts for internet acceptance.
 - No active project processes. Source discussions preserved. No push.
 
 ## Next
-A12: focused executable build, brief manual launch, resolve alpha blockers and document status.
+B1: persisted identity/config, Tokio and bounded network bridge. No automated tests; manual alpha acceptance remains open.
 
 ## Constraints
 240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.
