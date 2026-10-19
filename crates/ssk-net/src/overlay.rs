@@ -1,15 +1,16 @@
 use crate::*;
 use iroh::{Endpoint, EndpointAddr};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashMap},
     time::{Duration, Instant},
 };
 pub(crate) struct Overlay {
     pub id: String,
     pub contacts: BTreeMap<String, EndpointAddr>,
     pub records: BTreeMap<String, Vec<u8>>,
-    pub connecting: HashSet<String>,
+    pub connecting: HashMap<String, Instant>,
     pub last_change: Instant,
+    pub routes: crate::routes::Routes,
 }
 impl Overlay {
     pub fn new(id: String) -> Self {
@@ -17,8 +18,9 @@ impl Overlay {
             id,
             contacts: BTreeMap::new(),
             records: BTreeMap::new(),
-            connecting: HashSet::new(),
+            connecting: HashMap::new(),
             last_change: Instant::now(),
+            routes: Default::default(),
         }
     }
     pub fn members(&self) -> Vec<String> {
@@ -42,26 +44,43 @@ impl Overlay {
         true
     }
     pub fn route(
-        &self,
+        &mut self,
         dest: &str,
         peers: &HashMap<String, crate::reliable::Peer>,
-    ) -> Option<String> {
-        if peers.contains_key(dest) {
-            return Some(dest.into());
+    ) -> Vec<String> {
+        if peers
+            .get(dest)
+            .is_some_and(|p| p.metrics.stats.age_ms < 2000. && p.metrics.stats.queued < 96)
+        {
+            return vec![dest.into()];
         }
         let candidates = topology::intermediaries(&self.members(), &self.id, dest);
-        candidates
+        let ranked = candidates
             .into_iter()
-            .filter(|p| peers.get(p).is_some_and(|p| p.direct()))
-            .min_by(|a, b| {
-                let cost = |p: &str| {
-                    let s = &peers[p].metrics.stats;
+            .filter_map(|id| {
+                let local = peers.get(&id)?;
+                if !local.direct()
+                    || local.metrics.stats.age_ms > 2000.
+                    || local.metrics.stats.queued >= 96
+                {
+                    return None;
+                }
+                let (remote, time) = self.routes.legs.get(&(id.clone(), dest.into()))?;
+                if !remote.direct
+                    || time.elapsed().as_secs() > 3
+                    || remote.age_ms > 2000.
+                    || remote.queued >= 96
+                {
+                    return None;
+                }
+                let cost = |s: &LinkStats| {
                     s.rtt_ms.unwrap_or(1000.) + s.jitter_ms * 2. + s.loss * 100. + s.queued as f32
                 };
-                cost(a).total_cmp(&cost(b)).then_with(|| {
-                    stable_rank(&self.id, dest, a).cmp(&stable_rank(&self.id, dest, b))
-                })
+                let balance = (stable_rank(&self.id, dest, &id) % 1000) as f32 / 1000.;
+                Some((id, cost(&local.metrics.stats) + cost(remote) + balance))
             })
+            .collect();
+        self.routes.select(dest, ranked)
     }
     pub fn desired(&self) -> std::collections::BTreeSet<String> {
         topology::neighbours(&self.members(), &self.id)
@@ -74,23 +93,67 @@ impl Overlay {
         Some(b)
     }
     pub fn queue(
-        &self,
+        &mut self,
         kind: u8,
         data: &[u8],
         peers: &mut HashMap<String, crate::reliable::Peer>,
         seq: u64,
     ) {
-        for dest in self.contacts.keys().filter(|p| *p != &self.id) {
-            if let Some(next) = self.route(dest, peers) {
-                if let Some(frame) = Self::envelope(dest, kind, 0, data) {
-                    let p = peers.get_mut(&next).unwrap();
-                    if kind == 0 {
-                        p.state(dest.clone(), frame);
-                    } else {
-                        p.queue(seq, frame, seq);
-                    }
+        let destinations: Vec<_> = self
+            .contacts
+            .keys()
+            .filter(|p| *p != &self.id)
+            .cloned()
+            .collect();
+        for dest in destinations {
+            if kind == 1 {
+                if self.routes.pending.len() < 4096 {
+                    self.routes.pending.push_back(crate::routes::Pending {
+                        dest,
+                        data: data.to_vec(),
+                        born: seq,
+                        last: 0,
+                    });
+                } else {
+                    self.routes.expired += 1;
+                }
+            } else {
+                self.send(&dest, kind, data, peers, seq, 1);
+            }
+        }
+    }
+    fn send(
+        &mut self,
+        dest: &str,
+        kind: u8,
+        data: &[u8],
+        peers: &mut HashMap<String, crate::reliable::Peer>,
+        seq: u64,
+        copies: usize,
+    ) {
+        for next in self.route(dest, peers).into_iter().take(copies) {
+            if let Some(frame) = Self::envelope(dest, kind, 0, data) {
+                let peer = peers.get_mut(&next).unwrap();
+                if kind == 0 {
+                    peer.state(dest.into(), frame);
+                } else {
+                    peer.queue(seq, frame, seq);
                 }
             }
+        }
+    }
+    pub fn retry(&mut self, peers: &mut HashMap<String, crate::reliable::Peer>, seq: u64, hz: u32) {
+        for _ in 0..self.routes.pending.len() {
+            let mut p = self.routes.pending.pop_front().unwrap();
+            if seq.saturating_sub(p.born) > hz as u64 * 5 {
+                self.routes.expired += 1;
+                continue;
+            }
+            if p.last == 0 || seq - p.last >= (hz / 10) as u64 {
+                self.send(&p.dest, 1, &p.data, peers, seq, 3);
+                p.last = seq;
+            }
+            self.routes.pending.push_back(p);
         }
     }
     pub fn connect_tasks(
@@ -102,13 +165,15 @@ impl Overlay {
         let desired: Vec<_> = self
             .desired()
             .into_iter()
-            .filter(|id| !peers.contains_key(id) && !self.connecting.contains(id) && self.id < *id)
+            .filter(|id| {
+                !peers.contains_key(id) && !self.connecting.contains_key(id) && self.id < *id
+            })
             .collect();
         desired
             .into_iter()
             .filter_map(|id| {
                 let addr = self.contacts.get(&id)?.clone();
-                self.connecting.insert(id.clone());
+                self.connecting.insert(id.clone(), Instant::now());
                 Some((id, addr))
             })
             .collect()
@@ -132,6 +197,14 @@ impl Overlay {
             }
             return;
         }
+        if frame_kind == 5 {
+            if let Some((origin, data)) = auth.verify(5, frame) {
+                if origin == remote {
+                    self.routes.metrics(&origin, &data);
+                }
+            }
+            return;
+        }
         if frame_kind != 4 || frame.len() < 34 {
             return;
         }
@@ -141,7 +214,7 @@ impl Overlay {
         let dest = dest.to_string();
         let kind = frame[32];
         let hops = frame[33];
-        if kind > 1 || hops > 1 {
+        if kind > 2 || hops > 1 {
             return;
         }
         let Some((origin, data)) = auth.verify(kind, &frame[34..]) else {
@@ -153,16 +226,46 @@ impl Overlay {
             return;
         }
         if dest == self.id {
-            if worker
-                .incoming
-                .try_send(NetEvent::Packet {
-                    peer: origin,
-                    kind,
-                    bytes: data,
-                })
-                .is_err()
-            {
+            if kind == 2 {
+                if data.len() == 16 {
+                    self.routes.pending.retain(|p| {
+                        p.dest != origin
+                            || crate::routes::event_id(&p.data)
+                                .is_none_or(|id| id.as_slice() != data)
+                    });
+                }
+                return;
+            }
+            let key = crate::routes::event_id(&frame[34..]).map(|id| (origin.clone(), id));
+            let duplicate = kind == 1
+                && key
+                    .as_ref()
+                    .is_some_and(|key| self.routes.seen.contains(key));
+            let delivered = duplicate
+                || worker
+                    .incoming
+                    .try_send(NetEvent::Packet {
+                        peer: origin.clone(),
+                        kind,
+                        bytes: data,
+                    })
+                    .is_ok();
+            if !delivered {
                 worker.status.send_modify(|s| s.dropped += 1);
+            }
+            if kind == 1 && delivered {
+                if let Some(key) = key {
+                    if self.routes.seen.insert(key.clone()) {
+                        self.routes.order.push_back(key.clone());
+                    }
+                    while self.routes.order.len() > 8192 {
+                        self.routes
+                            .seen
+                            .remove(&self.routes.order.pop_front().unwrap());
+                    }
+                    let ack = auth.sign(2, &key.1);
+                    self.send(&origin, 2, &ack, peers, seq, 3);
+                }
             }
             return;
         }

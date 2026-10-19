@@ -2,6 +2,7 @@
 mod auth;
 mod metrics;
 mod overlay;
+mod routes;
 pub mod topology;
 pub use metrics::LinkStats;
 mod config;
@@ -24,6 +25,9 @@ pub struct Status {
     pub peers: usize,
     pub dropped: u64,
     pub links: Vec<LinkStats>,
+    pub routes: usize,
+    pub route_changes: u64,
+    pub unconfirmed: u64,
 }
 #[derive(Debug)]
 pub enum NetEvent {

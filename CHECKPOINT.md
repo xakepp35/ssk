@@ -14,13 +14,13 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - `cargo check --workspace` passed after A2; no tests/manual session.
 
 ## Live state
-- Completed B7: Virtual row/column/diagonal neighbour graph, signed contact gossip, structural connection formation with make-before-break grace and one-intermediary signed frame forwarding. Relays enforce two selected direct transport legs; runtime topology convergence is not yet measured.
+- Completed B8: Signed bounded link-metric deltas, measured two-leg route costs, three prepared critical paths, E2E ACK/retry/dedup with visible expiry, hysteresis, per-origin queue admission, 8 KiB/s control token budget and aggregate payload send budget. Failure scenarios remain unexercised.
 - `cargo check --workspace` passed at this step. No automated tests run.
 - No manual play session yet. No public hosts for internet acceptance.
 - No active project processes. Source discussions preserved. No push.
 
 ## Next
-B8: capacity admission, bounded control budget, end-to-end critical ACK/retry, prepared routes and failover hysteresis.
+B9: libp2p Kademlia bootstrap, identity-bound signed presence records and headless discovery.
 
 ## Constraints
 240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.

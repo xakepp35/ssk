@@ -35,6 +35,17 @@ impl Peer {
         if self.pending.len() >= 128 || data.len() > 960 {
             return false;
         }
+        if let Some(origin) = data.get(34..66) {
+            if self
+                .pending
+                .iter()
+                .filter(|p| p.data.get(34..66) == Some(origin))
+                .count()
+                >= 8
+            {
+                return false;
+            }
+        }
         self.next_event += 1;
         self.pending.push_back(Pending {
             id: self.next_event,
@@ -59,16 +70,23 @@ impl Peer {
         }
         self.states.insert(key, data);
     }
-    pub fn packet(&mut self, seq: u64, contact: &[u8], hz: u32) -> Vec<u8> {
+    pub fn packet(
+        &mut self,
+        seq: u64,
+        control_kind: u8,
+        contact: &[u8],
+        hz: u32,
+        limit: usize,
+    ) -> Vec<u8> {
         let mut packet = self.metrics.header(seq);
         for _ in 0..16 {
             if let Some(id) = self.acks.pop_front() {
-                append(&mut packet, 2, &id.to_le_bytes());
+                append(&mut packet, 2, &id.to_le_bytes(), limit);
             } else {
                 break;
             }
         }
-        append(&mut packet, 3, contact);
+        append(&mut packet, control_kind, contact, limit);
         let before = self.pending.len();
         self.pending
             .retain(|e| seq.saturating_sub(e.born) < hz as u64 * 5);
@@ -79,7 +97,7 @@ impl Peer {
             if event.last == 0 || seq.saturating_sub(event.last) >= (hz / 10).max(1) as u64 {
                 let mut payload = event.id.to_le_bytes().to_vec();
                 payload.extend(&event.data);
-                if append(&mut packet, 1, &payload) {
+                if append(&mut packet, 1, &payload, limit) {
                     event.last = seq;
                 }
             }
@@ -88,7 +106,7 @@ impl Peer {
         for _ in 0..self.state_order.len() {
             let key = self.state_order.pop_front().unwrap();
             let data = self.states.remove(&key).unwrap();
-            if !append(&mut packet, 4, &data) {
+            if !append(&mut packet, 4, &data, limit) {
                 self.states.insert(key.clone(), data);
                 self.state_order.push_front(key);
                 break;
@@ -121,7 +139,7 @@ impl Peer {
                     Some(u64::from_le_bytes(payload[..8].try_into().unwrap())),
                     &payload[8..],
                 )
-            } else if kind == 4 || kind == 3 {
+            } else if kind == 4 || kind == 3 || kind == 5 {
                 (None, payload)
             } else {
                 continue;
@@ -150,11 +168,11 @@ impl Peer {
         }
     }
 }
-fn append(packet: &mut Vec<u8>, kind: u8, bytes: &[u8]) -> bool {
+fn append(packet: &mut Vec<u8>, kind: u8, bytes: &[u8], limit: usize) -> bool {
     if bytes.is_empty() {
         return true;
     }
-    if packet.len() + bytes.len() + 3 > 1100 {
+    if packet.len() + bytes.len() + 3 > limit {
         return false;
     }
     packet.push(kind);

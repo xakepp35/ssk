@@ -116,6 +116,9 @@ pub(crate) async fn run(
     let mut seq = 0u64;
     let mut published = false;
     let mut signed_state = Vec::new();
+    let mut metric_record = Vec::new();
+    let mut control_budget = 8192f32;
+    let mut control_cursor = 0usize;
     loop {
         tokio::select! {
             _=worker.stop.changed()=>break,
@@ -160,11 +163,23 @@ pub(crate) async fn run(
                 seq+=1;
                 if worker.state.has_changed().unwrap_or(false) {let state=worker.state.borrow_and_update().clone();signed_state=auth.sign(0,&state);}
                 if !signed_state.is_empty(){overlay.queue(0,&signed_state,&mut peers,seq);}
-                let contact=overlay.records.values().nth((seq as usize)%overlay.records.len().max(1)).cloned().unwrap_or_default();
-                for peer in peers.values_mut(){let packet=peer.packet(seq,&contact,config.net_hz);let len=packet.len();if len<=peer.conn.max_datagram_size().unwrap_or(0)&&peer.conn.send_datagram(packet.into()).is_ok(){peer.metrics.sent(len);}}
+                overlay.retry(&mut peers,seq,config.net_hz);
+                control_budget=(control_budget+8192./config.net_hz as f32).min(8192.);
+                let mut ids:Vec<_>=peers.keys().cloned().collect();ids.sort();let count=ids.len();if count>0{ids.rotate_left(seq as usize%count);}
+                for id in ids{let peer=peers.get_mut(&id).unwrap();
+                    let (kind,contact)=if control_cursor%4==0{(5,metric_record.clone())}else{(3,overlay.records.values().nth((control_cursor/4)%overlay.records.len().max(1)).cloned().unwrap_or_default())};
+                    let control=if !contact.is_empty()&&control_budget>=contact.len() as f32{control_budget-=contact.len() as f32;control_cursor+=1;contact}else{Vec::new()};
+                    let budget=if config.net_hz==30{1024*1024}else{2*1024*1024};
+                    let limit=1100.min(peer.conn.max_datagram_size().unwrap_or(0)).min(budget/config.net_hz as usize/count.max(1));
+                    if limit<64{continue;}
+                    let packet=peer.packet(seq,kind,&control,config.net_hz,limit);let len=packet.len();if peer.conn.send_datagram(packet.into()).is_ok(){peer.metrics.sent(len);}
+                }
                 if seq%config.net_hz as u64==0 {
                     let links=peers.iter_mut().map(|(id,p)|{p.metrics.stats.peer=id.clone();p.metrics.stats.direct=p.conn.paths().iter().any(|path|path.is_selected()&&path.is_ip());p.metrics.sample()}).collect();
                     worker.status.send_modify(|s|s.links=links);
+                    let data=crate::routes::Routes::advertise(&peers,(seq/config.net_hz as u64*12) as usize);metric_record=auth.sign(5,&data);
+                    worker.status.send_modify(|s|{s.routes=overlay.routes.chosen.len();s.route_changes=overlay.routes.changes;s.unconfirmed=overlay.routes.expired;});
+                    overlay.connecting.retain(|_,time|time.elapsed().as_secs()<15);
                     for (_id,addr) in overlay.connect_tasks(&peers,&endpoint){
                         let ep=endpoint.clone();let cfg=config.clone();let tx=tx.clone();
                         tokio::spawn(async move{match tokio::time::timeout(Duration::from_secs(12),ep.connect(addr,ALPN)).await{Ok(Ok(conn))=>admit(conn,cfg,tx).await,result=>{let _=tx.try_send(Internal::Failed(format!("Topology connect: {result:?}")));}}});
