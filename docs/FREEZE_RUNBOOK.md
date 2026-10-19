@@ -41,7 +41,7 @@ pkexec /usr/bin/python3 /home/a/github.com/xakepp35/ssk/tools/freeze-stacks.py \
   --output-dir /home/a/github.com/xakepp35/ssk/runtime/freeze-stacks
 ```
 
-Wait for the capture-ready path and at least one persisted sample. The first
+Wait for the path and `First sample persisted; collector ready` message. The first
 sample records boot/kernel, stage and binary/config SHA256; config contents and
 keys are never captured. Root-private files stay under runtime. The collector
 reads bounded procfs stacks at1Hz for at most120s in this procedure; it never
@@ -72,7 +72,9 @@ pkexec /usr/bin/python3 /home/a/github.com/xakepp35/ssk/tools/freeze-stacks.py \
   --summary-file /absolute/path/from/capture-ready.ndjson
 ```
 
-Inspect summary and app end record, and compare the Windows ICMP timeline.
+The summary reports a torn final record and the timestamp of the last successful
+thread sample separately from later sampling failures. Inspect summary and app
+end record, and compare the Windows ICMP timeline.
 Record run, build, stage, boot, actual adapter, present mode, visible behaviour
 and exit result in an incident note under runtime, not in git.
 

@@ -131,3 +131,9 @@ creation, no fallback. Mailbox idle repaint cadence default60Hz, finite delayed
 requests; native input may repaint earlier. FIFO monitor/vsync unaffected.
 Root software config stays containment. Worker early exit is a failed probe.
 No GUI/enumeration/runtime acceptance; no driver/kernel/VPN/service changes.
+
+L2 follow-up: collector readiness is printed after first durable sample; summary
+handles torn final record and last successful stacks vs later sampling errors.
+Python py_compile completed for collector/trace wrapper, artifacts under target.
+No runtime collector or GUI. Linux four-job release build is active; see tools
+build-linux.sh. Windows observer implementation not runtime-verified.

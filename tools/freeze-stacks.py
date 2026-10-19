@@ -97,15 +97,37 @@ def main():
     if args.summary_file:
         if args.output_dir or args.stage or args.binary or args.app_config or args.summary_file.stat().st_size > MAX_FILE_BYTES:
             parser.error("summary-file must be used alone and fit the capture size limit")
-        with args.summary_file.open() as source:
-            records = [json.loads(line) for line in source if line.strip()]
-        if not records or any(row.get("schema") != "ssk.kernel-capture/1" for row in records):
+        with args.summary_file.open("rb") as source:
+            data = source.read(MAX_FILE_BYTES + 1)
+        if len(data) > MAX_FILE_BYTES:
+            parser.error("Capture exceeded the size limit")
+        records = []
+        partial_tail = False
+        lines = data.splitlines(keepends=True)
+        for index, line in enumerate(lines):
+            if not line.strip():
+                continue
+            try:
+                records.append(json.loads(line))
+            except (ValueError, UnicodeError):
+                # Power loss can leave only the final record incomplete. Never
+                # silently ignore malformed complete records or interior data.
+                if index == len(lines) - 1 and not line.endswith(b"\n"):
+                    partial_tail = True
+                else:
+                    parser.error(f"Malformed complete record at line {index + 1}")
+        if not records or any(not isinstance(row, dict) or row.get("schema") != "ssk.kernel-capture/1" for row in records):
             parser.error("Not an SSK kernel-stack capture")
-        threads = records[-1]["sample"].get("threads", [])
+        last_threads = next((row for row in reversed(records)
+                             if isinstance(row.get("sample"), dict) and "threads" in row["sample"]), None)
+        threads = last_threads["sample"]["threads"] if last_threads else []
         selected = [row for row in threads if "KMS" in str(row["thread"]) or str(row["process"]).startswith("nvidia-modeset") or "D (" in row["state"]]
         print(json.dumps({"records": len(records), "first_ms": records[0]["ts_unix_ms"],
                           "last_ms": records[-1]["ts_unix_ms"], "threads": len(threads),
                           "boot_id": records[0]["boot_id"], "session": records[0].get("session"),
+                          "partial_tail_ignored": partial_tail,
+                          "last_thread_sample_ms": last_threads["ts_unix_ms"] if last_threads else None,
+                          "sample_errors": sum("sample_error" in row.get("sample", {}) or "sample_exit" in row.get("sample", {}) for row in records),
                           "stack_read_errors": sum(isinstance(row["kernel_stack"], dict) for row in threads),
                           "display_or_blocked": [{**row, "kernel_stack": str(row["kernel_stack"]).splitlines()[:12]} for row in selected]}, indent=2))
         return
@@ -161,6 +183,8 @@ def main():
             output.write(line)
             output.flush()
             os.fdatasync(output.fileno())
+            if "session" in record:
+                print("First sample persisted; collector ready. No application was started.", flush=True)
             time.sleep(max(0, min(SAMPLE_SECONDS - (time.monotonic() - started), deadline - time.monotonic())))
     print("Capture finished; no application or crash was started.", flush=True)
 

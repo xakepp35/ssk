@@ -20,6 +20,7 @@ $Ping = [Net.NetworkInformation.Ping]::new()
 $Clock = [Diagnostics.Stopwatch]::StartNew()
 $Seq = 0
 $Replies = 0
+$BaselineReported = $false
 Write-Host "Windows liveness capture: $Path"
 Write-Host 'Confirm replies BEFORE SSK. Missing ICMP alone does not prove kernel lockup (VPN/firewall/routing).'
 try {
@@ -36,10 +37,14 @@ try {
             if ($Reply.Status -eq [Net.NetworkInformation.IPStatus]::Success) {
                 $Row.rtt_ms = $Reply.RoundtripTime
                 $Replies++
+                if (-not $BaselineReported) {
+                    Write-Host "ICMP baseline established: $Target replies. Observer remains active."
+                    $BaselineReported = $true
+                }
             }
         } catch {
             $Message = $_.Exception.Message
-            $Row.error = $Message.Substring(0, [Math]::Min($Message.Length, $MaxErrorChars))
+            $Row['error'] = $Message.Substring(0, [Math]::Min($Message.Length, $MaxErrorChars))
         }
         $Writer.WriteLine(($Row | ConvertTo-Json -Compress))
         $Writer.Flush()

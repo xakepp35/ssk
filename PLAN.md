@@ -338,3 +338,10 @@ read-only borrowed adapter, no new device/instance. UUID/PCI/index mutually
 exclusive and fail without matching compatible hardware. No new dependency
 version: ash0.38 was already locked, now direct. Four-job cargo check passed1.62s
 before final documentation/config adjustments. No adapter enumeration/GUI run.
+
+L2 follow-up: capture-ready marker now follows first fdatasync, not merely open.
+Summary tolerates only a torn unterminated final JSON record after power loss,
+reports it, keeps the last successful thread sample even after timeout records,
+and counts sampling failures. Malformed complete/interior records still fail.
+Python source compilation passed; no collector/probe/test launched. Windows
+observer prints first successful ICMP baseline; execution on Windows pending.
