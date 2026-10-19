@@ -10,7 +10,6 @@ pub struct Config {
     pub relay_server: Option<RelayServerConfig>,
     pub world: String,
     pub seed: u64,
-    pub net_hz: u32,
     pub udp_bind: SocketAddr,
     pub advertise: Option<SocketAddr>,
     pub relays: Vec<String>,
@@ -29,7 +28,6 @@ impl Default for Config {
             relay_server: None,
             world: "ssk-playground-v1".into(),
             seed: 42,
-            net_hz: 30,
             udp_bind: "0.0.0.0:0".parse().unwrap(),
             advertise: None,
             relays: vec![],
@@ -73,7 +71,6 @@ impl Config {
         } else {
             anyhow::bail!("Config does not exist: {}", path.display())
         };
-        anyhow::ensure!([30, 60].contains(&config.net_hz), "net_hz must be 30 or 60");
         anyhow::ensure!(
             config.seeds.len() <= 16 && config.friends.len() <= 4 && config.relays.len() <= 8,
             "limits: 16 seeds, 4 friends, 8 relays"

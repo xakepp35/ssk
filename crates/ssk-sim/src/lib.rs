@@ -1,7 +1,6 @@
 //! Platform independent, fixed frequency game simulation.
-pub const TICK_HZ: u64 = 240;
-pub const DT: f32 = 1.0 / TICK_HZ as f32;
-pub const SECTOR_SIZE: f32 = 4096.;
+pub mod constants;
+pub use constants::*;
 mod math;
 pub use math::*;
 mod combat;
@@ -71,11 +70,7 @@ impl ShipClass {
         }
     }
     pub fn stats(self) -> (f32, f32, f32, f32) {
-        match self {
-            Self::Spark => (750., 520., 2800., 13.),
-            Self::Cadet => (1000., 420., 1900., 17.),
-            Self::Thunder => (1400., 320., 1200., 22.),
-        }
+        SHIP_STATS[self.index()]
     }
 }
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -106,7 +101,7 @@ impl Ship {
             velocity: V2::ZERO,
             angle: 0.,
             hp: class.stats().0,
-            energy: 1000.,
+            energy: ENERGY_BASE,
             cooldowns: [0.; 3],
             quiet: 0.,
             weapon: WeaponKind::MachineGun,
@@ -125,14 +120,14 @@ impl Ship {
         self.ability_step(input.ability);
         let (_, mut speed, mut acceleration, _) = self.class.stats();
         if matches!(self.class, ShipClass::Spark) && self.ability_active {
-            speed *= 1.6;
-            acceleration *= 2.4;
+            speed *= BOOST_SPEED;
+            acceleration *= BOOST_ACCELERATION;
         }
         let movement = input.movement.clamp_length(1.);
-        if movement.length_squared() > 0.001 {
+        if movement.length_squared() > MOVEMENT_EPSILON_SQ {
             self.velocity += movement * (acceleration * DT);
         } else {
-            self.velocity *= (-5.5 * DT).exp();
+            self.velocity *= (-DRAG * DT).exp();
         }
         self.velocity = self.velocity.clamp_length(speed);
         self.pos += self.velocity * DT;
@@ -144,18 +139,14 @@ impl Ship {
             self.ability_latched = false;
         } else if !self.ability_latched {
             self.ability_latched = true;
-            if self.energy >= 160. {
-                self.energy -= 128.;
+            if self.energy >= ABILITY_MIN_ENERGY {
+                self.energy -= ABILITY_START_COST;
                 self.ability_active = true;
             }
         }
         if self.ability_active {
             self.quiet = 0.;
-            let rate = match self.class {
-                ShipClass::Spark => 64.,
-                ShipClass::Cadet => 16.,
-                ShipClass::Thunder => 8.,
-            };
+            let rate = ABILITY_DRAIN[self.class.index()];
             self.energy = (self.energy - rate * DT).max(0.);
             if self.energy <= 0. {
                 self.ability_active = false;
@@ -167,7 +158,7 @@ impl Ship {
             return 0.;
         }
         let absorbed = if matches!(self.class, ShipClass::Cadet) && self.ability_active {
-            self.energy.min(amount * 0.5)
+            self.energy.min(amount * SHIELD_ABSORPTION)
         } else {
             0.
         };
@@ -180,6 +171,7 @@ impl Ship {
         hull
     }
 }
+#[derive(Clone)]
 pub struct World {
     pub player: Ship,
     pub origin: [i64; 2],
@@ -214,21 +206,21 @@ impl World {
             origin: [0, 0],
             tick: 0,
             seed,
-            bullets: Vec::with_capacity(4096),
-            asteroids: Vec::with_capacity(512),
-            events: Vec::with_capacity(512),
+            bullets: Vec::with_capacity(MAX_BULLETS),
+            asteroids: Vec::with_capacity(ASTEROID_RESERVE),
+            events: Vec::with_capacity(MAX_WORLD_EVENTS),
             rng: Rng(seed),
             next_id: 2,
             grid: SpatialGrid::default(),
             loaded: field::empty_loaded(),
             origin_shift: V2::ZERO,
-            npcs: Vec::with_capacity(24),
+            npcs: Vec::with_capacity(MAX_NPCS),
             score: 0,
-            next_spawn: 2.,
-            pickups: Vec::with_capacity(256),
+            next_spawn: NPC_INITIAL_SPAWN_SECONDS,
+            pickups: Vec::with_capacity(MAX_PICKUPS),
             combo: 1.,
             last_kill: None,
-            spawn_radius: 1200.,
+            spawn_radius: DEFAULT_SPAWN_RADIUS,
             duel: false,
             last_attacker: 0,
             last_shot: 0,
@@ -256,10 +248,23 @@ impl World {
         let mut world = Self::new(seed, class);
         world.duel = true;
         world.player.id = id;
-        world.player.pos = V2::new(2048., 2048.)
-            + V2::from_angle((id % 100003) as f32 / 100003. * std::f32::consts::TAU) * 240.;
+        world.player.pos = V2::new(SECTOR_SIZE / 2., SECTOR_SIZE / 2.)
+            + V2::from_angle(
+                (id % DUEL_SPAWN_HASH_MODULUS) as f32 / DUEL_SPAWN_HASH_MODULUS as f32
+                    * std::f32::consts::TAU,
+            ) * DUEL_SPAWN_RADIUS;
         world.player.previous = world.player.pos;
-        world.player.invulnerable = 1.;
+        world.player.invulnerable = SPAWN_PROTECTION_SECONDS;
         world
     }
 }
+
+mod events;
+pub use events::*;
+mod replication;
+pub use replication::*;
+mod validation;
+pub use validation::*;
+
+mod shared;
+pub use shared::*;

@@ -15,8 +15,11 @@ pub struct Pickup {
 impl World {
     pub fn award(&mut self, base: u64) {
         let time = self.tick as f32 * DT;
-        self.combo = if self.last_kill.is_some_and(|last| time - last <= 4.) {
-            (self.combo + 0.25).min(2.)
+        self.combo = if self
+            .last_kill
+            .is_some_and(|last| time - last <= COMBO_SECONDS)
+        {
+            (self.combo + COMBO_INCREMENT).min(COMBO_MAX)
         } else {
             1.
         };
@@ -26,28 +29,28 @@ impl World {
     pub(crate) fn drop_loot(&mut self, pos: V2, npc: bool) {
         let roll = self.rng.unit();
         let drop = if npc {
-            if roll < 0.7 {
-                Some((PickupKind::Energy, 300.))
-            } else if roll < 0.85 {
-                Some((PickupKind::Health, 250.))
+            if roll < NPC_LOOT_ENERGY_CHANCE {
+                Some((PickupKind::Energy, NPC_ENERGY_PICKUP))
+            } else if roll < NPC_LOOT_HEALTH_THRESHOLD {
+                Some((PickupKind::Health, NPC_HEALTH_PICKUP))
             } else {
                 None
             }
-        } else if roll < 0.1 {
-            Some((PickupKind::Energy, 150.))
-        } else if roll < 0.13 {
-            Some((PickupKind::Health, 100.))
+        } else if roll < ROCK_LOOT_ENERGY_CHANCE {
+            Some((PickupKind::Energy, ROCK_ENERGY_PICKUP))
+        } else if roll < ROCK_LOOT_HEALTH_THRESHOLD {
+            Some((PickupKind::Health, ROCK_HEALTH_PICKUP))
         } else {
             None
         };
         if let Some((kind, amount)) = drop {
-            if self.pickups.len() < 256 {
+            if self.pickups.len() < MAX_PICKUPS {
                 self.pickups.push(Pickup {
                     id: self.next_id,
                     pos,
                     kind,
                     amount,
-                    life: 15.,
+                    life: PICKUP_LIFETIME,
                 });
                 self.next_id += 1;
             }
@@ -56,7 +59,7 @@ impl World {
     pub(crate) fn resources_step(&mut self) {
         let base = self.player.class.stats().0;
         if self.player.hp > base {
-            self.player.hp = (self.player.hp - base * 0.025 * DT).max(base);
+            self.player.hp = (self.player.hp - base * HEALTH_DECAY * DT).max(base);
         }
         let mut collected = Vec::new();
         for pickup in &mut self.pickups {
@@ -66,16 +69,19 @@ impl World {
             }
             let delta = self.player.pos - pickup.pos;
             let distance = delta.length();
-            if distance < 180. {
-                pickup.pos += delta.normalized() * (100. + (180. - distance) * 2.) * DT;
+            if distance < PICKUP_MAGNET_RADIUS {
+                pickup.pos += delta.normalized()
+                    * (PICKUP_MAGNET_SPEED
+                        + (PICKUP_MAGNET_RADIUS - distance) * PICKUP_MAGNET_ACCELERATION)
+                    * DT;
             }
-            if distance < self.player.class.stats().3 + 12. && pickup.life > 0. {
+            if distance < self.player.class.stats().3 + PICKUP_REACH && pickup.life > 0. {
                 match pickup.kind {
                     PickupKind::Energy => {
-                        self.player.energy = (self.player.energy + pickup.amount).min(2000.)
+                        self.player.energy = (self.player.energy + pickup.amount).min(ENERGY_MAX)
                     }
                     PickupKind::Health => {
-                        self.player.hp = (self.player.hp + pickup.amount).min(2. * base)
+                        self.player.hp = (self.player.hp + pickup.amount).min(HEALTH_OVERCAP * base)
                     }
                 }
                 collected.push(WorldEvent::Pickup {
@@ -91,7 +97,7 @@ impl World {
         }
         if self
             .last_kill
-            .is_some_and(|last| self.tick as f32 * DT - last > 4.)
+            .is_some_and(|last| self.tick as f32 * DT - last > COMBO_SECONDS)
         {
             self.combo = 1.;
         }

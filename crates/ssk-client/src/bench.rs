@@ -1,7 +1,7 @@
 //! Real headless clients; no window, mocks or assertions. Reports measurements only.
 use crate::online::Online;
 use rayon::prelude::*;
-use ssk_net::Config;
+use ssk_net::{Config, SnapshotCodec};
 use ssk_sim::*;
 use std::{
     path::PathBuf,
@@ -12,7 +12,6 @@ pub struct Options {
     pub players: usize,
     pub seconds: u64,
     pub warmup: u64,
-    pub hz: u32,
     pub fire: bool,
     pub connect: Option<String>,
     pub invite_file: Option<PathBuf>,
@@ -22,7 +21,6 @@ pub struct Options {
 struct Bot {
     online: Online,
     world: World,
-    network_acc: f32,
 }
 fn quantiles(mut values: Vec<f64>) -> serde_json::Value {
     if values.is_empty() {
@@ -36,19 +34,15 @@ pub fn run(mut config: Config, opt: Options) -> Result<serde_json::Value, String
     if !(1..=128).contains(&opt.players)
         || !(1..=3600).contains(&opt.seconds)
         || opt.warmup > 300
-        || ![30, 60].contains(&opt.hz)
         || opt.drop_count >= opt.players
         || !(1..=128).contains(&opt.workers)
     {
-        return Err(
-            "players 1..128, seconds 1..3600, warmup <=300, hz 30/60, drop_count < players".into(),
-        );
+        return Err("players 1..128, seconds 1..3600, warmup <=300, drop_count < players".into());
     }
     let external = opt.connect.is_some() || opt.players == 1;
     if external && opt.players != 1 {
         return Err("external mode needs --players 1 and a unique identity per process".into());
     }
-    config.net_hz = opt.hz;
     let workers = opt.workers.min(opt.players);
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(workers)
@@ -79,14 +73,8 @@ pub fn run(mut config: Config, opt: Options) -> Result<serde_json::Value, String
         }
         let online = Online::new(c, if i == 0 { opt.connect.clone() } else { None })?;
         let world = World::duel(config.seed, ShipClass::ALL[i % 3], online.net.player_id);
-        online
-            .net
-            .publish(ssk_net::Snapshot::capture(&world, 1, 0).encode());
-        bots.push(Some(Bot {
-            online,
-            world,
-            network_acc: 0.,
-        }));
+        online.net.publish(Snapshot::capture(&world, 1, 0).encode());
+        bots.push(Some(Bot { online, world }));
     }
     let ready = Instant::now();
     loop {
@@ -189,7 +177,7 @@ pub fn run(mut config: Config, opt: Options) -> Result<serde_json::Value, String
         }
         sim_acc += dt;
         let mut steps = 0;
-        while sim_acc >= DT && steps < 8 {
+        while sim_acc >= DT && steps < MAX_CATCH_UP_TICKS {
             sim_acc -= DT;
             steps += 1;
         }
@@ -219,14 +207,12 @@ pub fn run(mut config: Config, opt: Options) -> Result<serde_json::Value, String
                         };
                         let step = Instant::now();
                         b.world.step(input);
+                        if b.world.tick % TICK_PER_PACKET == 0 {
+                            b.online.snapshot(&b.world);
+                        }
                         if measured {
                             timings.push(step.elapsed().as_secs_f64() * 1e6);
                         }
-                    }
-                    b.network_acc += dt;
-                    if b.network_acc >= 1. / opt.hz as f32 {
-                        b.online.snapshot(&b.world);
-                        b.network_acc %= 1. / opt.hz as f32;
                     }
                     if b.online.after_frame(&mut b.world, dt, now) {
                         let class = b.world.player.class;
@@ -305,7 +291,7 @@ pub fn run(mut config: Config, opt: Options) -> Result<serde_json::Value, String
                 }
             }
         }
-        if let Some(rest) = Duration::from_secs_f64(1. / 60.).checked_sub(frame.elapsed()) {
+        if let Some(rest) = PACKET_DURATION.checked_sub(frame.elapsed()) {
             std::thread::sleep(rest);
         }
     }
@@ -320,7 +306,7 @@ pub fn run(mut config: Config, opt: Options) -> Result<serde_json::Value, String
         .map(|b| b.online.error.clone())
         .filter(|s| !s.is_empty())
         .collect();
-    let report = serde_json::json!({"players":opt.players,"remaining":bots.iter().flatten().count(),"seconds":opt.seconds,"warmup":opt.warmup,"hz":opt.hz,"firing":opt.fire,"simulation_workers":workers,
+    let report = serde_json::json!({"players":opt.players,"remaining":bots.iter().flatten().count(),"seconds":opt.seconds,"warmup":opt.warmup,"hz":PACKET_PER_SEC,"tick_per_sec":TICK_PER_SEC,"tick_per_packet":TICK_PER_PACKET,"firing":opt.fire,"simulation_workers":workers,
         "scenario":if external{"external-configured"}else{"loopback-preintroduced-signed-roster"},
         "scope":"game payload only; excludes QUIC/DHT/NAT wire overhead; no rendered frames; crypto counters include warmup",
         "frame_work_ms":quantiles(frames),"client_work_ms":quantiles(client_work),"client_receive_work_ms":quantiles(receive_work),"ship_step_us":quantiles(sim_steps),"replica_age_ms":quantiles(ages),"fresh_peer_fraction":quantiles(fresh),

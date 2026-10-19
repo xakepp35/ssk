@@ -1,4 +1,4 @@
-use ssk_net::{CombatEvent, NetEvent, Network, Replicas, Snapshot};
+use ssk_net::{CombatEventCodec, NetEvent, Network, SectorAssembler, SharedChunk, SnapshotCodec};
 use ssk_sim::*;
 use std::collections::{HashSet, VecDeque};
 pub struct Online {
@@ -14,10 +14,12 @@ pub struct Online {
     order: VecDeque<(String, u32, u64)>,
     deaths: HashSet<(String, u32)>,
     death_order: VecDeque<(String, u32)>,
-    guard: ssk_net::CombatGuard,
+    guard: CombatGuard,
     own_history: VecDeque<(f64, WorldPos)>,
     fired: VecDeque<(u64, f64)>,
-    shared: crate::shared::Shared,
+    shared: SharedWorld,
+    assemblies: SectorAssembler,
+    last_shared: f64,
 }
 impl Online {
     pub fn shared_stats(&self, now: f64) -> (usize, f64) {
@@ -41,11 +43,16 @@ impl Online {
             own_history: VecDeque::new(),
             fired: VecDeque::new(),
             shared: Default::default(),
+            assemblies: Default::default(),
+            last_shared: 0.,
         })
     }
     pub fn receive(&mut self, world: &mut World, now: f64) {
         for (peer, bytes, time) in self.net.take_snapshots() {
             if let Some(snapshot) = Snapshot::decode(&bytes) {
+                if let Some(id) = ssk_net::player_id(&peer) {
+                    self.replicas.identities.insert(peer.clone(), id);
+                }
                 let old = self
                     .replicas
                     .peers
@@ -81,7 +88,18 @@ impl Online {
                     bytes,
                 } => {
                     if let Some(id) = ssk_net::player_id(&peer) {
-                        self.shared.chunk(id, &bytes, now);
+                        if let Some(c) = SharedChunk::decode(&bytes) {
+                            if self
+                                .shared
+                                .accepts_image(id, c.sector, c.epoch, c.revision, now)
+                            {
+                                if let Some((sector, epoch, state)) =
+                                    self.assemblies.push(id, c, now)
+                                {
+                                    self.shared.image(id, sector, epoch, state, now);
+                                }
+                            }
+                        }
                     }
                 }
                 NetEvent::Packet {
@@ -90,6 +108,9 @@ impl Online {
                     bytes,
                 } => {
                     if let Some(snapshot) = Snapshot::decode(&bytes) {
+                        if let Some(id) = ssk_net::player_id(&peer) {
+                            self.replicas.identities.insert(peer.clone(), id);
+                        }
                         let old = self
                             .replicas
                             .peers
@@ -174,7 +195,8 @@ impl Online {
                                     .get(&peer)
                                     .and_then(|q| q.back())
                                     .map(|(time, s)| {
-                                        ((now - time) + (s.tick as f64 - tick as f64) / 240.)
+                                        ((now - time)
+                                            + (s.tick as f64 - tick as f64) / TICK_PER_SEC as f64)
                                             .clamp(0., 0.2)
                                             as f32
                                     })
@@ -222,7 +244,7 @@ impl Online {
         }
     }
     pub fn leave(&mut self) {
-        self.net.shared(self.shared.checkpoint());
+        self.net.shared(encode_images(self.shared.checkpoint()));
         for event in self.shared.release() {
             let _ = self.net.event(CombatEvent::Shared(event).encode());
         }
@@ -276,12 +298,16 @@ impl Online {
                 }
             }
         }
-        let (events, frames) = self.shared.tick(world, self.life, &self.replicas, dt, now);
-        for event in events {
-            self.event(CombatEvent::Shared(event));
-        }
-        if let Some(frames) = frames {
-            self.net.shared(frames);
+        if now - self.last_shared >= TICK_PER_PACKET as f64 / TICK_PER_SEC as f64 {
+            let dt = (now - self.last_shared) as f32;
+            self.last_shared = now;
+            let (events, frames) = self.shared.tick(world, self.life, &self.replicas, dt, now);
+            for event in events {
+                self.event(CombatEvent::Shared(event));
+            }
+            if let Some(images) = frames {
+                self.net.shared(encode_images(images));
+            }
         }
         if world.player.hp <= 0. {
             if self.dead_for == 0. {
@@ -310,4 +336,11 @@ impl Online {
         world.score = score;
         self.snapshot(world);
     }
+}
+
+fn encode_images(images: Vec<SectorImage>) -> Vec<Vec<u8>> {
+    images
+        .into_iter()
+        .flat_map(|i| SharedChunk::snapshot(i.sector, i.epoch, &i.state))
+        .collect()
 }

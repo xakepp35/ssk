@@ -9,7 +9,7 @@ pub enum WeaponKind {
 }
 impl WeaponKind {
     pub fn from_index(i: usize) -> Self {
-        match i % 3 {
+        match i % WEAPON_COUNT {
             1 => Self::Shotgun,
             2 => Self::Plasma,
             _ => Self::MachineGun,
@@ -23,38 +23,7 @@ impl WeaponKind {
         }
     }
     pub fn stats(self) -> WeaponStats {
-        match self {
-            Self::MachineGun => WeaponStats {
-                damage: 64.0,
-                interval: 0.0625,
-                energy: 8.0,
-                speed: 2048.,
-                radius: 2.0,
-                life: 2.0,
-                pellets: 1,
-                spread: 2f32.to_radians(),
-            },
-            Self::Shotgun => WeaponStats {
-                damage: 48.0,
-                interval: 0.5,
-                energy: 64.0,
-                speed: 2048.,
-                radius: 5.0,
-                life: 0.5,
-                pellets: 16,
-                spread: 8f32.to_radians(),
-            },
-            Self::Plasma => WeaponStats {
-                damage: 256.,
-                interval: 0.75,
-                energy: 96.0,
-                speed: 720.,
-                radius: 16.,
-                life: 1.6,
-                pellets: 1,
-                spread: 1f32.to_radians(),
-            },
-        }
+        weapon_stats(self)
     }
 }
 pub struct WeaponStats {
@@ -109,7 +78,7 @@ impl Ship {
         let index = self.weapon as usize;
         let stats = self.weapon.stats();
         let scale = if matches!(self.class, ShipClass::Thunder) && self.ability_active {
-            4.
+            QUAD_DAMAGE
         } else {
             1.
         };
@@ -120,7 +89,7 @@ impl Ship {
             Some(Shot {
                 id: shot_id,
                 owner: self.id,
-                pos: self.pos + V2::from_angle(self.angle) * (self.class.stats().3 + 5.),
+                pos: self.pos + V2::from_angle(self.angle) * (self.class.stats().3 + MUZZLE_OFFSET),
                 angle: self.angle,
                 weapon: self.weapon,
                 seed: rng.next_u64(),
@@ -128,8 +97,9 @@ impl Ship {
                 blocked: false,
             })
         } else {
-            if self.quiet > 0.6 && !self.ability_active && self.energy < 1000. {
-                self.energy = (self.energy + 80. * DT).min(1000.);
+            if self.quiet > ENERGY_REGEN_DELAY && !self.ability_active && self.energy < ENERGY_BASE
+            {
+                self.energy = (self.energy + ENERGY_REGEN * DT).min(ENERGY_BASE);
             }
             None
         }
@@ -147,7 +117,7 @@ pub fn swept_circle(a: V2, b: V2, center: V2, radius: f32) -> Option<f32> {
     let aa = d.dot(d);
     let bb = m.dot(d);
     let disc = bb * bb - aa * c;
-    if aa < 1e-8 || bb >= 0. || disc < 0. {
+    if aa < COLLISION_EPSILON || bb >= 0. || disc < 0. {
         return None;
     }
     let t = (-bb - disc.sqrt()) / aa;
@@ -159,7 +129,7 @@ impl World {
     pub fn receive_shot(&mut self, shot: Shot, lag: f32, past_target: V2) {
         let start = self.bullets.len();
         self.spawn_shot(shot);
-        let lag = lag.clamp(0., 0.2);
+        let lag = lag.clamp(0., LAG_COMPENSATION_SECONDS);
         let current = self.player.pos;
         let mut impacts = Vec::new();
         for bullet in &mut self.bullets[start..] {
@@ -200,7 +170,7 @@ impl World {
         }
     }
     pub fn emit(&mut self, event: WorldEvent) {
-        if self.events.len() < 512 {
+        if self.events.len() < MAX_WORLD_EVENTS {
             self.events.push(event);
         }
     }
@@ -222,7 +192,7 @@ impl World {
         if let Some(ship) = firing {
             if matches!(ship.class, ShipClass::Cadet) && ship.ability_active {
                 ship.energy = (ship.energy
-                    - stats.damage * shot.damage_scale * stats.pellets as f32 * 0.5)
+                    - stats.damage * shot.damage_scale * stats.pellets as f32 * SHIELD_ABSORPTION)
                     .max(0.);
                 if ship.energy <= 0. {
                     ship.ability_active = false;
@@ -231,18 +201,19 @@ impl World {
                 self.emit(WorldEvent::Shot(shot));
                 self.emit(WorldEvent::Impact {
                     pos: shot.pos,
-                    damage: 20.,
+                    damage: SHIELD_IMPACT_DAMAGE,
                 });
                 return;
             }
         }
         for pellet in 0..stats.pellets {
-            if self.bullets.len() >= 4096 {
+            if self.bullets.len() >= MAX_BULLETS {
                 break;
             }
             let spread = if stats.pellets > 1 {
                 -stats.spread
-                    + 2. * stats.spread * (pellet as f32 + rng.range(0.1, 0.9))
+                    + 2. * stats.spread
+                        * (pellet as f32 + rng.range(PELLET_JITTER_MIN, PELLET_JITTER_MAX))
                         / stats.pellets as f32
             } else {
                 rng.range(-stats.spread, stats.spread)
@@ -267,7 +238,7 @@ impl World {
             self.spawn_shot(shot);
         } else if input.fire
             && self.player.cooldowns[self.player.weapon as usize] <= 0.
-            && self.tick % 36 == 0
+            && self.tick % DRY_FIRE_TICKS == 0
         {
             self.emit(WorldEvent::Dry);
         }
@@ -360,6 +331,18 @@ impl World {
         }
         for event in impacts {
             self.emit(event);
+        }
+    }
+}
+
+impl WorldEvent {
+    pub fn shift(&mut self, offset: V2) {
+        match self {
+            Self::Shot(s) => s.pos -= offset,
+            Self::Impact { pos, .. } | Self::Destroyed { pos, .. } | Self::Pickup { pos, .. } => {
+                *pos -= offset
+            }
+            _ => {}
         }
     }
 }

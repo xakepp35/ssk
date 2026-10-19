@@ -7,10 +7,12 @@ use iroh::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
-const ALPN: &[u8] = b"ssk/game/2";
+const ALPN: &[u8] = b"ssk/game/3";
 #[derive(Serialize, Deserialize)]
 struct Hello {
     version: u16,
+    tick_per_sec: u64,
+    tick_per_packet: u64,
     rules: String,
     world: String,
     seed: u64,
@@ -34,6 +36,8 @@ pub fn decode_ticket(ticket: &str) -> anyhow::Result<EndpointAddr> {
 async fn handshake(conn: &Connection, config: &Config) -> anyhow::Result<()> {
     let hello = Hello {
         version: PROTOCOL_VERSION,
+        tick_per_sec: ssk_sim::TICK_PER_SEC,
+        tick_per_packet: ssk_sim::TICK_PER_PACKET,
         rules: RULES_ID.into(),
         world: config.world.clone(),
         seed: config.seed,
@@ -45,6 +49,8 @@ async fn handshake(conn: &Connection, config: &Config) -> anyhow::Result<()> {
     let remote: Hello = serde_json::from_slice(&recv.read_to_end(1024).await?)?;
     anyhow::ensure!(
         remote.version == hello.version
+            && remote.tick_per_sec == hello.tick_per_sec
+            && remote.tick_per_packet == hello.tick_per_packet
             && remote.rules == hello.rules
             && remote.world == hello.world
             && remote.seed == hello.seed,
@@ -136,7 +142,7 @@ pub(crate) async fn run(
         }
     }
     let admission = std::sync::Arc::new(tokio::sync::Semaphore::new(16));
-    let mut tick = tokio::time::interval(Duration::from_secs_f64(1. / config.net_hz as f64));
+    let mut tick = tokio::time::interval(ssk_sim::PACKET_DURATION);
     tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut seq = 0u64;
     let mut published = false;
@@ -146,11 +152,7 @@ pub(crate) async fn run(
     let mut metric_record = Vec::new();
     let mut control_budget = 65536f32;
     let mut control_cursor = 0usize;
-    let payload_rate = if config.net_hz == 30 {
-        1024 * 1024
-    } else {
-        2 * 1024 * 1024
-    };
+    let payload_rate = 2 * 1024 * 1024;
     let mut payload_budget = payload_rate as f32 / 10.;
     loop {
         tokio::select! {
@@ -201,7 +203,7 @@ pub(crate) async fn run(
                 let sector=snapshot.map(|s|s.pos.sector).unwrap_or([0,0]);
                 let presence_changed=overlay.presence.get(&overlay.id).is_none_or(|c|c.sector!=sector||c.playing!=snapshot.is_some());
                 let mut addr=endpoint.addr();if let Some(ip)=config.advertise {addr.addrs.insert(iroh::TransportAddr::Ip(ip));}
-                if seq%(config.net_hz as u64*15)==0||presence_changed||last_addr.as_ref()!=Some(&addr) {
+                if seq%(ssk_sim::PACKET_PER_SEC as u64*15)==0||presence_changed||last_addr.as_ref()!=Some(&addr) {
                     last_addr=Some(addr.clone());
                     let ticket=encode_ticket(&addr)?;
                     let contact=crate::contact::Contact{addr:addr.clone(),discovery:discovery_id.clone(),expires:crate::contact::unix_time()+60,sector,playing:snapshot.is_some()};
@@ -214,28 +216,28 @@ pub(crate) async fn run(
                 if worker.state.has_changed().unwrap_or(false) {let state=worker.state.borrow_and_update().clone();signed_state=auth.sign(0,&state);}
                 if !signed_state.is_empty(){overlay.queue(0,&signed_state,&mut peers,seq);}
                 leases.retain(|_,(_,time)|time.elapsed().as_secs_f32()<2.);
-                if seq%(config.net_hz/5).max(1) as u64==0 {for (lease,_) in leases.values(){overlay.queue(8,lease,&mut peers,seq);}}
+                if seq%(ssk_sim::PACKET_PER_SEC/5).max(1) as u64==0 {for (lease,_) in leases.values(){overlay.queue(8,lease,&mut peers,seq);}}
                 if worker.shared.has_changed().unwrap_or(false){let frames=worker.shared.borrow_and_update().clone().into_iter().take(256).filter(|f| f.len()<=420).map(|f| auth.sign(6,&f)).collect::<Vec<_>>();overlay.shared(&frames,&mut peers);}
-                overlay.retry(&mut peers,seq,config.net_hz);
-                control_budget=(control_budget+65536./config.net_hz as f32).min(65536.);
-                payload_budget=(payload_budget+payload_rate as f32/config.net_hz as f32).min(payload_rate as f32/10.);
+                overlay.retry(&mut peers,seq);
+                control_budget=(control_budget+65536./ssk_sim::PACKET_PER_SEC as f32).min(65536.);
+                payload_budget=(payload_budget+payload_rate as f32/ssk_sim::PACKET_PER_SEC as f32).min(payload_rate as f32/10.);
                 let mut ids:Vec<_>=peers.keys().cloned().collect();ids.sort();let count=ids.len();if count>0{ids.rotate_left(seq as usize%count);}
                 for id in ids{let peer=peers.get_mut(&id).unwrap();
-                    let phase=id.bytes().fold(0u64,|h,b| h.wrapping_mul(31).wrapping_add(b as u64))%config.net_hz as u64;
-                    let slot=(seq+phase)%config.net_hz as u64;
-                    let (kind,contact)=if slot==0{(5,metric_record.clone())}else if slot==config.net_hz as u64/2{(3,overlay.records.values().nth(control_cursor%overlay.records.len().max(1)).cloned().unwrap_or_default())}else{(3,Vec::new())};
+                    let phase=id.bytes().fold(0u64,|h,b| h.wrapping_mul(31).wrapping_add(b as u64))%ssk_sim::PACKET_PER_SEC as u64;
+                    let slot=(seq+phase)%ssk_sim::PACKET_PER_SEC as u64;
+                    let (kind,contact)=if slot==0{(5,metric_record.clone())}else if slot==ssk_sim::PACKET_PER_SEC as u64/2{(3,overlay.records.values().nth(control_cursor%overlay.records.len().max(1)).cloned().unwrap_or_default())}else{(3,Vec::new())};
                     let limit=1100.min(peer.conn.max_datagram_size().unwrap_or(0)).min(payload_budget as usize);
                     if limit<64{continue;}
                     let control=if !contact.is_empty()&&control_budget>=contact.len() as f32&&contact.len()+27<=limit{control_budget-=contact.len() as f32;control_cursor+=usize::from(kind==3);contact}else{Vec::new()};
-                    let packet=peer.packet(seq,kind,&control,config.net_hz,limit);let len=packet.len();if peer.conn.send_datagram(packet.into()).is_ok(){payload_budget-=len as f32;peer.metrics.sent(len);}
+                    let packet=peer.packet(seq,kind,&control,limit);let len=packet.len();if peer.conn.send_datagram(packet.into()).is_ok(){payload_budget-=len as f32;peer.metrics.sent(len);}
                 }
-                if seq%config.net_hz as u64==0 {
+                if seq%ssk_sim::PACKET_PER_SEC as u64==0 {
                     for id in overlay.prune(){if let Some(p)=peers.remove(&id){p.conn.close(0u32.into(),b"presence expired");}let _=worker.incoming.try_send(NetEvent::Disconnected(id));}
                     let links=peers.iter_mut().map(|(id,p)|{p.metrics.stats.peer=id.clone();p.metrics.stats.direct=p.conn.paths().iter().any(|path|path.is_selected()&&path.is_ip());p.metrics.sample()}).collect();
                     worker.status.send_modify(|s|{s.links=links;s.crypto=auth.stats.clone();});
-                    let data=crate::routes::Routes::advertise(&peers,(seq/config.net_hz as u64*20) as usize);metric_record=auth.sign(5,&data);
+                    let data=crate::routes::Routes::advertise(&peers,(seq/ssk_sim::PACKET_PER_SEC as u64*20) as usize);metric_record=auth.sign(5,&data);
                     worker.status.send_modify(|s|{s.routes=overlay.routes.chosen.len();s.route_changes=overlay.routes.changes;s.unconfirmed=overlay.routes.expired;});
-                    if seq%(config.net_hz as u64*15)==0 {if let Some(path)=&config.contact_cache {
+                    if seq%(ssk_sim::PACKET_PER_SEC as u64*15)==0 {if let Some(path)=&config.contact_cache {
                         let records=overlay.records.iter().filter(|(id,_)| *id!=&overlay.id).map(|(_,r)|r.clone()).take(128).collect();
                         if let Err(e)=crate::cache::write(path,records){let _=worker.incoming.try_send(NetEvent::Error(format!("Contact cache: {e}")));}
                     }}

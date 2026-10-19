@@ -97,14 +97,7 @@ impl Peer {
             self.receipts.push_back(data);
         }
     }
-    pub fn packet(
-        &mut self,
-        seq: u64,
-        control_kind: u8,
-        contact: &[u8],
-        hz: u32,
-        limit: usize,
-    ) -> Vec<u8> {
+    pub fn packet(&mut self, seq: u64, control_kind: u8, contact: &[u8], limit: usize) -> Vec<u8> {
         let mut packet = self.metrics.header(seq);
         append(&mut packet, control_kind, contact, limit);
         for _ in 0..16 {
@@ -134,7 +127,7 @@ impl Peer {
         }
         let before = self.pending.len();
         self.pending.retain(|e| {
-            let keep = seq.saturating_sub(e.born) < hz as u64 * 5;
+            let keep = seq.saturating_sub(e.born) < ssk_sim::PACKET_PER_SEC * 5;
             if !keep {
                 self.queued.remove(&e.digest);
             }
@@ -144,7 +137,9 @@ impl Peer {
         self.metrics.stats.queued = self.pending.len();
         for _ in 0..self.pending.len() {
             let mut event = self.pending.pop_front().unwrap();
-            if event.last == 0 || seq.saturating_sub(event.last) >= (hz / 10).max(1) as u64 {
+            if event.last == 0
+                || seq.saturating_sub(event.last) >= (ssk_sim::PACKET_PER_SEC / 10).max(1) as u64
+            {
                 let mut payload = event.id.to_le_bytes().to_vec();
                 payload.extend(&event.data);
                 if append(&mut packet, 1, &payload, limit) {

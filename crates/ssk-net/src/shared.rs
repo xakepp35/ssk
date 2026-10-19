@@ -1,44 +1,4 @@
-use serde::{Deserialize, Serialize};
 use ssk_sim::*;
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum SharedEvent {
-    Lease {
-        sector: [i64; 2],
-        epoch: u64,
-        until_ms: u64,
-    },
-    Release {
-        sector: [i64; 2],
-        epoch: u64,
-    },
-    Shot {
-        sector: [i64; 2],
-        epoch: u64,
-        shot: Shot,
-    },
-    Claim {
-        sector: [i64; 2],
-        epoch: u64,
-        pickup: u64,
-        life: u32,
-    },
-    Grant {
-        sector: [i64; 2],
-        epoch: u64,
-        pickup: u64,
-        player: u64,
-        life: u32,
-        kind: PickupKind,
-        amount: f32,
-    },
-    Reward {
-        sector: [i64; 2],
-        epoch: u64,
-        id: u64,
-        player: u64,
-        amount: u64,
-    },
-}
 #[derive(Clone)]
 pub struct SharedChunk {
     pub sector: [i64; 2],
@@ -109,5 +69,41 @@ impl SharedChunk {
         }
         let state: SectorState = postcard::from_bytes(&b).ok()?;
         state.valid().then_some(state)
+    }
+}
+
+/// Multipart framing only. Game ownership and state validation live in ssk-sim.
+#[derive(Default)]
+pub struct SectorAssembler {
+    pending: std::collections::HashMap<(u64, [i64; 2], u64, u64), (f64, Vec<Option<Vec<u8>>>)>,
+}
+impl SectorAssembler {
+    pub fn push(
+        &mut self,
+        origin: u64,
+        chunk: SharedChunk,
+        now: f64,
+    ) -> Option<([i64; 2], u64, SectorState)> {
+        self.pending.retain(|_, (time, _)| now - *time < 5.);
+        let key = (origin, chunk.sector, chunk.epoch, chunk.revision);
+        if self.pending.len() >= 27 && !self.pending.contains_key(&key) {
+            return None;
+        }
+        let (_, parts) = self
+            .pending
+            .entry(key)
+            .or_insert_with(|| (now, vec![None; chunk.total as usize]));
+        if parts.len() != chunk.total as usize {
+            return None;
+        }
+        parts[chunk.part as usize] = Some(chunk.data);
+        let state = SharedChunk::restore(parts)?;
+        self.pending.retain(|(o, s, e, r), _| {
+            *o != origin
+                || *s != chunk.sector
+                || *e > chunk.epoch
+                || (*e == chunk.epoch && *r > chunk.revision)
+        });
+        Some((chunk.sector, chunk.epoch, state))
     }
 }

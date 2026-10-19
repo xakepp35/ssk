@@ -12,30 +12,32 @@ pub struct Npc {
 impl World {
     pub(crate) fn enemies_step(&mut self) {
         let time = self.tick as f32 * DT;
-        let target = (2 + (time / 20.) as usize).min(12);
+        let target =
+            (NPC_INITIAL_COUNT + (time / NPC_COUNT_INTERVAL) as usize).min(NPC_DIRECTOR_LIMIT);
         if time >= self.next_spawn && self.npcs.len() < target {
             let direction = V2::from_angle(self.rng.range(0., std::f32::consts::TAU));
             let pos = self.player.pos + direction * self.spawn_radius;
             let roll = self.rng.unit();
-            let class = if time >= 60. && roll > 0.7 {
+            let class = if time >= NPC_HEAVY_AFTER && roll > NPC_HEAVY_THRESHOLD {
                 ShipClass::Thunder
-            } else if roll > 0.45 {
+            } else if roll > NPC_MEDIUM_THRESHOLD {
                 ShipClass::Cadet
             } else {
                 ShipClass::Spark
             };
             let mut ship = Ship::new(self.next_id, class, pos);
             self.next_id += 1;
-            ship.hp *= 0.6 * (1. + time / 1200.).min(1.5);
+            ship.hp *=
+                NPC_HEALTH_SCALE * (1. + time / NPC_HEALTH_RAMP_SECONDS).min(NPC_HEALTH_RAMP_MAX);
             self.npcs.push(Npc {
                 ship,
                 input: InputFrame::default(),
-                think: 0.25,
+                think: NPC_REACTION_SECONDS,
                 age: 0.,
-                telegraph: 0.8,
+                telegraph: NPC_TELEGRAPH_SECONDS,
                 last_hit: 0,
             });
-            self.next_spawn = time + 3.;
+            self.next_spawn = time + NPC_SPAWN_SECONDS;
         }
         let mut shots = Vec::new();
         let mut order: Vec<_> = self
@@ -44,7 +46,11 @@ impl World {
             .map(|n| ((n.ship.pos - self.player.pos).length_squared(), n.ship.id))
             .collect();
         order.sort_by(|a, b| a.0.total_cmp(&b.0));
-        let shooters: Vec<_> = order.iter().take(3).map(|(_, id)| *id).collect();
+        let shooters: Vec<_> = order
+            .iter()
+            .take(NPC_MAX_SHOOTERS)
+            .map(|(_, id)| *id)
+            .collect();
         let mut nearby = Vec::new();
         for npc in &mut self.npcs {
             let target = self
@@ -67,46 +73,45 @@ impl World {
                 let delta = target.pos - npc.ship.pos;
                 let distance = delta.length();
                 let normal = delta.normalized();
-                let (range, weapon, strafe) = match npc.ship.class {
-                    ShipClass::Spark => (500., 0, 0.85),
-                    ShipClass::Cadet => (250., 1, 0.2),
-                    ShipClass::Thunder => (750., 2, 0.25),
-                };
+                let (range, weapon, strafe) = NPC_TACTICS[npc.ship.class.index()];
                 let retreat = matches!(npc.ship.class, ShipClass::Cadet)
-                    && npc.ship.hp < npc.ship.class.stats().0 * 0.25
-                    && distance < 500.;
-                let phase = (npc.age + npc.ship.id as f32 * 0.37) % 3.;
+                    && npc.ship.hp < npc.ship.class.stats().0 * NPC_RETREAT_HEALTH
+                    && distance < NPC_RETREAT_RANGE;
+                let phase = (npc.age + npc.ship.id as f32 * NPC_PHASE_ID_SCALE) % NPC_PHASE_SECONDS;
                 let ability = match npc.ship.class {
-                    ShipClass::Spark => distance > 900.,
+                    ShipClass::Spark => distance > NPC_BOOST_RANGE,
                     ShipClass::Cadet => retreat,
-                    ShipClass::Thunder => distance < 950. && phase < 0.75,
+                    ShipClass::Thunder => distance < NPC_QUAD_RANGE && phase < NPC_QUAD_SECONDS,
                 };
                 let lead = target.velocity
-                    * (distance / WeaponKind::from_index(weapon).stats().speed * 0.6);
+                    * (distance / WeaponKind::from_index(weapon).stats().speed * NPC_AIM_LEAD);
                 npc.input = InputFrame {
                     movement: normal
                         * if retreat {
                             -1.
                         } else {
-                            ((distance - range) / 200.).clamp(-1., 1.)
+                            ((distance - range) / NPC_MOVEMENT_RANGE).clamp(-1., 1.)
                         }
                         + normal.perp() * strafe * (if npc.ship.id % 2 == 0 { 1. } else { -1. }),
-                    aim: (delta + lead).angle() + self.rng.range(-0.10, 0.10),
-                    fire: distance < range + 350. && phase < 1.1 && !retreat,
+                    aim: (delta + lead).angle() + self.rng.range(-NPC_AIM_ERROR, NPC_AIM_ERROR),
+                    fire: distance < range + NPC_FIRE_MARGIN
+                        && phase < NPC_FIRE_SECONDS
+                        && !retreat,
                     weapon,
                     ability,
                 };
                 self.grid
-                    .query(npc.ship.pos, npc.ship.pos, 150., &mut nearby);
+                    .query(npc.ship.pos, npc.ship.pos, NPC_AVOID_QUERY, &mut nearby);
                 for &index in &nearby {
                     let rock = &self.asteroids[index];
                     let away = npc.ship.pos - rock.pos;
                     let gap = away.length() - rock.radius;
-                    if gap < 140. {
-                        npc.input.movement += away.normalized() * ((140. - gap) / 70.);
+                    if gap < NPC_AVOID_MARGIN {
+                        npc.input.movement +=
+                            away.normalized() * ((NPC_AVOID_MARGIN - gap) / NPC_AVOID_FORCE);
                     }
                 }
-                npc.think = 0.25 + self.rng.range(0., 0.15);
+                npc.think = NPC_REACTION_SECONDS + self.rng.range(0., NPC_REACTION_JITTER);
             }
             npc.ship.move_step(npc.input);
             self.grid.query(
@@ -121,7 +126,7 @@ impl World {
                 let min = rock.radius + npc.ship.class.stats().3;
                 if away.length() < min {
                     npc.ship.pos = rock.pos + away.normalized() * (min + 1.);
-                    npc.ship.velocity = away.normalized() * 80.;
+                    npc.ship.velocity = away.normalized() * NPC_BUMP_SPEED;
                 }
             }
             let mut combat_input = npc.input;
@@ -131,7 +136,7 @@ impl World {
                 .combat_step(combat_input, &mut self.rng, self.next_id)
             {
                 self.next_id += 1;
-                shot.damage_scale *= 0.6;
+                shot.damage_scale *= NPC_DAMAGE_SCALE;
                 shots.push(shot);
             }
         }
@@ -156,25 +161,20 @@ impl World {
             .collect();
         self.npcs.retain(|n| n.ship.hp > 0.);
         for (pos, class, owned, id, player) in dead {
-            let amount = match class {
-                ShipClass::Spark => 100,
-                ShipClass::Cadet => 150,
-                ShipClass::Thunder => 250,
-            };
+            let amount = NPC_SCORE[class.index()];
             if self.shared_authority && player & (1 << 63) != 0 {
                 self.emit(WorldEvent::Reward { id, player, amount });
             }
             if owned {
-                self.award(match class {
-                    ShipClass::Spark => 100,
-                    ShipClass::Cadet => 150,
-                    ShipClass::Thunder => 250,
-                });
+                self.award(amount);
             }
             self.drop_loot(pos, true);
-            self.emit(WorldEvent::Destroyed { pos, size: 30. });
+            self.emit(WorldEvent::Destroyed {
+                pos,
+                size: NPC_DESTRUCTION_SIZE,
+            });
         }
         self.npcs
-            .retain(|n| (n.ship.pos - self.player.pos).length() < 3500.);
+            .retain(|n| (n.ship.pos - self.player.pos).length() < NPC_DESPAWN_RANGE);
     }
 }

@@ -29,8 +29,6 @@ enum Command {
         seconds: u64,
         #[arg(long, default_value_t = 15)]
         warmup: u64,
-        #[arg(long, default_value_t = 30)]
-        hz: u32,
         #[arg(long)]
         no_fire: bool,
         #[arg(long)]
@@ -69,7 +67,6 @@ fn main() -> anyhow::Result<()> {
             players,
             seconds,
             warmup,
-            hz,
             no_fire,
             connect,
             invite_file,
@@ -83,7 +80,6 @@ fn main() -> anyhow::Result<()> {
                     players,
                     seconds,
                     warmup,
-                    hz,
                     fire: !no_fire,
                     connect,
                     invite_file,

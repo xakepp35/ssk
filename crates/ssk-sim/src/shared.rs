@@ -1,5 +1,4 @@
-use ssk_net::{Replicas, SharedChunk, SharedEvent, Snapshot};
-use ssk_sim::*;
+use crate::*;
 use std::collections::{HashMap, HashSet, VecDeque};
 struct Owned {
     world: World,
@@ -9,12 +8,6 @@ struct Image {
     state: SectorState,
     epoch: u64,
     revision: u64,
-    time: f64,
-}
-struct Assembly {
-    epoch: u64,
-    revision: u64,
-    parts: Vec<Option<Vec<u8>>>,
     time: f64,
 }
 struct Lease {
@@ -31,12 +24,11 @@ fn unix_ms() -> u64 {
         .min(u64::MAX as u128) as u64
 }
 #[derive(Default)]
-pub struct Shared {
+pub struct SharedWorld {
     owners: HashMap<[i64; 2], u64>,
     leases: HashMap<[i64; 2], Lease>,
     owned: HashMap<[i64; 2], Owned>,
     images: HashMap<[i64; 2], Image>,
-    assemblies: HashMap<([i64; 2], u64, u64), Assembly>,
     players: Vec<(u64, u32, Snapshot)>,
     seen: HashSet<([i64; 2], u64, u64, u8)>,
     order: VecDeque<([i64; 2], u64, u64, u8)>,
@@ -44,7 +36,7 @@ pub struct Shared {
     accumulator: f32,
     published: f64,
 }
-impl Shared {
+impl SharedWorld {
     pub fn stats(&self, now: f64) -> (usize, f64) {
         (
             self.images.len(),
@@ -60,8 +52,8 @@ impl Shared {
             .push((w.player.id, life, Snapshot::capture(w, 0, life)));
         for (peer, q) in &replicas.peers {
             if let Some((t, s)) = q.back() {
-                if now - t < 2. {
-                    if let Some(id) = ssk_net::player_id(peer) {
+                if now - t < SHARED_MEMBER_SECONDS {
+                    if let Some(id) = replicas.identities.get(peer).copied() {
                         self.players.push((id, s.life, *s));
                     }
                 }
@@ -101,63 +93,44 @@ impl Shared {
             return false;
         }
         self.order.push_back(key);
-        while self.order.len() > 8192 {
+        while self.order.len() > SHARED_EVENT_MEMORY {
             self.seen.remove(&self.order.pop_front().unwrap());
         }
         true
     }
-    pub fn chunk(&mut self, origin: u64, bytes: &[u8], now: f64) {
-        let Some(c) = SharedChunk::decode(bytes) else {
-            return;
-        };
-        if !self.valid_owner(c.sector, c.epoch, origin, now) || self.owned.contains_key(&c.sector) {
-            return;
-        }
-        if self
-            .images
-            .get(&c.sector)
-            .is_some_and(|i| i.epoch == c.epoch && i.revision >= c.revision)
-        {
-            return;
-        }
-        self.assemblies.retain(|_, a| now - a.time < 5.);
-        let key = (c.sector, c.epoch, c.revision);
-        if self.assemblies.len() >= 27 && !self.assemblies.contains_key(&key) {
-            return;
-        }
-        let a = self.assemblies.entry(key).or_insert_with(|| Assembly {
-            epoch: c.epoch,
-            revision: c.revision,
-            parts: vec![None; c.total as usize],
-            time: now,
-        });
-        if c.epoch != a.epoch || c.revision > a.revision {
-            *a = Assembly {
-                epoch: c.epoch,
-                revision: c.revision,
-                parts: vec![None; c.total as usize],
-                time: now,
-            };
-        }
-        if a.epoch != c.epoch || a.revision != c.revision || a.parts.len() != c.total as usize {
-            return;
-        }
-        a.parts[c.part as usize] = Some(c.data);
-        if let Some(state) = SharedChunk::restore(&a.parts) {
+    pub fn accepts_image(
+        &self,
+        origin: u64,
+        sector: [i64; 2],
+        epoch: u64,
+        revision: u64,
+        now: f64,
+    ) -> bool {
+        self.valid_owner(sector, epoch, origin, now)
+            && !self.owned.contains_key(&sector)
+            && self
+                .images
+                .get(&sector)
+                .is_none_or(|i| i.epoch != epoch || i.revision < revision)
+    }
+    pub fn image(
+        &mut self,
+        origin: u64,
+        sector: [i64; 2],
+        epoch: u64,
+        state: SectorState,
+        now: f64,
+    ) {
+        if state.valid() && self.accepts_image(origin, sector, epoch, state.tick, now) {
             self.images.insert(
-                c.sector,
+                sector,
                 Image {
+                    revision: state.tick,
                     state,
-                    epoch: c.epoch,
-                    revision: c.revision,
+                    epoch,
                     time: now,
                 },
             );
-            self.assemblies.retain(|(sector, epoch, revision), _| {
-                *sector != c.sector
-                    || *epoch > c.epoch
-                    || (*epoch == c.epoch && *revision > c.revision)
-            });
         }
     }
     pub fn shot(&mut self, shot: Shot, sector: [i64; 2]) {
@@ -250,7 +223,8 @@ impl Shared {
                 };
                 let pos = player.pos.relative_to(sector);
                 let Some(index) = owner.world.pickups.iter().position(|p| {
-                    p.id == pickup && (p.pos - pos).length() < player.class.stats().3 + 60.
+                    p.id == pickup
+                        && (p.pos - pos).length() < player.class.stats().3 + PICKUP_CLAIM_REACH
                 }) else {
                     return vec![];
                 };
@@ -306,15 +280,18 @@ impl Shared {
                     || player != w.player.id
                     || grant_life != life
                     || !amount.is_finite()
-                    || !(0. ..=300.).contains(&amount)
+                    || !(0. ..=PICKUP_MAX_AMOUNT).contains(&amount)
                     || !self.remember(sector, 0, pickup, 1)
                 {
                     return vec![];
                 }
                 match kind {
-                    PickupKind::Energy => w.player.energy = (w.player.energy + amount).min(2000.),
+                    PickupKind::Energy => {
+                        w.player.energy = (w.player.energy + amount).min(ENERGY_MAX)
+                    }
                     PickupKind::Health => {
-                        w.player.hp = (w.player.hp + amount).min(w.player.class.stats().0 * 2.)
+                        w.player.hp =
+                            (w.player.hp + amount).min(w.player.class.stats().0 * HEALTH_OVERCAP)
                     }
                 };
                 w.emit(WorldEvent::Pickup {
@@ -332,7 +309,7 @@ impl Shared {
             } => {
                 if self.valid_owner(sector, epoch, origin, now)
                     && player == w.player.id
-                    && amount <= 250
+                    && amount <= NPC_SCORE[ShipClass::Thunder.index()]
                     && self.remember(sector, 0, id, 2)
                 {
                     w.award(amount);
@@ -346,10 +323,14 @@ impl Shared {
             .get(&sector)
             .is_some_and(|l| l.owner == origin && l.epoch == epoch && l.until > now)
     }
-    pub fn checkpoint(&self) -> Vec<Vec<u8>> {
+    pub fn checkpoint(&self) -> Vec<SectorImage> {
         self.owned
             .iter()
-            .flat_map(|(&s, o)| SharedChunk::snapshot(s, o.epoch, &SectorState::capture(&o.world)))
+            .map(|(&sector, o)| SectorImage {
+                sector,
+                epoch: o.epoch,
+                state: SectorState::capture(&o.world),
+            })
             .collect()
     }
     pub fn release(&mut self) -> Vec<SharedEvent> {
@@ -368,7 +349,7 @@ impl Shared {
         replicas: &Replicas,
         dt: f32,
         now: f64,
-    ) -> (Vec<SharedEvent>, Option<Vec<Vec<u8>>>) {
+    ) -> (Vec<SharedEvent>, Option<Vec<SectorImage>>) {
         self.members(w, life, replicas, now);
         let id = w.player.id;
         let mut events = Vec::new();
@@ -399,7 +380,7 @@ impl Shared {
                     Lease {
                         owner: id,
                         epoch,
-                        until: now + 2.,
+                        until: now + LEASE_SECONDS,
                         announced: now - 1.,
                     },
                 );
@@ -413,19 +394,19 @@ impl Shared {
         });
         for (&sector, o) in &self.owned {
             let l = self.leases.get_mut(&sector).unwrap();
-            if now - l.announced >= 0.5 {
+            if now - l.announced >= LEASE_RENEW_SECONDS {
                 l.announced = now;
-                l.until = now + 2.;
+                l.until = now + LEASE_SECONDS;
                 events.push(SharedEvent::Lease {
                     sector,
                     epoch: o.epoch,
-                    until_ms: unix_ms() + 2000,
+                    until_ms: unix_ms() + (LEASE_SECONDS * 1000.) as u64,
                 });
             }
         }
-        self.accumulator += dt.min(0.1);
+        self.accumulator += dt.min(SHARED_STEP_MAX_SECONDS);
         let mut steps = 0;
-        while self.accumulator >= DT && steps < 8 {
+        while self.accumulator >= DT && steps < MAX_CATCH_UP_TICKS {
             for (&sector, owned) in &mut self.owned {
                 let targets = self
                     .players
@@ -475,9 +456,7 @@ impl Shared {
             );
         }
         self.images
-            .retain(|s, i| self.owners.contains_key(s) && now - i.time < 5.);
-        self.assemblies
-            .retain(|(s, _, _), _| self.owners.contains_key(s));
+            .retain(|s, i| self.owners.contains_key(s) && now - i.time < SHARED_IMAGE_SECONDS);
         w.asteroids.clear();
         w.npcs.clear();
         w.pickups.clear();
@@ -504,11 +483,12 @@ impl Shared {
                 let mut p = p.clone();
                 p.pos += offset;
                 if w.player.hp > 0.
-                    && (p.pos - w.player.pos).length() < w.player.class.stats().3 + 18.
+                    && (p.pos - w.player.pos).length()
+                        < w.player.class.stats().3 + PICKUP_REQUEST_REACH
                     && self
                         .claims
                         .get(&(sector, p.id))
-                        .is_none_or(|t| now - t > 1.)
+                        .is_none_or(|t| now - t > CLAIM_RETRY_SECONDS)
                 {
                     self.claims.insert((sector, p.id), now);
                     claims.push(SharedEvent::Claim {
@@ -521,24 +501,23 @@ impl Shared {
                 w.pickups.push(p);
             }
         }
-        self.claims.retain(|_, t| now - *t < 3.);
+        self.claims.retain(|_, t| now - *t < CLAIM_MEMORY_SECONDS);
         for claim in claims {
             events.extend(self.event(id, claim.clone(), w, life, now));
             events.push(claim);
         }
-        let frames = if now - self.published >= 0.2 {
+        let frames = if now - self.published >= SHARED_SNAPSHOT_SECONDS {
             self.published = now;
-            Some(
-                self.owned
-                    .iter()
-                    .flat_map(|(&s, o)| {
-                        SharedChunk::snapshot(s, o.epoch, &SectorState::capture(&o.world))
-                    })
-                    .collect(),
-            )
+            Some(self.checkpoint())
         } else {
             None
         };
         (events, frames)
     }
+}
+
+pub struct SectorImage {
+    pub sector: [i64; 2],
+    pub epoch: u64,
+    pub state: SectorState,
 }

@@ -271,11 +271,7 @@ impl Overlay {
             .is_some_and(|t| t.elapsed().as_secs_f32() < 1.)
         {
             if let (Some(a), Some(b)) = (self.positions.get(&self.id), self.positions.get(id)) {
-                return (b.pos.relative_to(a.pos.sector) - a.pos.local).length()
-                    <= self.radius
-                        + ssk_sim::WeaponKind::from_index(0).stats().speed
-                            * ssk_sim::WeaponKind::from_index(0).stats().life
-                        + 832. * 0.2;
+                return ssk_sim::in_interest(a.pos, b.pos, self.radius);
             }
         }
         (remote.sector[0] as i128 - local.sector[0] as i128).abs() <= 1
@@ -313,7 +309,7 @@ impl Overlay {
             }
         }
     }
-    pub fn retry(&mut self, peers: &mut HashMap<String, crate::reliable::Peer>, seq: u64, hz: u32) {
+    pub fn retry(&mut self, peers: &mut HashMap<String, crate::reliable::Peer>, seq: u64) {
         for _ in 0..self.routes.pending.len() {
             let mut p = self.routes.pending.pop_front().unwrap();
             let key = crate::routes::event_id(&p.data).map(|id| (p.dest.clone(), id));
@@ -324,15 +320,15 @@ impl Overlay {
                 self.routes.inflight.remove(key.as_ref().unwrap());
                 continue;
             }
-            if seq.saturating_sub(p.born) > hz as u64 * 5 {
+            if seq.saturating_sub(p.born) > ssk_sim::PACKET_PER_SEC * 5 {
                 if let Some(key) = key {
                     self.routes.inflight.remove(&key);
                 }
                 self.routes.expired += 1;
                 continue;
             }
-            if p.last == 0 || seq - p.last >= (hz / 10) as u64 {
-                let copies = if seq.saturating_sub(p.born) >= hz as u64 / 3 {
+            if p.last == 0 || seq - p.last >= (ssk_sim::PACKET_PER_SEC / 10) as u64 {
+                let copies = if seq.saturating_sub(p.born) >= ssk_sim::PACKET_PER_SEC / 3 {
                     3
                 } else {
                     1

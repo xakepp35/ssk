@@ -1,4 +1,5 @@
-//! Bounded bridge between game thread and asynchronous network workers.
+use ssk_sim::{CombatEvent, SharedEvent, Snapshot};
+// Bounded bridge between game thread and asynchronous network workers.
 mod auth;
 mod cache;
 mod metrics;
@@ -11,8 +12,6 @@ pub use metrics::LinkStats;
 mod config;
 mod contact;
 mod discovery;
-mod validation;
-pub use validation::*;
 mod events;
 mod shared;
 pub use events::*;
@@ -23,8 +22,8 @@ pub use replication::*;
 mod transport;
 pub use config::*;
 pub use transport::{decode_ticket, encode_ticket};
-pub const PROTOCOL_VERSION: u16 = 2;
-pub const RULES_ID: &str = "ssk-rules-2-240hz";
+pub const PROTOCOL_VERSION: u16 = 3;
+pub const RULES_ID: &str = "ssk-rules-3";
 #[derive(Clone, Debug, Default)]
 pub struct Status {
     pub contact: Vec<u8>,

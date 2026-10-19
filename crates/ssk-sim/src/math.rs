@@ -19,7 +19,7 @@ impl V2 {
         self.x * other.x + self.y * other.y
     }
     pub fn normalized(self) -> Self {
-        self / self.length().max(0.0001)
+        self / self.length().max(crate::NORMAL_EPSILON)
     }
     pub fn clamp_length(self, max: f32) -> Self {
         if self.length_squared() > max * max {
@@ -90,6 +90,7 @@ impl MulAssign<f32> for V2 {
     }
 }
 /// Stable PRNG: content and weapon spreads do not depend on rendering.
+#[derive(Clone)]
 pub struct Rng(pub u64);
 impl Rng {
     pub fn next_u64(&mut self) -> u64 {

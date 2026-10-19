@@ -1,42 +1,10 @@
 use ssk_sim::*;
-use std::collections::{HashMap, VecDeque};
-#[derive(Clone, Copy, Debug)]
-pub struct Snapshot {
-    pub sequence: u32,
-    pub tick: u64,
-    pub life: u32,
-    pub pos: WorldPos,
-    pub velocity: V2,
-    pub angle: f32,
-    pub hp: f32,
-    pub energy: f32,
-    pub class: ShipClass,
-    pub weapon: WeaponKind,
-    pub ability: bool,
-    pub invulnerable: bool,
+pub trait SnapshotCodec: Sized {
+    fn encode(self) -> Vec<u8>;
+    fn decode(bytes: &[u8]) -> Option<Self>;
 }
-impl Snapshot {
-    pub fn capture(world: &World, sequence: u32, life: u32) -> Self {
-        let ship = &world.player;
-        Self {
-            sequence,
-            tick: world.tick,
-            life,
-            pos: WorldPos {
-                sector: world.origin,
-                local: ship.pos,
-            },
-            velocity: ship.velocity,
-            angle: ship.angle,
-            hp: ship.hp,
-            energy: ship.energy,
-            class: ship.class,
-            weapon: ship.weapon,
-            ability: ship.ability_active,
-            invulnerable: ship.invulnerable > 0.,
-        }
-    }
-    pub fn encode(self) -> Vec<u8> {
+impl SnapshotCodec for Snapshot {
+    fn encode(self) -> Vec<u8> {
         let mut b = Vec::with_capacity(50);
         b.push(1);
         b.extend(self.sequence.to_le_bytes());
@@ -65,7 +33,7 @@ impl Snapshot {
         ]);
         b
     }
-    pub fn decode(b: &[u8]) -> Option<Self> {
+    fn decode(b: &[u8]) -> Option<Self> {
         if b.len() != 50 || b[0] != 1 || b[47] > 2 || b[48] > 2 || b[49] > 3 {
             return None;
         }
@@ -96,67 +64,6 @@ impl Snapshot {
             ability: b[49] & 1 != 0,
             invulnerable: b[49] & 2 != 0,
         })
-    }
-    pub fn ship(self, id: u64, origin: [i64; 2]) -> Ship {
-        let mut ship = Ship::new(id, self.class, self.pos.relative_to(origin));
-        ship.velocity = self.velocity;
-        ship.angle = self.angle;
-        ship.hp = self.hp;
-        ship.energy = self.energy;
-        ship.weapon = self.weapon;
-        ship.ability_active = self.ability;
-        ship.invulnerable = if self.invulnerable { 1. } else { 0. };
-        ship
-    }
-}
-#[derive(Default)]
-pub struct Replicas {
-    pub peers: HashMap<String, VecDeque<(f64, Snapshot)>>,
-}
-impl Replicas {
-    pub fn push(&mut self, peer: String, snapshot: Snapshot, now: f64) -> bool {
-        let queue = self.peers.entry(peer).or_default();
-        if let Some((_, old)) = queue.back() {
-            if snapshot.sequence.wrapping_sub(old.sequence) as i32 <= 0 {
-                return false;
-            }
-        }
-        if queue
-            .back()
-            .is_some_and(|(_, old)| old.life != snapshot.life)
-        {
-            queue.clear();
-        }
-        while queue.len() >= 128 || queue.front().is_some_and(|(time, _)| now - time > 2.) {
-            queue.pop_front();
-        }
-        queue.push_back((now, snapshot));
-        true
-    }
-    pub fn sample(&self, peer: &str, now: f64) -> Option<(Snapshot, f64)> {
-        let q = self.peers.get(peer)?;
-        let &(last_time, last) = q.back()?;
-        let target = now - 0.050;
-        for i in 1..q.len() {
-            let (ta, a) = q[i - 1];
-            let (tb, b) = q[i];
-            if ta <= target && target <= tb {
-                let t = ((target - ta) / (tb - ta).max(0.00001)) as f32;
-                let mut out = b;
-                out.pos.local = a.pos.relative_to(b.pos.sector).lerp(b.pos.local, t);
-                let angle = (b.angle - a.angle + std::f32::consts::PI)
-                    .rem_euclid(std::f32::consts::TAU)
-                    - std::f32::consts::PI;
-                out.angle = a.angle + angle * t;
-                return Some((out, now - last_time));
-            }
-        }
-        let mut out = last;
-        if target < q.front()?.0 {
-            return Some((q.front()?.1, now - last_time));
-        }
-        out.pos.local += last.velocity * ((target - last_time).clamp(0., 0.1) as f32);
-        Some((out, now - last_time))
     }
 }
 pub fn player_id(peer: &str) -> Option<u64> {

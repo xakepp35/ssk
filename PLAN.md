@@ -63,7 +63,7 @@ no automated tests unless requested. A short manual game session when available.
 - Ping via sequence echo/ack delay; no waiting for downstream pings. Unknown
   direct RTT stays unknown; route estimates are separate.
 - Metrics piggyback bounded deltas, no full graph circulated at 60 Hz.
-- 30/60 snapshot Hz on 240 Hz sim; 30–60 game datagrams/s per link including
+- 60 snapshot Hz on 360 Hz sim; 60 game datagrams/s per link including
   forwarding, max min(1100, transport limit). Account wire control separately.
 - Source batch signatures survive relays. Fresh state drops old queued state.
 - Critical events use IDs, end-to-end ACK and prepared independent routes.
@@ -83,11 +83,11 @@ Public hosts are currently unavailable; real internet acceptance remains open.
 
 ## C — owner's timing and architecture revision (supersedes old rates)
 
-- [ ] C1 — Central named simulation/network/client parameters; one timing source:
-  TICK_PER_SEC=360, TICK_PER_PACKET=6; fixed 60 Hz transport, independent vsync.
-- [ ] C2 — Move CombatGuard, replicated game model/history and shared game rules
+- [x] C1a — One timing source: TICK_PER_SEC=360, TICK_PER_PACKET=6; fixed 60 Hz transport and compatible handshake.
+- [ ] C1b — Finish named simulation/network/client tuning parameters.
+- [x] C2 — Move CombatGuard, replicated game model/history and shared game rules
   into ssk-sim. Keep authentication/framing/discovery/routing in ssk-net.
-- [ ] C3 — Independent fixed-step game worker, bounded render handoff and explicit
+- [x] C3 — Independent fixed-step game worker, bounded render handoff and explicit
   overload disconnect. No hidden slow-motion online, no unbounded catch-up.
 - [ ] C4 — Windows portability/build scripts, Linux release build, LAN duel guide.
 

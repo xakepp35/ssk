@@ -13,7 +13,7 @@ pub struct Asteroid {
     pub small: bool,
     pub last_hit: u64,
 }
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct SpatialGrid {
     cells: HashMap<(i32, i32), Vec<usize>>,
 }
@@ -23,11 +23,11 @@ impl SpatialGrid {
             bucket.clear();
         }
         for (i, a) in asteroids.iter().enumerate() {
-            for x in ((a.pos.x - a.radius) / 128.).floor() as i32
-                ..=((a.pos.x + a.radius) / 128.).floor() as i32
+            for x in ((a.pos.x - a.radius) / GRID_CELL_SIZE).floor() as i32
+                ..=((a.pos.x + a.radius) / GRID_CELL_SIZE).floor() as i32
             {
-                for y in ((a.pos.y - a.radius) / 128.).floor() as i32
-                    ..=((a.pos.y + a.radius) / 128.).floor() as i32
+                for y in ((a.pos.y - a.radius) / GRID_CELL_SIZE).floor() as i32
+                    ..=((a.pos.y + a.radius) / GRID_CELL_SIZE).floor() as i32
                 {
                     self.cells.entry((x, y)).or_default().push(i);
                 }
@@ -37,11 +37,11 @@ impl SpatialGrid {
     }
     pub fn query(&self, a: V2, b: V2, r: f32, result: &mut Vec<usize>) {
         result.clear();
-        for x in
-            ((a.x.min(b.x) - r) / 128.).floor() as i32..=((a.x.max(b.x) + r) / 128.).floor() as i32
+        for x in ((a.x.min(b.x) - r) / GRID_CELL_SIZE).floor() as i32
+            ..=((a.x.max(b.x) + r) / GRID_CELL_SIZE).floor() as i32
         {
-            for y in ((a.y.min(b.y) - r) / 128.).floor() as i32
-                ..=((a.y.max(b.y) + r) / 128.).floor() as i32
+            for y in ((a.y.min(b.y) - r) / GRID_CELL_SIZE).floor() as i32
+                ..=((a.y.max(b.y) + r) / GRID_CELL_SIZE).floor() as i32
             {
                 if let Some(bucket) = self.cells.get(&(x, y)) {
                     for &i in bucket {

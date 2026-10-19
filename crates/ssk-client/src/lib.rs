@@ -1,11 +1,13 @@
+use constants::*;
 use macroquad::prelude::*;
-use ssk_sim::{DT, InputFrame, Ship, V2, World};
+use ssk_sim::{DT, InputFrame, Ship, V2};
 pub mod bench;
+pub mod constants;
 mod effects;
+mod game;
 mod online;
 mod profile;
 mod render;
-mod shared;
 mod ui;
 pub struct Options {
     pub seed: u64,
@@ -25,7 +27,7 @@ pub fn launch(options: Options) {
             fullscreen: profile.fullscreen,
             high_dpi: true,
             platform: miniquad::conf::Platform {
-                swap_interval: Some(0),
+                swap_interval: Some(VSYNC_INTERVAL),
                 ..Default::default()
             },
             ..Default::default()
@@ -122,33 +124,11 @@ async fn run(options: Options, mut profile: profile::Profile) {
     if options.play {
         profile.class = class.index();
     }
-    let mut world = World::new(
-        if options.online {
-            options.network.seed
-        } else {
-            options.seed
-        },
-        class,
-    );
-    let mut online = if options.online {
-        match online::Online::new(options.network.clone(), options.connect.clone()) {
-            Ok(net) => Some(net),
-            Err(error) => {
-                eprintln!("Network: {error:#}");
-                None
-            }
-        }
-    } else {
-        None
-    };
-    if let Some(session) = &mut online {
-        world = World::duel(options.network.seed, class, session.net.player_id);
-        session.snapshot(&world);
-    }
+    let (game, initial) = game::Game::start(&options, class);
+    let mut view = initial;
+    let mut world = view.world.clone();
     let mut effects = effects::Effects::new().await;
-    let mut accumulator = 0.;
     let mut camera = world.player.pos;
-    let mut skipped = 0;
     let mut weapon = 0;
     let mut menu = !options.play;
     let mut started = options.play;
@@ -158,11 +138,12 @@ async fn run(options: Options, mut profile: profile::Profile) {
     let mut save_error = None;
     show_mouse(false);
     loop {
-        let frame_start = std::time::Instant::now();
-        if let Some(session) = &mut online {
-            session.receive(&mut world, get_time());
+        let previous_hp = world.player.hp;
+        if let Some(frame) = game.take_frame() {
+            view = frame;
+            world = view.world.clone();
         }
-        let dt = get_frame_time().min(0.1);
+        let dt = get_frame_time().min(MAX_RENDER_DELTA);
         if is_quit_requested() {
             break;
         }
@@ -186,7 +167,6 @@ async fn run(options: Options, mut profile: profile::Profile) {
                 save_error = Some(e.to_string());
             }
         }
-        world.spawn_radius = screen_width().hypot(screen_height()) * 0.5 + 200.;
         if !menu && !help {
             if is_key_pressed(KeyCode::Q) || mouse_wheel().1 > 0. {
                 weapon = (weapon + 2) % 3;
@@ -227,42 +207,19 @@ async fn run(options: Options, mut profile: profile::Profile) {
                 weapon,
             }
         };
-        let previous_hp = world.player.hp;
-        if started && (!(menu || help) || options.online) {
-            accumulator += dt;
-            let mut steps = 0;
-            while accumulator >= DT && steps < 8 {
-                world.step(input);
-                if let Some(session) = &mut online {
-                    if world.tick % (240 / options.network.net_hz as u64) == 0
-                        || world.player.hp <= 0.
-                    {
-                        session.snapshot(&world);
-                    }
-                }
-                accumulator -= DT;
-                steps += 1;
-            }
-            if accumulator >= DT {
-                skipped += (accumulator / DT) as u64;
-                accumulator = accumulator.rem_euclid(DT);
-            }
-        } else {
-            accumulator = 0.;
-        }
-        let alpha = accumulator / DT;
+        game.update(game::Controls {
+            input,
+            paused: !started || menu || help,
+            next_class: ssk_sim::ShipClass::ALL[profile.class],
+            spawn_radius: screen_width().hypot(screen_height()) * 0.5 + 200.,
+        });
+        let alpha = (view.at.elapsed().as_secs_f32() / DT).clamp(0., 1.);
         camera -= world.origin_shift;
         effects.shift(world.origin_shift);
         world.origin_shift = V2::ZERO;
         let target =
             world.player.previous.lerp(world.player.pos, alpha) + mouse.clamp_length(200.) * 0.25;
         camera = camera.lerp(target, 1. - (-12. * dt).exp());
-        if let Some(session) = &mut online {
-            if session.after_frame(&mut world, dt, get_time()) {
-                class = ssk_sim::ShipClass::ALL[profile.class];
-                restart = true;
-            }
-        }
         effects.events(&world.events, camera, profile.volume);
         world.events.clear();
         effects.update(dt);
@@ -273,16 +230,15 @@ async fn run(options: Options, mut profile: profile::Profile) {
         let render_camera = camera + effects.offset(profile.shake);
         background(render_camera);
         render::scene(&world, render_camera, alpha);
-        if let Some(session) = &online {
-            for peer in session.replicas.peers.keys() {
-                if let Some((snapshot, age)) = session.replicas.sample(peer, get_time()) {
-                    let ship = snapshot.ship(ssk_net::player_id(peer).unwrap_or(0), world.origin);
+        {
+            for (ship, age) in &view.peers {
+                {
                     if ship.hp > 0. {
                         draw_ship(
                             &ship,
                             render_camera,
                             1.,
-                            if age > 0.15 { GRAY } else { GOLD },
+                            if *age > 0.15 { GRAY } else { GOLD },
                         );
                         let p = screen(ship.pos, render_camera);
                         if p.x < 30.
@@ -307,7 +263,7 @@ async fn run(options: Options, mut profile: profile::Profile) {
                             &format!(
                                 "PEER {:.0} HP{}",
                                 ship.hp,
-                                if age > 0.15 { " !" } else { "" }
+                                if *age > 0.15 { " !" } else { "" }
                             ),
                             p.x - 40.,
                             p.y - 40.,
@@ -319,7 +275,7 @@ async fn run(options: Options, mut profile: profile::Profile) {
             }
         }
         effects.draw(render_camera, profile.flashes);
-        ui::hud(&world, &profile, skipped);
+        ui::hud(&world, &profile, view.overloads);
         if world.player.hp <= 0. && !menu {
             draw_rectangle(
                 0.,
@@ -369,18 +325,16 @@ async fn run(options: Options, mut profile: profile::Profile) {
         }
         if restart {
             run_number += 1;
-            if let Some(session) = &mut online {
-                session.respawn(&mut world, class, options.network.seed);
-            } else {
-                world = World::new(options.seed + run_number, class);
-            }
+            game.restart(options.seed + run_number, class);
             effects.clear();
             camera = world.player.pos;
-            accumulator = 0.;
             weapon = 0;
             menu = false;
             started = true;
             recorded = false;
+        }
+        if !options.online && !view.error.is_empty() {
+            draw_text(&view.error, 24., screen_height() - 100., 18., PINK);
         }
         if help {
             ui::help();
@@ -395,13 +349,7 @@ async fn run(options: Options, mut profile: profile::Profile) {
             );
         }
         if options.online {
-            let status = online
-                .as_ref()
-                .map(|n| n.net.status.borrow().clone())
-                .unwrap_or_else(|| ssk_net::Status {
-                    phase: "Network failed to start; see terminal".into(),
-                    ..Default::default()
-                });
+            let status = &view.status;
             if is_key_pressed(KeyCode::F2) {
                 miniquad::window::clipboard_set(&status.ticket);
             }
@@ -415,8 +363,8 @@ async fn run(options: Options, mut profile: profile::Profile) {
                 20.,
                 ORANGE,
             );
-            if let Some(session) = &online {
-                let stats = &session.net.status.borrow().links;
+            {
+                let stats = &status.links;
                 let tx: f32 = stats.iter().map(|s| s.tx_bps).sum();
                 let rx: f32 = stats.iter().map(|s| s.rx_bps).sum();
                 let worst = stats.iter().filter_map(|s| s.rtt_ms).fold(0f32, f32::max);
@@ -424,12 +372,12 @@ async fn run(options: Options, mut profile: profile::Profile) {
                 draw_text(
                     &format!(
                         "FRAGS {} | RTT {:.1}ms | loss {:.0}% | TX/RX {:.1}/{:.1}KiB/s | {}",
-                        session.frags,
+                        view.frags,
                         worst,
                         loss * 100.,
                         tx / 1024.,
                         rx / 1024.,
-                        session.error
+                        view.error
                     ),
                     24.,
                     screen_height() - 125.,
@@ -440,15 +388,8 @@ async fn run(options: Options, mut profile: profile::Profile) {
         }
         draw_circle_lines(mouse_position().0, mouse_position().1, 8., 1., SKYBLUE);
         next_frame().await;
-        if let Some(remaining) =
-            std::time::Duration::from_secs_f64(1. / 240.).checked_sub(frame_start.elapsed())
-        {
-            std::thread::sleep(remaining);
-        }
     }
-    if let Some(session) = &mut online {
-        session.leave();
-    }
+    drop(game);
     if !profile.fullscreen {
         profile.width = screen_width() as i32;
         profile.height = screen_height() as i32;

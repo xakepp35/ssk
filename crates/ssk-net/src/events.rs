@@ -1,25 +1,13 @@
-use serde::{Deserialize, Serialize};
-use ssk_sim::*;
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum CombatEvent {
-    Shared(crate::SharedEvent),
-    Shot {
-        shot: Shot,
-        sector: [i64; 2],
-        life: u32,
-        tick: u64,
-    },
-    Death {
-        life: u32,
-        killer: u64,
-        shot: u64,
-    },
+use ssk_sim::CombatEvent;
+pub trait CombatEventCodec: Sized {
+    fn encode(&self) -> Vec<u8>;
+    fn decode(bytes: &[u8]) -> Option<Self>;
 }
-impl CombatEvent {
-    pub fn encode(&self) -> Vec<u8> {
+impl CombatEventCodec for CombatEvent {
+    fn encode(&self) -> Vec<u8> {
         postcard::to_allocvec(self).unwrap_or_default()
     }
-    pub fn decode(bytes: &[u8]) -> Option<Self> {
+    fn decode(bytes: &[u8]) -> Option<Self> {
         if bytes.len() > 880 {
             return None;
         }

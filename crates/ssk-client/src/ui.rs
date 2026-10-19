@@ -324,7 +324,12 @@ pub fn hud(world: &World, profile: &Profile, skipped: u64) {
         draw_rectangle(x, y + 38. * s, 164. * s * ready, 3. * s, SKYBLUE);
     }
     draw_text(
-        &format!("240 Hz  |  FPS {}  |  skipped {}", get_fps(), skipped),
+        &format!(
+            "{} Hz logic | FPS {} | overload {}",
+            TICK_PER_SEC,
+            get_fps(),
+            skipped
+        ),
         screen_width() - 320. * s,
         26. * s,
         17. * s,

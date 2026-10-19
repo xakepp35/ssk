@@ -1,6 +1,6 @@
 use crate::*;
 use std::collections::{HashMap, VecDeque};
-/// Sign on the async worker, never on the 240 Hz simulation thread.
+/// Sign on the async worker, never on the fixed-step simulation thread.
 pub(crate) struct Auth {
     pub stats: CryptoStats,
     key: iroh::SecretKey,
@@ -18,8 +18,11 @@ impl Auth {
             stats: CryptoStats::default(),
             key,
             domain: format!(
-                "SSK/{PROTOCOL_VERSION}/{RULES_ID}/{}/{}/",
-                config.world, config.seed
+                "SSK/{PROTOCOL_VERSION}/{RULES_ID}/{}/{}/{}/{}/",
+                ssk_sim::TICK_PER_SEC,
+                ssk_sim::TICK_PER_PACKET,
+                config.world,
+                config.seed
             )
             .into_bytes(),
             session: iroh::SecretKey::generate().to_bytes()[..8]

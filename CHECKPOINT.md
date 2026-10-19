@@ -19,10 +19,18 @@ One short offline window observation only; full manual class/death/restart and
 real LAN/internet acceptance remain open. Latest offline launch exited.
 
 ## Active work / next
-Save historical measurements and helper configs, commit B16e. Then implement C1–C4
-from PLAN. Current source edit only docs/examples; git status authoritative.
-Do not run more heavy swarms: owner reported a complete OS freeze.
-No active build/bench/game. No other mutation driver.
+C1a, C2, C3 implemented; cargo check workspace passed, no automated tests.
+TICK_PER_SEC360/TICK_PER_PACKET6 derives DT, packet60 Hz and timing windows.
+Protocol3 handshake and signature domain include timing. 30 Hz config/CLI gone.
+Game worker owns World and Online; render gets bounded snapshots under monitor
+vsync. Lag >100 ms stops session and disconnects; no busy-spin/unbounded catch-up.
+CombatGuard, Snapshot/Replicas, CombatEvent/SharedEvent, shared sector leases,
+pickups/rewards/ownership all live in ssk-sim. Network retains codecs and framing.
+Game tuning tables started in ssk-sim/constants.rs; finish named parameters C1b.
+Then Windows portability/C4 build scripts, Linux release, LAN guide.
+Historical measurements saved in docs/MEASUREMENTS.md; raw /tmp JSON disappeared
+across the workstation incident and are not committed. No new capacity claims.
+No active game/swarm. Build concurrency2. Check git for build sessions.
 
 ## Constraints
 Three library crates, one binary. Bounded queues, one transit maximum.
