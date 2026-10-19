@@ -15,6 +15,9 @@ pub(crate) struct Overlay {
     pub positions: HashMap<String, Snapshot>,
     pub radius: f32,
     pub position_seen: HashMap<String, Instant>,
+    pub fallback: BTreeMap<String, EndpointAddr>,
+    pub friends: std::collections::BTreeSet<String>,
+    retries: HashMap<String, (u32, Instant)>,
 }
 impl Overlay {
     pub fn new(id: String) -> Self {
@@ -29,6 +32,9 @@ impl Overlay {
             positions: HashMap::new(),
             radius: 3000.,
             position_seen: HashMap::new(),
+            fallback: BTreeMap::new(),
+            friends: Default::default(),
+            retries: HashMap::new(),
         }
     }
     pub fn members(&self) -> Vec<String> {
@@ -104,7 +110,14 @@ impl Overlay {
         self.routes.select(dest, ranked)
     }
     pub fn desired(&self) -> std::collections::BTreeSet<String> {
-        topology::neighbours(&self.members(), &self.id)
+        let mut desired = topology::neighbours(&self.members(), &self.id);
+        desired.extend(self.friends.iter().cloned());
+        desired
+    }
+    pub fn connected(&mut self, id: &str) {
+        self.connecting.remove(id);
+        self.retries
+            .insert(id.into(), (0, Instant::now() + Duration::from_secs(1)));
     }
     pub fn envelope(dest: &str, kind: u8, hops: u8, data: &[u8]) -> Option<Vec<u8>> {
         let key: iroh::PublicKey = dest.parse().ok()?;
@@ -247,17 +260,44 @@ impl Overlay {
         endpoint: &Endpoint,
     ) -> Vec<(String, EndpointAddr)> {
         let _ = endpoint;
-        let desired: Vec<_> = self
-            .desired()
+        let mut desired = self.desired();
+        if peers.is_empty() {
+            desired.extend(self.fallback.keys().cloned());
+        }
+        let desired: Vec<_> = desired
             .into_iter()
             .filter(|id| {
-                !peers.contains_key(id) && !self.connecting.contains_key(id) && self.id < *id
+                id != &self.id
+                    && !peers.contains_key(id)
+                    && !self.connecting.contains_key(id)
+                    && (self.id < *id
+                        || self.fallback.contains_key(id)
+                        || self.friends.contains(id))
+                    && self
+                        .retries
+                        .get(id)
+                        .is_none_or(|(_, next)| Instant::now() >= *next)
             })
+            .take(4usize.saturating_sub(self.connecting.len()))
             .collect();
         desired
             .into_iter()
             .filter_map(|id| {
-                let addr = self.contacts.get(&id)?.clone();
+                let addr = self
+                    .contacts
+                    .get(&id)
+                    .or_else(|| self.fallback.get(&id))?
+                    .clone();
+                let failures = self
+                    .retries
+                    .get(&id)
+                    .map_or(0, |(n, _)| *n)
+                    .saturating_add(1);
+                let delay = (1u64 << failures.min(5)) + stable_rank(&self.id, &id, "retry") % 3;
+                self.retries.insert(
+                    id.clone(),
+                    (failures, Instant::now() + Duration::from_secs(delay)),
+                );
                 self.connecting.insert(id.clone(), Instant::now());
                 Some((id, addr))
             })

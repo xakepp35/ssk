@@ -39,7 +39,7 @@ no automated tests unless requested. A short manual game session when available.
 - [x] B11 — Shared NPCs/asteroids/loot, single pickup confirmation. `feat: synchronize shared sector objects`
 - [x] B12 — Leases, snapshots, epochs, owner recovery. `feat: recover sector ownership`
 - [x] B13 — Embedded self-hosted relay and NAT traversal. `feat: add self-hosted relay support`
-- [ ] B14 — Multiple seeds/relays, cache, reconnect, friends. `feat: handle network interruptions`
+- [x] B14 — Multiple seeds/relays, cache, reconnect, friends. `feat: handle network interruptions`
 - [ ] B15 — Headless swarm, measurements, isolated NAT/relay setup. `feat: add network load scenarios`
 - [ ] B16 — Measured bottlenecks, operating docs, beta tag. `release: prepare network beta`
 

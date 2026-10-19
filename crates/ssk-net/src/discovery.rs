@@ -62,11 +62,13 @@ impl Discovery {
         for addr in &config.discovery_advertise {
             swarm.add_external_address(addr.parse()?);
         }
+        let mut seeds = Vec::new();
         for seed in config.seeds.iter().filter(|s| s.starts_with('/')) {
             let addr: Multiaddr = seed.parse()?;
             if let Some(libp2p::multiaddr::Protocol::P2p(id)) = addr.iter().last() {
                 swarm.behaviour_mut().kad.add_address(&id, addr.clone());
-                swarm.dial(addr)?;
+                seeds.push((id, addr.clone()));
+                let _ = swarm.dial(addr);
             }
         }
         let (publish, mut rx) = tokio::sync::watch::channel((Vec::new(), [0, 0]));
@@ -79,6 +81,7 @@ impl Discovery {
                 _=stop.changed()=>break,
                 changed=rx.changed()=>{if changed.is_err(){break;}timer.reset_immediately();},
                     _=timer.tick()=>{
+                        for (id, addr) in &seeds { if !swarm.is_connected(id) { let _=swarm.dial(addr.clone()); } }
                         let (value,sector)=rx.borrow_and_update().clone();
                         if value.is_empty(){continue;}
                         let record=kad::Record{key:contact_key(&config.world,&peer),value,publisher:Some(peer),expires:Some(Instant::now()+Duration::from_secs(60))};

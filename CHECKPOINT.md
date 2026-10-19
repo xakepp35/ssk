@@ -14,13 +14,13 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - `cargo check --workspace` passed after A2; no tests/manual session.
 
 ## Live state
-- Completed B13: Optional embedded Iroh relay in node mode with HTTP/TLS/QUIC configuration, admitted-client cap, authenticated allowlist and per-client rate limits. NAT path accounting rejects nested app/transport relay. External deployment remains unverified.
+- Completed B14: Multiple DHT/ticket seeds and relay URLs, four pinned friends, bounded reconnect with backoff, 16 inbound handshakes, atomic bounded signed contact cache. Expired cached addresses never become live presence without fresh handshake/contact.
 - `cargo check --workspace` passed at this step. No automated tests run.
 - No manual play session yet. No public hosts for internet acceptance.
 - No active project processes. Source discussions preserved. No push.
 
 ## Next
-B14: multiple seeds/relays, signed contact cache, bounded reconnect and friends.
+B15: headless moving/firing swarm, machine-readable measurements and isolated NAT/relay setup.
 
 ## Constraints
 240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.

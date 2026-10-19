@@ -15,6 +15,8 @@ pub struct Config {
     pub advertise: Option<SocketAddr>,
     pub relays: Vec<String>,
     pub seeds: Vec<String>,
+    pub friends: Vec<String>,
+    pub contact_cache: Option<PathBuf>,
     pub identity_file: PathBuf,
     pub max_peers: usize,
     pub discovery_bind: SocketAddr,
@@ -32,6 +34,8 @@ impl Default for Config {
             advertise: None,
             relays: vec![],
             seeds: vec![],
+            friends: vec![],
+            contact_cache: Some(data_dir().join("contacts.json")),
             identity_file: data_dir().join("identity.key"),
             max_peers: 128,
             discovery_bind: "0.0.0.0:0".parse().unwrap(),
@@ -70,6 +74,10 @@ impl Config {
             anyhow::bail!("Config does not exist: {}", path.display())
         };
         anyhow::ensure!([30, 60].contains(&config.net_hz), "net_hz must be 30 or 60");
+        anyhow::ensure!(
+            config.seeds.len() <= 16 && config.friends.len() <= 4 && config.relays.len() <= 8,
+            "limits: 16 seeds, 4 friends, 8 relays"
+        );
         anyhow::ensure!(
             config.max_peers > 0 && config.max_peers <= 128,
             "max_peers must be 1..128"

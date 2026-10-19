@@ -103,20 +103,39 @@ pub(crate) async fn run(
     let mut peers: HashMap<String, crate::reliable::Peer> = HashMap::new();
     let mut overlay = crate::overlay::Overlay::new(endpoint.id().to_string());
     overlay.radius = config.interest_radius;
-    if let Some(ticket) = connect {
-        let addr = decode_ticket(&ticket)?;
-        let ep = endpoint.clone();
-        let tx = tx.clone();
-        let cfg = config.clone();
-        tokio::spawn(async move {
-            match tokio::time::timeout(Duration::from_secs(12), ep.connect(addr, ALPN)).await {
-                Ok(Ok(conn)) => admit(conn, cfg, tx).await,
-                result => {
-                    let _ = tx.try_send(Internal::Failed(format!("Connect: {result:?}")));
-                }
-            }
-        });
+    for ticket in config
+        .seeds
+        .iter()
+        .filter(|s| s.starts_with("ssk1:"))
+        .chain(config.friends.iter())
+        .chain(connect.iter())
+    {
+        let addr = decode_ticket(ticket)?;
+        let id = addr.id.to_string();
+        if config.friends.contains(ticket) || connect.as_ref() == Some(ticket) {
+            overlay.friends.insert(id.clone());
+        }
+        overlay.fallback.insert(id, addr);
     }
+    if let Some(path) = &config.contact_cache {
+        for record in crate::cache::read(path) {
+            if let Some((origin, data)) = auth.verify(3, &record) {
+                if let Ok(contact) = serde_json::from_slice::<crate::contact::Contact>(&data) {
+                    if contact.addr.id.to_string() == origin
+                        && contact.addr.addrs.len() <= 16
+                        && contact.expires.saturating_add(86400) > crate::contact::unix_time()
+                    {
+                        overlay
+                            .fallback
+                            .entry(origin.clone())
+                            .or_insert(contact.addr);
+                    }
+                }
+                overlay.learn(origin, &data, &record);
+            }
+        }
+    }
+    let admission = std::sync::Arc::new(tokio::sync::Semaphore::new(16));
     let mut tick = tokio::time::interval(Duration::from_secs_f64(1. / config.net_hz as f64));
     tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut seq = 0u64;
@@ -131,13 +150,14 @@ pub(crate) async fn run(
             Some(record)=discovery.found.recv()=>{if let Some((origin,data))=auth.verify(3,&record){overlay.learn(origin,&data,&record);}},
             incoming=endpoint.accept()=>if let Some(incoming)=incoming {
                 if peers.len()>=config.max_peers {incoming.refuse();continue;}
+                let Ok(permit)=admission.clone().try_acquire_owned() else {incoming.refuse();continue;};
                 let tx=tx.clone();let cfg=config.clone();
-                tokio::spawn(async move {match incoming.await {Ok(conn)=>admit(conn,cfg,tx).await,Err(error)=>{let _=tx.try_send(Internal::Failed(error.to_string()));}}});
+                tokio::spawn(async move {let _permit=permit;match incoming.await {Ok(conn)=>admit(conn,cfg,tx).await,Err(error)=>{let _=tx.try_send(Internal::Failed(error.to_string()));}}});
             },
             Some(event)=rx.recv()=>match event {
                 Internal::Ready(conn)=>{
                     let id=conn.remote_id().to_string();
-                    overlay.connecting.remove(&id);
+                    overlay.connected(&id);
                     if peers.contains_key(&id)||peers.len()>=config.max_peers {conn.close(0u32.into(),b"duplicate or full");continue;}
                     peers.insert(id.clone(),crate::reliable::Peer::new(conn.clone()));
                     let _=worker.incoming.try_send(NetEvent::Connected(id.clone()));
@@ -193,6 +213,10 @@ pub(crate) async fn run(
                     worker.status.send_modify(|s|s.links=links);
                     let data=crate::routes::Routes::advertise(&peers,(seq/config.net_hz as u64*12) as usize);metric_record=auth.sign(5,&data);
                     worker.status.send_modify(|s|{s.routes=overlay.routes.chosen.len();s.route_changes=overlay.routes.changes;s.unconfirmed=overlay.routes.expired;});
+                    if seq%(config.net_hz as u64*15)==0 {if let Some(path)=&config.contact_cache {
+                        let records=overlay.records.iter().filter(|(id,_)| *id!=&overlay.id).map(|(_,r)|r.clone()).take(128).collect();
+                        if let Err(e)=crate::cache::write(path,records){let _=worker.incoming.try_send(NetEvent::Error(format!("Contact cache: {e}")));}
+                    }}
                     overlay.connecting.retain(|_,time|time.elapsed().as_secs()<15);
                     for (_id,addr) in overlay.connect_tasks(&peers,&endpoint){
                         let ep=endpoint.clone();let cfg=config.clone();let tx=tx.clone();

@@ -1,5 +1,6 @@
 //! Bounded bridge between game thread and asynchronous network workers.
 mod auth;
+mod cache;
 mod metrics;
 mod overlay;
 mod relay;
