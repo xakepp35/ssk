@@ -460,7 +460,12 @@ same full host/audio as successful primary comparison, change GPU only;20s
 observation with60s stack capture, one SIGINT if no manual close.
 
 L5 headless full host/audio:20261019T234738Z,29.344s,~138.3FPS,
-10080world/clock ticks,0overload/ERROR,60kernel records/0errors,29app samples/
+10080world/clock ticks,0overload/ERROR,60kernel records/0errors,30app samples/
 0read errors. One SIGINT; normal exit unverified. No GPU-dependent failure yet.
 Next20261019T234933Z: same headless host, default implicit layers allowed in child;
 only remove VK_LOADER_LAYERS_DISABLE, keep NVIDIA-only ICD and all other settings.
+
+L5 default implicit layers:20261019T234933Z,28.347s,no freeze/ERROR/
+overload;60kernel records/0errors,28app samples/0read errors. Next20261019T235124Z:
+same headless full host/audio with default ICD discovery, only unset child
+VK_DRIVER_FILES. No machine environment/driver changes.

@@ -15,12 +15,14 @@ kernel/driver/VPN/display/service/watchdog changes. After reboot read
 runtime/freeze-sessions/current.json and the pointed session.json/app.ndjson/
 console.ndjson, compare boot ID and preserve previous-boot evidence BEFORE
 any new launch. A start without finish is not itself proof of a host freeze.
-Current prepared session: runtime/freeze-sessions/20261019T234933Z.
-Next: same headless-GPU host/audio20s, allow default implicit Vulkan layers.
-Only child VK_LOADER_LAYERS_DISABLE is now unset. Same build/FIFO/NVIDIA-only
-ICD/PCI17/class/audio/network. Start60s1Hz capture, await durable ready, launch
-ONCE, observe20s, then one verified SIGINT if no manual close. No active SSK/
-collector. Original GPU/loader state unknown; no freeze reproduced yet.
+Current prepared session: runtime/freeze-sessions/20261019T235124Z.
+Next: same headless-GPU host/audio20s, default Vulkan driver discovery.
+Only child VK_DRIVER_FILES is now unset; implicit layers already allowed.
+Same build/FIFO/PCI17/class/audio/network. Start60s1Hz capture, await durable
+ready, launch ONCE, observe20s, one verified SIGINT if no manual close.
+No active SSK/collector. No freeze yet. If default driver discovery passes,
+review exact incident revision de14d7ab668d against current repairs before
+choosing an original/current comparison; do not repeat identical launches.
 
 ## L5 completed comparisons (current boot, same Linux binary)
 
@@ -34,6 +36,7 @@ collector. Original GPU/loader state unknown; no freeze reproduced yet.
 |20261019T234225Z|host/audio enabled|12.599s|~140.4FPS,4320ticks,no overload/ERROR|
 |20261019T234558Z|headless GPU static|10.702s|exit0,1303updates,60kernel records/0errors|
 |20261019T234738Z|headless host/audio|29.344s|~138.3FPS,10080world ticks,no overload/ERROR|
+|20261019T234933Z|same/default layers|28.347s|no overload/ERROR; kernel60records/0errors|
 
 Each directory is under runtime/freeze-sessions; durable metadata/logs and kernel
 summaries saved. First six stages did not reproduce freeze. Hardware stages pin
