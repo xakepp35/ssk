@@ -422,3 +422,9 @@ is not a freeze. Owner normal-close request pending; do not start second game.
 Offline game continued>3min without freeze; owner normal-close feedback absent.
 Prepare30s independent shutdown capture then one SIGINT to verified owned PID
 (no kill spam/retry). This does not verify normal window/menu shutdown.
+
+L5 offline end: 230.496s observed, 228render samples,
+last FPS140.51, no overload/error; stopped one verified owned PID
+with SIGINT, PID gone.30s shutdown capture also completed. Normal menu exit
+unverified. Next network/no-audio20s on same GPU with60s stack capture (same1Hz,
+shorter total window only); one SIGINT if owner does not close normally.
