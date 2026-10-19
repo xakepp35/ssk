@@ -87,6 +87,44 @@ Proceed only after reviewing the previous stage:
 | network | `host --no-audio` on the same GPU | audio disabled |
 | audio | `host` on the same GPU | network/presentation |
 
+### Physical GPU and presentation controls
+
+`adapter_candidate`/`adapter_selected` now record Vulkan deviceUUID and optional
+PCI address, plus supported presentation modes. Names and indices are not stable
+identities. Selection fails if the requested UUID/PCI is unavailable; it never
+silently chooses another card. The app queries read-only properties on adapters
+already enumerated by wgpu; no additional GPU instance/device/probe is created.
+
+The previous boot identified GNOME's display GPU as card2/`0000:65:00.0`, with
+`0000:17:00.0` headless. Reconfirm the current GNOME primary card from its existing
+boot journal before the hardware stage (targeted `primary|/dev/dri/card` entries),
+then map its sysfs `device` link to PCI. A card number alone can change on reboot.
+Use the confirmed address for the **single** hardware scene launch:
+
+```sh
+./ssk graphics-probe --gpu-pci 0000:65:00.0 --present-mode fifo --duration-secs 10 --simulation off
+```
+
+This is a later attended stage, not an extra enumeration launch before the CPU
+baseline. Confirm the selected event has that PCI address. Record the logged
+32-hex UUID and use `--gpu-uuid HEX` for subsequent same-GPU comparisons, adding
+`--simulation worker` only at the worker stage. PCI requires VK_EXT_pci_bus_info;
+UUID requires Vulkan1.1. Unsupported identity queries report absent identity;
+explicit selection then fails rather than guessing. Software mode never loads
+the NVIDIA application ICD just to obtain its identities.
+
+If captured evidence points to presentation, the separate comparison on that
+same GPU is `--present-mode mailbox --mailbox-repaint-hz 60`. Match the explicit
+idle cadence to the intended comparison;60Hz is the conservative diagnostic
+default, not a monitor measurement. The selector verifies Mailbox support before
+creating the device. Unsupported Mailbox is an error, not AutoVsync fallback.
+FIFO remains the default and monitor/compositor driven. Mailbox requests delayed
+idle redraws instead of continuously requesting repaint; native input/expose may
+repaint earlier, so this is not a strict FPS cap or a simulated vsync guarantee.
+Simulation always remains360Hz. Do not change GPU, simulation and presentation
+in the same comparison. No presentation difference alone identifies a specific
+kernel/driver defect without the corresponding capture.
+
 Change collector `--stage` accordingly. `play` explicitly selects offline even
 when packaged config says host. The game stages are manual10-second observations
 and normal menu exit; only the probe has a timed close. Start a fresh bounded

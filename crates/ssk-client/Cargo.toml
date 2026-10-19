@@ -10,6 +10,7 @@ ssk-sim.workspace = true
 ssk-net.workspace = true
 eframe.workspace = true
 wgpu.workspace = true
+ash = { version = "0.38", default-features = false }
 raw-window-handle = "0.6"
 quad-snd = "0.2.8"
 serde.workspace = true

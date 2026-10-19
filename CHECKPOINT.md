@@ -48,8 +48,8 @@ panic flags off; prepared arm/restore script never armed. Vulkan removes GLX,
 but does not establish the cause or prove freeze resolution. No GUI started.
 
 ## Active processes / exact next action
-Current approved work: PLAN L1–L6. L1 implemented/compiled (four jobs), L2 prepared; next L3
-stable GPU identity/presentation. No GUI launched or approved
+Current approved work: PLAN L1–L6. L1/L2/L3 implemented; next L4 final
+four-job build/package, then attended CPU baseline if explicitly authorized. No GUI launched or approved
 for automatic execution. No active build/collector/game. Hardware repair open.
 
 Current Linux four-job release/package completed in 1m33s (K below). No active
@@ -122,3 +122,12 @@ acceptance. Collector first sample adds stage/kernel/build/config hashes; never
 executes binary or dumps config. tools/freeze-liveness.ps1 writes/flushes1Hz
 ICMP to laptop, bounded1–900s; no service/firewall changes. Neither collector
 nor Windows script launched in this step; PowerShell runtime not verified.
+
+L3: log optional deviceUUID/PCI on already enumerated Vulkan adapters; guard
+properties2 by instance/device Vulkan1.1 and PCI pNext by advertised extension.
+--gpu-uuid / --gpu-pci / --gpu-index choose one compatible hardware device or
+fail. --present-mode fifo|mailbox checks actual surface support before device
+creation, no fallback. Mailbox idle repaint cadence default60Hz, finite delayed
+requests; native input may repaint earlier. FIFO monitor/vsync unaffected.
+Root software config stays containment. Worker early exit is a failed probe.
+No GUI/enumeration/runtime acceptance; no driver/kernel/VPN/service changes.

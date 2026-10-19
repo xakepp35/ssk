@@ -12,12 +12,17 @@ pub(crate) fn native_options(window: &WindowConfig) -> eframe::NativeOptions {
     // GPUs. Software mode must never fall back to a hardware device.
     let preference = window.adapter;
     let requested_index = window.adapter_index;
+    let requested_uuid = window.adapter_uuid.clone();
+    let requested_pci = window.adapter_pci.clone();
+    let present_mode = window.present_mode.wgpu();
     setup.native_adapter_selector = Some(Arc::new(move |adapters, surface| {
+        let identities: Vec<_> = adapters.iter().map(crate::gpu_identity::query).collect();
         for (index, adapter) in adapters.iter().enumerate() {
             let info = adapter.get_info();
             let compatible = surface.is_some_and(|s| adapter.is_surface_supported(s));
             tracing::info!(name:"ssk.client.graphics.adapter_candidate",index,adapter=%info.name,
                 driver=%info.driver,driver_info=%info.driver_info,device_type=?info.device_type,
+                device_uuid=?identities[index].uuid,pci_address=?identities[index].pci,
                 compatible,"Vulkan adapter candidate");
         }
         let acceptable = |adapter: &&wgpu::Adapter| {
@@ -25,17 +30,55 @@ pub(crate) fn native_options(window: &WindowConfig) -> eframe::NativeOptions {
             cpu == (preference == GraphicsAdapter::Software)
                 && surface.is_some_and(|s| adapter.is_surface_supported(s))
         };
-        let selected = if let Some(index) = requested_index {
+        let selected = if let Some(uuid) = &requested_uuid {
+            adapters
+                .iter()
+                .enumerate()
+                .find(|(index, adapter)| {
+                    acceptable(adapter)
+                        && identities[*index]
+                            .uuid
+                            .as_ref()
+                            .is_some_and(|id| id.eq_ignore_ascii_case(uuid))
+                })
+                .map(|(_, adapter)| adapter)
+        } else if let Some(pci) = &requested_pci {
+            adapters
+                .iter()
+                .enumerate()
+                .find(|(index, adapter)| {
+                    acceptable(adapter)
+                        && identities[*index]
+                            .pci
+                            .as_ref()
+                            .is_some_and(|id| id.eq_ignore_ascii_case(pci))
+                })
+                .map(|(_, adapter)| adapter)
+        } else if let Some(index) = requested_index {
             adapters.get(index).filter(acceptable)
         } else {
             adapters.iter().find(acceptable)
         };
         let selected = selected.ok_or_else(|| format!(
-            "No surface-compatible {preference:?} Vulkan adapter (requested index {requested_index:?}); refusing fallback"
+            "No surface-compatible {preference:?} Vulkan adapter (index {requested_index:?}, UUID {requested_uuid:?}, PCI {requested_pci:?}); refusing fallback"
         ))?;
-        let index = adapters.iter().position(|a| a == selected);
-        tracing::info!(name:"ssk.client.graphics.adapter_selected",?index,mode=?preference,
-            "Explicit Vulkan adapter policy applied");
+        let index = adapters
+            .iter()
+            .position(|a| a == selected)
+            .expect("selected enumerated adapter");
+        let capabilities = surface
+            .expect("selected surface-compatible adapter")
+            .get_capabilities(selected);
+        if !capabilities.present_modes.contains(&present_mode) {
+            return Err(format!(
+                "Requested {present_mode:?} is unsupported on selected Vulkan GPU; supported: {:?}; refusing fallback",
+                capabilities.present_modes
+            ));
+        }
+        tracing::info!(name:"ssk.client.graphics.adapter_selected",index,mode=?preference,
+            device_uuid=?identities[index].uuid,pci_address=?identities[index].pci,
+            present_mode=?present_mode,supported_present_modes=?capabilities.present_modes,
+            "Explicit Vulkan adapter/presentation policy applied");
         Ok(selected.clone())
     }));
     eframe::NativeOptions {
@@ -47,10 +90,10 @@ pub(crate) fn native_options(window: &WindowConfig) -> eframe::NativeOptions {
             .with_inner_size([window.width as f32, window.height as f32])
             .with_min_inner_size([WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT])
             .with_fullscreen(window.fullscreen),
-        vsync: true,
+        vsync: window.present_mode == crate::PresentMode::Fifo,
         persist_window: false,
         wgpu_options: egui_wgpu::WgpuConfiguration {
-            present_mode: wgpu::PresentMode::Fifo,
+            present_mode,
             desired_maximum_frame_latency: Some(MAX_FRAMES_IN_FLIGHT),
             wgpu_setup: setup.into(),
             on_surface_error: Arc::new(|error| {
@@ -77,6 +120,7 @@ pub(crate) fn native_options(window: &WindowConfig) -> eframe::NativeOptions {
 pub(crate) fn log_ready(
     cc: &eframe::CreationContext<'_>,
     owner: &crate::graphics_thread::GraphicsThread,
+    window: &WindowConfig,
 ) {
     owner.assert_current();
     let window_system = match cc.display_handle().map(|h| h.as_raw()) {
@@ -90,7 +134,8 @@ pub(crate) fn log_ready(
         tracing::info!(name:"ssk.client.graphics.ready",window_system,backend=?gpu.backend,
             adapter=%gpu.name,driver=%gpu.driver,driver_info=%gpu.driver_info,device_type=?gpu.device_type,
             vendor_id=gpu.vendor,device_id=gpu.device,surface_format=?state.target_format,
-            present_mode="fifo",max_frames_in_flight=MAX_FRAMES_IN_FLIGHT,
+            present_mode=?window.present_mode,mailbox_repaint_hz=window.mailbox_repaint_hz,
+            max_frames_in_flight=MAX_FRAMES_IN_FLIGHT,
             "Vulkan device and window initialized");
     }
 }
@@ -110,6 +155,7 @@ pub fn graphics_probe(window: &WindowConfig, options: ProbeOptions) -> std::io::
             "Probe duration must be 1..=PROBE_MAX_SECONDS",
         ));
     }
+    window.validate()?;
     let graphics_thread = crate::graphics_thread::GraphicsThread::enter()?;
     tracing::info!(name:"ssk.probe.begin",backend="vulkan",width=window.width,height=window.height,
         duration_ms=options.duration.as_millis() as u64,simulation=options.simulation,
@@ -124,7 +170,7 @@ pub fn graphics_probe(window: &WindowConfig, options: ProbeOptions) -> std::io::
         native_options(&window),
         Box::new(move |cc| {
             drop(initializing);
-            log_ready(cc, &graphics_thread);
+            log_ready(cc, &graphics_thread, &window);
             // Reuse production clock, bounded channels, stop/join and World::step.
             // The rendered scene does not consume or display simulation contents.
             let game = options.simulation.then(|| {
@@ -132,7 +178,7 @@ pub fn graphics_probe(window: &WindowConfig, options: ProbeOptions) -> std::io::
                     &crate::Options {
                         seed: options.seed,
                         class: None,
-                        window,
+                        window: window.clone(),
                         audio: crate::AudioConfig { enabled: false },
                         play: true,
                         online: false,
@@ -149,6 +195,7 @@ pub fn graphics_probe(window: &WindowConfig, options: ProbeOptions) -> std::io::
                 started: std::time::Instant::now(),
                 sampled: std::time::Instant::now(),
                 duration: options.duration,
+                window,
                 graphics_thread,
             }))
         }),
@@ -190,6 +237,7 @@ struct Probe {
     started: std::time::Instant,
     sampled: std::time::Instant,
     duration: std::time::Duration,
+    window: WindowConfig,
     graphics_thread: crate::graphics_thread::GraphicsThread,
 }
 impl eframe::App for Probe {
@@ -205,6 +253,10 @@ impl eframe::App for Probe {
                 report.reason = "simulation_error";
                 report.error = frame.error;
             }
+        }
+        if self.game.as_ref().is_some_and(|game| game.is_finished()) && report.error.is_empty() {
+            report.reason = "simulation_exited";
+            report.error = "Simulation worker exited before the probe finished".into();
         }
         let painter = ctx.layer_painter(egui::LayerId::background());
         painter.rect_filled(ctx.content_rect(), 0., SPACE_COLOR.egui());
@@ -230,7 +282,7 @@ impl eframe::App for Probe {
             }
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         } else {
-            ctx.request_repaint();
+            request_repaint(ctx, &self.window);
         }
     }
     fn on_exit(&mut self) {
@@ -240,5 +292,17 @@ impl eframe::App for Probe {
     }
     fn clear_color(&self, _: &egui::Visuals) -> [f32; 4] {
         [SPACE_COLOR.r, SPACE_COLOR.g, SPACE_COLOR.b, 1.]
+    }
+}
+
+/// FIFO remains driven by compositor/monitor presentation. Mailbox diagnostics
+/// don't self-schedule a busy loop: request a finite idle repaint interval.
+/// Native input/expose events may repaint earlier; this is not an FPS guarantee.
+pub(crate) fn request_repaint(ctx: &egui::Context, window: &WindowConfig) {
+    match window.present_mode {
+        crate::PresentMode::Fifo => ctx.request_repaint(),
+        crate::PresentMode::Mailbox => ctx.request_repaint_after(
+            std::time::Duration::from_secs_f64(1. / f64::from(window.mailbox_repaint_hz)),
+        ),
     }
 }

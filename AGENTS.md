@@ -113,3 +113,13 @@ owned by Canvas, and gameplay in its existing 360 Hz worker. Do not add glow,
 GLX/EGL/Macroquad or silently fall back to OpenGL. Let winit/egui handle native
 Wayland/DPI and surface lifecycle. Record actual adapter/window system at ready;
 compilation and a queued frame never prove presentation or a freeze fix.
+
+## Attended freeze investigation
+Follow docs/FREEZE_RUNBOOK.md / PLAN L. The timed graphics probe supports
+--duration-secs and --simulation off|worker using the real offline game loop
+with identical static drawing and no net/audio/profile. Do not auto-launch it.
+Keep physical GPU fixed with --gpu-pci or --gpu-uuid; index/name are insufficient
+across boots. FIFO is normal monitor-driven presentation; explicit Mailbox is
+diagnostic, supported-mode checked, with finite idle repaint cadence (input
+may repaint earlier). Never infer presentation or OS stability from callbacks.
+At the first freeze stop the sequence, preserve evidence before another launch.

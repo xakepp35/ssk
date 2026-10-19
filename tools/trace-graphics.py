@@ -16,6 +16,8 @@ ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_TIMEOUT_SECONDS = 20
 DEFAULT_DURATION_SECONDS = 10
 MAX_DURATION_SECONDS = 120
+DEFAULT_MAILBOX_REPAINT_HZ = 60
+MAX_MAILBOX_REPAINT_HZ = 1000
 STOP_GRACE_SECONDS = 2
 MAX_TRACE_BYTES = 16 * 1024 * 1024
 READ_CHUNK_BYTES = 64 * 1024
@@ -80,11 +82,17 @@ def main():
     device = parser.add_mutually_exclusive_group()
     device.add_argument("--graphics", choices=("software", "hardware"))
     device.add_argument("--gpu-index", type=int)
+    device.add_argument("--gpu-uuid")
+    device.add_argument("--gpu-pci")
+    parser.add_argument("--present-mode", choices=("fifo", "mailbox"), default="fifo")
+    parser.add_argument("--mailbox-repaint-hz", type=int, default=DEFAULT_MAILBOX_REPAINT_HZ)
     args = parser.parse_args()
     if not 1 <= args.duration_secs <= MAX_DURATION_SECONDS:
         parser.error(f"duration-secs must be 1..{MAX_DURATION_SECONDS}")
     if args.gpu_index is not None and args.gpu_index < 0:
         parser.error("gpu-index must be nonnegative")
+    if not 1 <= args.mailbox_repaint_hz <= MAX_MAILBOX_REPAINT_HZ:
+        parser.error(f"mailbox-repaint-hz must be 1..{MAX_MAILBOX_REPAINT_HZ}")
     if platform.system() != "Linux":
         parser.error("Linux-only; no native window will be started")
     tracer = args.strace or shutil.which("strace")
@@ -106,8 +114,15 @@ def main():
         "--log", str(folder / "stages.log"),
         "--duration-secs", str(args.duration_secs), "--simulation", args.simulation,
     ]
-    command += (["--gpu-index", str(args.gpu_index)] if args.gpu_index is not None
-                else ["--graphics", args.graphics or "software"])
+    if args.gpu_index is not None:
+        command += ["--gpu-index", str(args.gpu_index)]
+    elif args.gpu_uuid:
+        command += ["--gpu-uuid", args.gpu_uuid]
+    elif args.gpu_pci:
+        command += ["--gpu-pci", args.gpu_pci]
+    else:
+        command += ["--graphics", args.graphics or "software"]
+    command += ["--present-mode", args.present_mode, "--mailbox-repaint-hz", str(args.mailbox_repaint_hz)]
     timeout = args.duration_secs + DEFAULT_TIMEOUT_SECONDS
     metadata = {
         "command": command,

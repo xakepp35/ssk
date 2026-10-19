@@ -20,11 +20,23 @@ struct Cli {
     #[arg(long, global = true)]
     no_audio: bool,
     /// Vulkan device policy; software isolates Mesa Lavapipe on Linux.
-    #[arg(long, global = true, value_enum, conflicts_with = "gpu_index")]
+    #[arg(long, global = true, value_enum, conflicts_with_all = ["gpu_index", "gpu_uuid", "gpu_pci"])]
     graphics: Option<Graphics>,
     /// Explicit Vulkan adapter index (see adapter_candidate logs); selects hardware.
-    #[arg(long, global = true)]
+    #[arg(long, global = true, conflicts_with_all = ["gpu_uuid", "gpu_pci"])]
     gpu_index: Option<usize>,
+    /// Stable Vulkan device UUID from adapter_candidate logs (32 hexadecimal digits).
+    #[arg(long, global = true, conflicts_with = "gpu_pci")]
+    gpu_uuid: Option<String>,
+    /// Stable canonical PCI address, e.g. 0000:65:00.0; selects hardware Vulkan.
+    #[arg(long, global = true)]
+    gpu_pci: Option<String>,
+    /// Explicit surface presentation mode; unsupported modes fail without fallback.
+    #[arg(long, global = true, value_enum)]
+    present_mode: Option<Presentation>,
+    /// Mailbox diagnostic idle repaint cadence; FIFO remains monitor driven.
+    #[arg(long, global = true, value_parser = clap::value_parser!(u32).range(1..=ssk_client::constants::MAX_MAILBOX_REPAINT_HZ as i64))]
+    mailbox_repaint_hz: Option<u32>,
     /// NDJSON destination override (startup-log is a compatibility alias).
     #[arg(long, alias = "startup-log", global = true)]
     log_file: Option<std::path::PathBuf>,
@@ -110,6 +122,12 @@ enum Graphics {
 }
 
 #[derive(Clone, Copy, ValueEnum)]
+enum Presentation {
+    Fifo,
+    Mailbox,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
 enum ProbeSimulation {
     Off,
     Worker,
@@ -124,11 +142,36 @@ impl Cli {
             };
             if matches!(mode, Graphics::Software) {
                 window.adapter_index = None;
+                window.adapter_uuid = None;
+                window.adapter_pci = None;
             }
         }
         if let Some(index) = self.gpu_index {
             window.adapter = ssk_client::GraphicsAdapter::Hardware;
             window.adapter_index = Some(index);
+            window.adapter_uuid = None;
+            window.adapter_pci = None;
+        }
+        if let Some(uuid) = &self.gpu_uuid {
+            window.adapter = ssk_client::GraphicsAdapter::Hardware;
+            window.adapter_index = None;
+            window.adapter_uuid = Some(uuid.to_ascii_lowercase());
+            window.adapter_pci = None;
+        }
+        if let Some(pci) = &self.gpu_pci {
+            window.adapter = ssk_client::GraphicsAdapter::Hardware;
+            window.adapter_index = None;
+            window.adapter_uuid = None;
+            window.adapter_pci = Some(pci.to_ascii_lowercase());
+        }
+        if let Some(mode) = self.present_mode {
+            window.present_mode = match mode {
+                Presentation::Fifo => ssk_client::PresentMode::Fifo,
+                Presentation::Mailbox => ssk_client::PresentMode::Mailbox,
+            };
+        }
+        if let Some(hz) = self.mailbox_repaint_hz {
+            window.mailbox_repaint_hz = hz;
         }
     }
 }
@@ -147,6 +190,7 @@ fn main() -> std::process::ExitCode {
         (|| -> anyhow::Result<()> {
             let mut app = config::Config::load(cli.config.as_deref())?;
             cli.apply_graphics(&mut app.window);
+            app.window.validate()?;
             graphics_process::prepare(&app.window)
         })()
     } else {
@@ -210,6 +254,7 @@ fn run(cli: Cli) -> anyhow::Result<()> {
     }
     let mut app = config::Config::load(cli.config.as_deref())?;
     cli.apply_graphics(&mut app.window);
+    app.window.validate()?;
     if cli.no_audio {
         app.audio.enabled = false;
     }

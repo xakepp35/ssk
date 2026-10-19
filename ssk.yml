@@ -9,9 +9,15 @@ window:
   fullscreen: false
   # software = isolated CPU Vulkan on Linux; hardware = native GPU Vulkan.
   # Linux incident package uses software; Windows packaging selects hardware.
-  # --graphics hardware or --gpu-index N explicitly selects the GPU path.
+  # --gpu-pci 0000:65:00.0 or --gpu-uuid HEX pins a physical GPU, not a name.
+  # --graphics hardware or --gpu-index N also explicitly selects the GPU path.
   adapter: software
   adapter_index: null
+  adapter_uuid: null
+  adapter_pci: null
+  present_mode: fifo
+  # Only explicit Mailbox uses this idle repaint cadence. FIFO follows VSync.
+  mailbox_repaint_hz: 60
 audio:
   # Set false (or pass --no-audio) to skip opening the audio device entirely.
   enabled: true

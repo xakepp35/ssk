@@ -6,10 +6,11 @@ use std::time::Instant;
 pub mod bench;
 mod config;
 pub mod constants;
-pub use config::{AudioConfig, GraphicsAdapter, WindowConfig};
+pub use config::{AudioConfig, GraphicsAdapter, PresentMode, WindowConfig};
 pub mod diagnostics;
 mod effects;
 mod game;
+mod gpu_identity;
 mod graphics;
 mod graphics_thread;
 mod online;
@@ -28,13 +29,14 @@ pub struct Options {
     pub network: ssk_net::Config,
 }
 pub fn launch(options: Options) -> std::io::Result<()> {
+    options.window.validate()?;
     let graphics_thread = graphics_thread::GraphicsThread::enter()?;
     let mut profile = profile::Profile::load();
     profile.width = options.window.width;
     profile.height = options.window.height;
     profile.fullscreen = options.window.fullscreen;
     tracing::info!(name:"ssk.client.graphics.begin",backend="vulkan",width=profile.width,height=profile.height,
-        present_mode="fifo",fullscreen=profile.fullscreen,"Entering winit/wgpu window and device setup");
+        present_mode=?options.window.present_mode,fullscreen=profile.fullscreen,"Entering winit/wgpu window and device setup");
     let initializing =
         tracing::debug_span!("ssk.client.graphics.initialize", watchdog = true).entered();
     eframe::run_native(
@@ -42,7 +44,7 @@ pub fn launch(options: Options) -> std::io::Result<()> {
         diagnostics::native_options(&options.window),
         Box::new(move |cc| {
             drop(initializing);
-            diagnostics::log_ready(cc, &graphics_thread);
+            diagnostics::log_ready(cc, &graphics_thread, &options.window);
             Ok(Box::new(ClientApp::new(options, profile, graphics_thread)))
         }),
     )
@@ -526,7 +528,7 @@ impl eframe::App for ClientApp {
         }
         tracing::trace!(name:"ssk.client.render.frame",frame_time_ms=canvas.get_frame_time() as f64*MILLIS_PER_SECOND,
             simulation_tick=self.world.tick,width=canvas.screen_width(),height=canvas.screen_height(),"Frame commands queued");
-        ctx.request_repaint();
+        diagnostics::request_repaint(ctx, &self.options.window);
         self.sample_frames += 1;
         self.max_frame_ms = self
             .max_frame_ms

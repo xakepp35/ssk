@@ -309,6 +309,11 @@ impl Game {
     pub fn restart(&self, seed: u64, class: ShipClass) {
         let _ = self.commands.try_send(Command::Restart { seed, class });
     }
+    pub fn is_finished(&self) -> bool {
+        self.thread
+            .as_ref()
+            .is_none_or(|thread| thread.is_finished())
+    }
 }
 impl Drop for Game {
     fn drop(&mut self) {

@@ -318,7 +318,8 @@ with kernel-stack capture submitted because AGENTS prohibits automatic GUI.
   explicit exit reason/progress, bounded production handoff. Trace wrapper has
   explicit graphics/index/simulation/duration controls and bounded capture.
 - [x] L2 — Independent capture/runbook and Windows timestamped liveness monitor.
-- [ ] L3 — Stable GPU identity, strict presentation selection and render pacing.
+- [x] L3 — Stable PCI/deviceUUID identity and selection; strict FIFO/Mailbox
+  surface support, finite Mailbox idle redraws, FIFO monitor-driven unchanged.
 - [ ] L4 — Four-job Linux build/package, fingerprint, attended capture readiness.
 - [ ] L5 — Owner-attended comparisons: CPU graphics -> hardware graphics ->
   same hardware plus worker -> offline game -> network -> audio. Start10s;
@@ -331,3 +332,9 @@ fixed during comparisons. Software is diagnostic containment, not release
 acceptance. Driver/kernel changes or panic capture require a separate reviewed
 step with rollback. No automated tests or stress loops. See operator runbook
 when L2 is complete. L1 focused four-job cargo check passed; no GUI launched.
+
+L3: optional Vulkan HAL properties2 query guarded by API>=1.1 and PCI extension;
+read-only borrowed adapter, no new device/instance. UUID/PCI/index mutually
+exclusive and fail without matching compatible hardware. No new dependency
+version: ash0.38 was already locked, now direct. Four-job cargo check passed1.62s
+before final documentation/config adjustments. No adapter enumeration/GUI run.
