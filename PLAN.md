@@ -34,7 +34,7 @@ no automated tests unless requested. A short manual game session when available.
 - [x] B6 — Piggyback RTT, loss, load, diagnostics. `feat: measure live peer links`
 - [x] B7 — Row/column/diagonal graph, at most one transit. `feat: add bounded-hop peer routing`
 - [x] B8 — Prepared backups, dedup, capacity, failover. `feat: balance and recover peer routes`
-- [ ] B9 — Kademlia, bootstrap, signed contacts, node mode. `feat: add decentralized discovery`
+- [x] B9 — Kademlia, bootstrap, signed contacts, node mode. `feat: add decentralized discovery`
 - [ ] B10 — Interest regions, prefetch, seamless sector transitions. `feat: add seamless sector discovery`
 - [ ] B11 — Shared NPCs/asteroids/loot, single pickup confirmation. `feat: synchronize shared sector objects`
 - [ ] B12 — Leases, snapshots, epochs, owner recovery. `feat: recover sector ownership`

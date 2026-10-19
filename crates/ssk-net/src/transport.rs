@@ -76,6 +76,11 @@ pub(crate) async fn run(
     mut worker: Worker,
 ) -> anyhow::Result<()> {
     let mut auth = crate::auth::Auth::new(key.clone(), &config);
+    let discovery_id = crate::contact::discovery_id(&key.public())
+        .unwrap()
+        .to_string();
+    let mut discovery =
+        crate::discovery::Discovery::start(key.clone(), config.clone(), worker.stop.clone())?;
     let relay = if config.relays.is_empty() {
         RelayMode::Disabled
     } else {
@@ -122,6 +127,7 @@ pub(crate) async fn run(
     loop {
         tokio::select! {
             _=worker.stop.changed()=>break,
+            Some(record)=discovery.found.recv()=>{if let Some((origin,data))=auth.verify(3,&record){overlay.learn(origin,&data,&record);}},
             incoming=endpoint.accept()=>if let Some(incoming)=incoming {
                 if peers.len()>=config.max_peers {incoming.refuse();continue;}
                 let tx=tx.clone();let cfg=config.clone();
@@ -156,7 +162,9 @@ pub(crate) async fn run(
                 if seq%150==0 {
                     let mut addr=endpoint.addr();if let Some(ip)=config.advertise {addr.addrs.insert(iroh::TransportAddr::Ip(ip));}
                     let ticket=encode_ticket(&addr)?;
-                    let bytes=serde_json::to_vec(&addr)?;let signed=auth.sign(3,&bytes);overlay.learn(overlay.id.clone(),&bytes,&signed);
+                    let sector=Snapshot::decode(&worker.state.borrow()).map(|s|s.pos.sector).unwrap_or([0,0]);
+                    let contact=crate::contact::Contact{addr:addr.clone(),discovery:discovery_id.clone(),expires:crate::contact::unix_time()+60,sector};
+                    let bytes=serde_json::to_vec(&contact)?;let signed=auth.sign(3,&bytes);overlay.learn(overlay.id.clone(),&bytes,&signed);discovery.publish.send_replace((signed,sector));
                     if !published&&!addr.addrs.is_empty(){println!("SSK invite: {ticket}");published=true;}
                     worker.status.send_modify(|s|{s.ticket=ticket;if s.phase=="Starting network"{s.phase="Waiting for peer".into();}});
                 }
@@ -175,6 +183,7 @@ pub(crate) async fn run(
                     let packet=peer.packet(seq,kind,&control,config.net_hz,limit);let len=packet.len();if peer.conn.send_datagram(packet.into()).is_ok(){peer.metrics.sent(len);}
                 }
                 if seq%config.net_hz as u64==0 {
+                    for id in overlay.prune(){if let Some(p)=peers.remove(&id){p.conn.close(0u32.into(),b"presence expired");}let _=worker.incoming.try_send(NetEvent::Disconnected(id));}
                     let links=peers.iter_mut().map(|(id,p)|{p.metrics.stats.peer=id.clone();p.metrics.stats.direct=p.conn.paths().iter().any(|path|path.is_selected()&&path.is_ip());p.metrics.sample()}).collect();
                     worker.status.send_modify(|s|s.links=links);
                     let data=crate::routes::Routes::advertise(&peers,(seq/config.net_hz as u64*12) as usize);metric_record=auth.sign(5,&data);

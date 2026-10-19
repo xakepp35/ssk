@@ -14,13 +14,13 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - `cargo check --workspace` passed after A2; no tests/manual session.
 
 ## Live state
-- Completed B8: Signed bounded link-metric deltas, measured two-leg route costs, three prepared critical paths, E2E ACK/retry/dedup with visible expiry, hysteresis, per-origin queue admission, 8 KiB/s control token budget and aggregate payload send budget. Failure scenarios remain unexercised.
+- Completed B9: libp2p QUIC Kademlia/Identify task, bounded in-memory records, configurable multiaddr seeds, 15-second sector providers and 60-second signed contacts binding Iroh/libp2p keys. Headless node prints its discovery address; no public seed deployment or internet acceptance.
 - `cargo check --workspace` passed at this step. No automated tests run.
 - No manual play session yet. No public hosts for internet acceptance.
 - No active project processes. Source discussions preserved. No push.
 
 ## Next
-B9: libp2p Kademlia bootstrap, identity-bound signed presence records and headless discovery.
+B10: immediate presence updates, neighbouring sector prefetch and interest-filtered gameplay without connection resets.
 
 ## Constraints
 240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.

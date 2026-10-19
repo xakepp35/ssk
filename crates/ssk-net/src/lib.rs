@@ -6,6 +6,8 @@ mod routes;
 pub mod topology;
 pub use metrics::LinkStats;
 mod config;
+mod contact;
+mod discovery;
 mod validation;
 pub use validation::*;
 mod events;

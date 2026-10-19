@@ -11,6 +11,7 @@ pub(crate) struct Overlay {
     pub connecting: HashMap<String, Instant>,
     pub last_change: Instant,
     pub routes: crate::routes::Routes,
+    pub presence: HashMap<String, crate::contact::Contact>,
 }
 impl Overlay {
     pub fn new(id: String) -> Self {
@@ -21,6 +22,7 @@ impl Overlay {
             connecting: HashMap::new(),
             last_change: Instant::now(),
             routes: Default::default(),
+            presence: HashMap::new(),
         }
     }
     pub fn members(&self) -> Vec<String> {
@@ -30,9 +32,17 @@ impl Overlay {
         if self.contacts.len() >= 128 && !self.contacts.contains_key(&id) {
             return false;
         }
-        let Ok(addr) = serde_json::from_slice::<EndpointAddr>(bytes) else {
+        let Some(contact) = crate::contact::Contact::decode(&id, bytes) else {
             return false;
         };
+        let addr = contact.addr.clone();
+        if self
+            .presence
+            .get(&id)
+            .is_some_and(|old| old.expires > contact.expires)
+        {
+            return false;
+        }
         if addr.id.to_string() != id || addr.addrs.len() > 16 {
             return false;
         }
@@ -40,6 +50,7 @@ impl Overlay {
             self.last_change = Instant::now();
         }
         self.contacts.insert(id.clone(), addr);
+        self.presence.insert(id.clone(), contact);
         self.records.insert(id, signed.to_vec());
         true
     }
@@ -180,6 +191,23 @@ impl Overlay {
     }
     pub fn settled(&self) -> bool {
         self.last_change.elapsed() > Duration::from_secs(10)
+    }
+    pub fn prune(&mut self) -> Vec<String> {
+        let expired: Vec<_> = self
+            .presence
+            .iter()
+            .filter(|(_, c)| c.expires <= crate::contact::unix_time())
+            .map(|(id, _)| id.clone())
+            .collect();
+        for id in &expired {
+            self.presence.remove(id);
+            self.contacts.remove(id);
+            self.records.remove(id);
+        }
+        if !expired.is_empty() {
+            self.last_change = Instant::now();
+        }
+        expired
     }
     pub fn receive(
         &mut self,

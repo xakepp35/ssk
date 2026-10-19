@@ -16,6 +16,8 @@ pub struct Config {
     pub seeds: Vec<String>,
     pub identity_file: PathBuf,
     pub max_peers: usize,
+    pub discovery_bind: SocketAddr,
+    pub discovery_advertise: Vec<String>,
 }
 impl Default for Config {
     fn default() -> Self {
@@ -29,6 +31,8 @@ impl Default for Config {
             seeds: vec![],
             identity_file: data_dir().join("identity.key"),
             max_peers: 128,
+            discovery_bind: "0.0.0.0:0".parse().unwrap(),
+            discovery_advertise: vec![],
         }
     }
 }
