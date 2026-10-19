@@ -15,20 +15,21 @@ kernel/driver/VPN/display/service/watchdog changes. After reboot read
 runtime/freeze-sessions/current.json and the pointed session.json/app.ndjson/
 console.ndjson, compare boot ID and preserve previous-boot evidence BEFORE
 any new launch. A start without finish is not itself proof of a host freeze.
-Current PREPARED original-code session: runtime/freeze-sessions/20261019T235520Z.
-Binary runtime/freeze-baseline/ssk, unmodified incident source de14d7ab668d,
-four-job release1m29s. SHA2568389c1d751f1229638d00f4b233f38d534079ad1094333a7a00d0baecbcd7c10. Rebuilt artifact differs from
-historical ELF (recorded in manifest), same source/original lockfile. Config
-baseline.yml original except absolute path to existing dist identity, no key
-copied. Original automatic high-performance GPU selection has no PCI/UUID log;
-may differ from current first-compatible selection. Same FIFO/host/audio/class/
-default Vulkan drivers/layers. Start60s1Hz capture, await durable ready, ONE
-launch20s, then one owned SIGINT if no manual close. Stop at first freeze.
-No active game/collector/build. dist unchanged; target/release/ssk restored from
-dist using atomic replacement, baseline kept separately. Worktree remains under
-runtime/freeze-baseline-source, detached/unmodified; not another mutation driver.
-If original also passes, do not claim causation of earlier mutex/WSI repairs;
-review session/terminal/focus/storage differences before more identical launches.
+Current prepared session: runtime/freeze-sessions/20261019T235828Z.
+Next ONE original-code full host/audio launch in real GNOME terminal, instead of
+redirected console. Same baseline binary/config/FIFO/autoGPU/class/default Vulkan
+loader as previous original run. Start60s1Hz capture with original binary/config,
+await durable ready, launch terminal helper once. Helper persists PID/TTY before
+exec. Observe20s then single verified SSK SIGINT if not normally closed. Do not
+use run-one.py for this stage (it redirects stdout); use exec-terminal-once.py.
+No active app/collector/build. Prior original source also passed28.632s, so no
+causality established for current repairs. Human visual/monitor-state questions
+pending. No repeated identical launches. Stop at first freeze.
+Baseline source detached/unmodified at runtime/freeze-baseline-source;
+binary runtime/freeze-baseline/ssk SHA2568389c1d751f1229638d00f4b233f38d534079ad1094333a7a00d0baecbcd7c10.
+Original-compatible config in20261019T235520Z/baseline.yml uses existing key by
+absolute path, no copied key. Original GPU identity unknown. dist unchanged;
+target/release normal entry restored. Root collector remains read-only.
 
 ## L5 completed comparisons (current boot, same Linux binary)
 
@@ -44,6 +45,7 @@ review session/terminal/focus/storage differences before more identical launches
 |20261019T234738Z|headless host/audio|29.344s|~138.3FPS,10080world ticks,no overload/ERROR|
 |20261019T234933Z|same/default layers|28.347s|no overload/ERROR; kernel60records/0errors|
 |20261019T235124Z|same/default ICD discovery|28.353s|3candidates,no overload/ERROR|
+|20261019T235520Z|rebuilt original source|28.632s|~139.3FPS,10080world ticks,no overload/ERROR|
 
 Each directory is under runtime/freeze-sessions; durable metadata/logs and kernel
 summaries saved. First six stages did not reproduce freeze. Hardware stages pin

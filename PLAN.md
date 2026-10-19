@@ -484,3 +484,10 @@ Historical ELF hash differs; not a bit-identical reproduction. dist unchanged,
 target normal entry restored. Original-compatible config except absolute existing
 identity path. Same full host/audio/FIFO/default loader, but original automatic
 GPU selection lacks stable identity logging. Fresh60s capture, single20s run.
+
+L5 original-source result:20261019T235520Z,28.632s,~139.3FPS,
+10080world ticks/0overload/ERROR,60kernel records/0errors,28app samples/0read
+errors. Original source also did not freeze; earlier repairs cannot be credited
+as an established host-freeze fix. Next20261019T235828Z: same original launch but visible
+GNOME-terminal stdout, rather than file redirection. Single20s observation and
+60s capture; no power/monitor/storage setting changes.
