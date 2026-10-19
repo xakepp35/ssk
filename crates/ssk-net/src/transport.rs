@@ -7,7 +7,6 @@ use iroh::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
-const ALPN: &[u8] = b"ssk/game/3";
 #[derive(Serialize, Deserialize)]
 struct Hello {
     version: u16,
@@ -130,7 +129,7 @@ pub(crate) async fn run(
     }
     if let Some(path) = &config.contact_cache {
         for record in crate::cache::read(path) {
-            if let Some((origin, data)) = auth.verify(3, &record) {
+            if let Some((origin, data)) = auth.verify(message::CONTACT, &record) {
                 if let Ok(contact) = serde_json::from_slice::<crate::contact::Contact>(&data) {
                     if contact.addr.id.to_string() == origin
                         && contact.addr.addrs.len() <= MAX_ENDPOINT_ADDRS
@@ -150,6 +149,7 @@ pub(crate) async fn run(
     let admission = std::sync::Arc::new(tokio::sync::Semaphore::new(MAX_HANDSHAKES));
     let mut tick = tokio::time::interval(ssk_sim::PACKET_DURATION);
     tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    let mut last_slot = std::time::Instant::now();
     let mut seq = 0u64;
     let mut published = false;
     let mut last_addr = None;
@@ -163,8 +163,8 @@ pub(crate) async fn run(
     loop {
         tokio::select! {
             _=worker.stop.changed()=>break,
-            changed=worker.contacts.changed()=>{if changed.is_ok(){let records=worker.contacts.borrow_and_update().clone();for record in records{if let Some((origin,data))=auth.verify(3,&record){overlay.learn(origin,&data,&record);}}}},
-            Some(record)=discovery.found.recv()=>{if let Some((origin,data))=auth.verify(3,&record){overlay.learn(origin,&data,&record);}},
+            changed=worker.contacts.changed()=>{if changed.is_ok(){let records=worker.contacts.borrow_and_update().clone();for record in records{if let Some((origin,data))=auth.verify(message::CONTACT,&record){overlay.learn(origin,&data,&record);}}}},
+            Some(record)=discovery.found.recv()=>{if let Some((origin,data))=auth.verify(message::CONTACT,&record){overlay.learn(origin,&data,&record);}},
             incoming=endpoint.accept()=>if let Some(incoming)=incoming {
                 if peers.len()>=config.max_peers {incoming.refuse();continue;}
                 let Ok(permit)=admission.clone().try_acquire_owned() else {incoming.refuse();continue;};
@@ -194,17 +194,20 @@ pub(crate) async fn run(
             Some(event)=worker.events.recv()=>{
                 match CombatEvent::decode(&event) {
                     Some(CombatEvent::Shared(SharedEvent::Lease{sector,..}))=>{
-                        if leases.len()<SHARED_LEASE_SECTORS||leases.contains_key(&sector){leases.insert(sector,(auth.sign(8,&event),std::time::Instant::now()));}
+                        if leases.len()<SHARED_LEASE_SECTORS||leases.contains_key(&sector){leases.insert(sector,(auth.sign(message::LEASE,&event),std::time::Instant::now()));}
                     },
                     decoded=>{
                         if let Some(CombatEvent::Shared(SharedEvent::Release{sector,..}))=decoded {leases.remove(&sector);}
-                        let event=auth.sign(1,&event);
-                        overlay.queue(1,&event,&mut peers,seq);
+                        let event=auth.sign(message::CRITICAL,&event);
+                        overlay.queue(message::CRITICAL,&event,&mut peers,seq);
                     }
                 }
 
             },
             _=tick.tick()=>{
+                anyhow::ensure!(last_slot.elapsed() <= ssk_sim::MAX_LOGIC_LAG,
+                    "Network cannot sustain {} Hz; session disconnected", ssk_sim::PACKET_PER_SEC);
+                last_slot = std::time::Instant::now();
                 let snapshot=Snapshot::decode(&worker.state.borrow());
                 let sector=snapshot.map(|s|s.pos.sector).unwrap_or([0,0]);
                 let presence_changed=overlay.presence.get(&overlay.id).is_none_or(|c|c.sector!=sector||c.playing!=snapshot.is_some());
@@ -213,35 +216,41 @@ pub(crate) async fn run(
                     last_addr=Some(addr.clone());
                     let ticket=encode_ticket(&addr)?;
                     let contact=crate::contact::Contact{addr:addr.clone(),discovery:discovery_id.clone(),expires:crate::contact::unix_time()+CONTACT_TTL_SECONDS,sector,playing:snapshot.is_some()};
-                    let bytes=serde_json::to_vec(&contact)?;let signed=auth.sign(3,&bytes);overlay.learn(overlay.id.clone(),&bytes,&signed);worker.status.send_modify(|s|s.contact=signed.clone());discovery.publish.send_replace((signed,sector));
+                    let bytes=serde_json::to_vec(&contact)?;let signed=auth.sign(message::CONTACT,&bytes);overlay.learn(overlay.id.clone(),&bytes,&signed);worker.status.send_modify(|s|s.contact=signed.clone());discovery.publish.send_replace((signed,sector));
                     if !published&&!addr.addrs.is_empty(){println!("SSK invite: {ticket}");published=true;}
                     worker.status.send_modify(|s|{s.ticket=ticket;if s.phase=="Starting network"{s.phase="Waiting for peer".into();}});
                 }
                 seq+=1;
                 if let Some(snapshot)=snapshot {overlay.positions.insert(overlay.id.clone(),snapshot);}
-                if worker.state.has_changed().unwrap_or(false) {let state=worker.state.borrow_and_update().clone();signed_state=auth.sign(0,&state);}
-                if !signed_state.is_empty(){overlay.queue(0,&signed_state,&mut peers,seq);}
-                leases.retain(|_,(_,time)|time.elapsed().as_secs_f32()<2.);
-                if seq%(ssk_sim::PACKET_PER_SEC/LEASE_REPEAT_HZ).max(1) as u64==0 {for (lease,_) in leases.values(){overlay.queue(8,lease,&mut peers,seq);}}
-                if worker.shared.has_changed().unwrap_or(false){let frames=worker.shared.borrow_and_update().clone().into_iter().take(PEER_STATE_QUEUE).filter(|f| f.len()<=SHARED_FRAME_BYTES).map(|f| auth.sign(6,&f)).collect::<Vec<_>>();overlay.shared(&frames,&mut peers);}
+                if worker.state.has_changed().unwrap_or(false) {let state=worker.state.borrow_and_update().clone();signed_state=auth.sign(message::STATE,&state);}
+                if !signed_state.is_empty(){overlay.queue(message::STATE,&signed_state,&mut peers,seq);}
+                leases.retain(|_,(_,time)|time.elapsed().as_secs_f64()<ssk_sim::LEASE_SECONDS);
+                if seq%(ssk_sim::PACKET_PER_SEC/LEASE_REPEAT_HZ).max(1) as u64==0 {for (lease,_) in leases.values(){overlay.queue(message::LEASE,lease,&mut peers,seq);}}
+                if worker.shared.has_changed().unwrap_or(false){let frames=worker.shared.borrow_and_update().clone().into_iter().take(PEER_STATE_QUEUE).filter(|f| f.len()<=SHARED_FRAME_BYTES).map(|f| auth.sign(message::SECTOR,&f)).collect::<Vec<_>>();overlay.shared(&frames,&mut peers);}
                 overlay.retry(&mut peers,seq);
                 control_budget=(control_budget+CONTROL_BYTES_PER_SEC/ssk_sim::PACKET_PER_SEC as f32).min(CONTROL_BYTES_PER_SEC);
-                payload_budget=(payload_budget+payload_rate as f32/ssk_sim::PACKET_PER_SEC as f32).min(payload_rate as f32/10.);
+                payload_budget=(payload_budget+payload_rate as f32/ssk_sim::PACKET_PER_SEC as f32).min(payload_rate as f32 * PAYLOAD_BURST_SECONDS);
                 let mut ids:Vec<_>=peers.keys().cloned().collect();ids.sort();let count=ids.len();if count>0{ids.rotate_left(seq as usize%count);}
-                for id in ids{let peer=peers.get_mut(&id).unwrap();
-                    let phase=id.bytes().fold(0u64,|h,b| h.wrapping_mul(31).wrapping_add(b as u64))%ssk_sim::PACKET_PER_SEC as u64;
+                for (index,id) in ids.into_iter().enumerate(){let peer=peers.get_mut(&id).unwrap();
+                    let phase=id.bytes().fold(0u64,|h,b| h.wrapping_mul(PHASE_HASH_MULTIPLIER).wrapping_add(b as u64))%ssk_sim::PACKET_PER_SEC as u64;
                     let slot=(seq+phase)%ssk_sim::PACKET_PER_SEC as u64;
                     let (kind,contact)=if slot==0{(5,metric_record.clone())}else if slot==ssk_sim::PACKET_PER_SEC as u64/2{(3,overlay.records.values().nth(control_cursor%overlay.records.len().max(1)).cloned().unwrap_or_default())}else{(3,Vec::new())};
-                    let limit=MAX_DATAGRAM_BYTES.min(peer.conn.max_datagram_size().unwrap_or(0)).min(payload_budget as usize);
+                    // Reserve a heartbeat for every remaining connection in this slot.
+                    let reserve=(count-index-1)*MIN_DATAGRAM_BYTES;
+                    let available=(payload_budget as usize).saturating_sub(reserve);
+                    let limit=MAX_DATAGRAM_BYTES.min(peer.conn.max_datagram_size().unwrap_or(0)).min(available);
                     if limit<MIN_DATAGRAM_BYTES{continue;}
-                    let control=if !contact.is_empty()&&control_budget>=contact.len() as f32&&contact.len()+27<=limit{control_budget-=contact.len() as f32;control_cursor+=usize::from(kind==3);contact}else{Vec::new()};
-                    let packet=peer.packet(seq,kind,&control,limit);let len=packet.len();if peer.conn.send_datagram(packet.into()).is_ok(){payload_budget-=len as f32;peer.metrics.sent(len);}
+                    let control=if !contact.is_empty()&&control_budget>=contact.len() as f32&&contact.len()+METRIC_HEADER_BYTES+FRAME_HEADER_BYTES<=limit{control_budget-=contact.len() as f32;control_cursor+=usize::from(kind==message::CONTACT);contact}else{Vec::new()};
+                    let packet=peer.packet(seq,kind,&control,limit);let len=packet.len();match peer.conn.send_datagram(packet.into()) {
+                        Ok(())=>{payload_budget-=len as f32;peer.metrics.sent(len);},
+                        Err(error)=>{peer.conn.close(1u32.into(),b"datagram send failed");let _=worker.incoming.try_send(NetEvent::Error(format!("Peer disconnected: {error}")));}
+                    }
                 }
                 if seq%ssk_sim::PACKET_PER_SEC as u64==0 {
                     for id in overlay.prune(){if let Some(p)=peers.remove(&id){p.conn.close(0u32.into(),b"presence expired");}let _=worker.incoming.try_send(NetEvent::Disconnected(id));}
                     let links=peers.iter_mut().map(|(id,p)|{p.metrics.stats.peer=id.clone();p.metrics.stats.direct=p.conn.paths().iter().any(|path|path.is_selected()&&path.is_ip());p.metrics.sample()}).collect();
                     worker.status.send_modify(|s|{s.links=links;s.crypto=auth.stats.clone();});
-                    let data=crate::routes::Routes::advertise(&peers,(seq/ssk_sim::PACKET_PER_SEC as u64 * METRIC_ROWS as u64) as usize);metric_record=auth.sign(5,&data);
+                    let data=crate::routes::Routes::advertise(&peers,(seq/ssk_sim::PACKET_PER_SEC as u64 * METRIC_ROWS as u64) as usize);metric_record=auth.sign(message::METRICS,&data);
                     worker.status.send_modify(|s|{s.routes=overlay.routes.chosen.len();s.route_changes=overlay.routes.changes;s.unconfirmed=overlay.routes.expired;});
                     if seq%(ssk_sim::PACKET_PER_SEC * CONTACT_RENEW_SECONDS)==0 {if let Some(path)=&config.contact_cache {
                         let records=overlay.records.iter().filter(|(id,_)| *id!=&overlay.id).map(|(_,r)|r.clone()).take(MAX_PEERS).collect();

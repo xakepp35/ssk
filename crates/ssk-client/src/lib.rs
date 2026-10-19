@@ -193,10 +193,10 @@ async fn run(options: Options, mut profile: profile::Profile) {
         }
         if !menu && !help {
             if is_key_pressed(KeyCode::Q) || mouse_wheel().1 > 0. {
-                weapon = (weapon + 2) % 3;
+                weapon = (weapon + ssk_sim::WEAPON_COUNT - 1) % ssk_sim::WEAPON_COUNT;
             }
             if is_key_pressed(KeyCode::E) || mouse_wheel().1 < 0. {
-                weapon = (weapon + 1) % 3;
+                weapon = (weapon + 1) % ssk_sim::WEAPON_COUNT;
             }
             for (i, key) in [KeyCode::Key1, KeyCode::Key2, KeyCode::Key3]
                 .into_iter()

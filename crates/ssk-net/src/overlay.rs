@@ -163,7 +163,7 @@ impl Overlay {
         peers: &mut HashMap<String, crate::reliable::Peer>,
         seq: u64,
     ) {
-        if kind == 0 || kind == 8 {
+        if kind == message::STATE || kind == message::LEASE {
             self.batch(kind, &[data.to_vec()], peers);
             return;
         }
@@ -174,7 +174,7 @@ impl Overlay {
             .cloned()
             .collect();
         for dest in destinations {
-            if kind == 1 {
+            if kind == message::CRITICAL {
                 if self.routes.pending.len() < ROUTE_EVENT_QUEUE {
                     if let Some(id) = crate::routes::event_id(data) {
                         self.routes.inflight.insert((dest.clone(), id));
@@ -198,7 +198,7 @@ impl Overlay {
         frames: &[Vec<u8>],
         peers: &mut HashMap<String, crate::reliable::Peer>,
     ) {
-        self.batch(6, frames, peers);
+        self.batch(message::SECTOR, frames, peers);
     }
     fn batch(
         &mut self,
@@ -221,7 +221,7 @@ impl Overlay {
         }
         let mut sectors: BTreeMap<Vec<u8>, Vec<&Vec<u8>>> = BTreeMap::new();
         for frame in frames {
-            let key = if kind == 6 {
+            let key = if kind == message::SECTOR {
                 frame.get(49..65).unwrap_or_default().to_vec()
             } else {
                 vec![]
@@ -242,7 +242,7 @@ impl Overlay {
                         .map(|data| {
                             let mut payload = header.clone();
                             payload.extend_from_slice(data);
-                            let key = if kind == 6 {
+                            let key = if kind == message::SECTOR {
                                 format!("{prefix}{:?}", data.get(65..83))
                             } else {
                                 format!("multi:{kind}:{}:{group}", self.id)
@@ -250,7 +250,7 @@ impl Overlay {
                             (key, payload)
                         })
                         .collect();
-                    if kind == 6 {
+                    if kind == message::SECTOR {
                         peer.shared_batch(&prefix, batch);
                     } else {
                         for (key, data) in batch {
@@ -292,8 +292,8 @@ impl Overlay {
         for next in self.route(dest, peers).into_iter().take(copies) {
             if let Some(frame) = Self::envelope(dest, kind, 0, data) {
                 let peer = peers.get_mut(&next).unwrap();
-                if kind == 0 || kind == 6 || kind == 8 {
-                    let key = if kind == 6 {
+                if kind == message::STATE || kind == message::SECTOR || kind == message::LEASE {
+                    let key = if kind == message::SECTOR {
                         format!(
                             "shared:{}:{dest}:{:?}:{:?}",
                             self.id,
@@ -304,7 +304,7 @@ impl Overlay {
                         format!("{kind}:{dest}")
                     };
                     peer.state(key, frame);
-                } else if kind == 2 {
+                } else if kind == message::RECEIPT {
                     peer.receipt(frame);
                 } else {
                     peer.queue(seq, frame, seq);
@@ -425,9 +425,9 @@ impl Overlay {
         worker: &Worker,
         seq: u64,
     ) {
-        if frame_kind == 7 {
+        if frame_kind == frame::MULTICAST {
             if frame.len() < 2
-                || ![0, 6, 8].contains(&frame[0])
+                || ![message::STATE, message::SECTOR, message::LEASE].contains(&frame[0])
                 || !(1..=MULTICAST_RECIPIENTS as u8).contains(&frame[1])
             {
                 return;
@@ -448,26 +448,26 @@ impl Overlay {
                     continue;
                 };
                 if let Some(envelope) = Self::envelope(&dest.to_string(), frame[0], 0, signed) {
-                    self.receive(remote, 4, &envelope, peers, auth, worker, seq);
+                    self.receive(remote, frame::ROUTED, &envelope, peers, auth, worker, seq);
                 }
             }
             return;
         }
-        if frame_kind == 3 {
-            if let Some((origin, data)) = auth.verify(3, frame) {
+        if frame_kind == frame::CONTACT {
+            if let Some((origin, data)) = auth.verify(message::CONTACT, frame) {
                 self.learn(origin, &data, frame);
             }
             return;
         }
-        if frame_kind == 5 {
-            if let Some((origin, data)) = auth.verify(5, frame) {
+        if frame_kind == frame::METRICS {
+            if let Some((origin, data)) = auth.verify(message::METRICS, frame) {
                 if origin == remote {
                     self.routes.metrics(&origin, &data);
                 }
             }
             return;
         }
-        if frame_kind != 4 || frame.len() < 34 {
+        if frame_kind != frame::ROUTED || frame.len() < 34 {
             return;
         }
         let Ok(dest) = iroh::PublicKey::from_bytes(frame[..32].try_into().unwrap()) else {
@@ -476,13 +476,22 @@ impl Overlay {
         let dest = dest.to_string();
         let kind = frame[32];
         let hops = frame[33];
-        if ![0, 1, 2, 6, 8].contains(&kind) || hops > 1 {
+        if ![
+            message::STATE,
+            message::CRITICAL,
+            message::RECEIPT,
+            message::SECTOR,
+            message::LEASE,
+        ]
+        .contains(&kind)
+            || hops > 1
+        {
             return;
         }
         let Some((origin, data)) = auth.verify(kind, &frame[34..]) else {
             return;
         };
-        if kind == 0 {
+        if kind == message::STATE {
             if let Some(s) = Snapshot::decode(&data) {
                 if self.contacts.contains_key(&origin) {
                     self.positions.insert(origin.clone(), s);
@@ -496,7 +505,7 @@ impl Overlay {
             return;
         }
         if dest == self.id {
-            if kind == 0 {
+            if kind == message::STATE {
                 let mut inbox = worker.snapshots.lock().unwrap();
                 if inbox.len() < MAX_PEERS || inbox.contains_key(&origin) {
                     let newer = inbox
@@ -512,7 +521,7 @@ impl Overlay {
                 }
                 return;
             }
-            if kind == 2 {
+            if kind == message::RECEIPT {
                 if data.len() == 16 && self.routes.acknowledged.len() < ROUTE_EVENT_MEMORY {
                     let key = (origin, data.as_slice().try_into().unwrap());
                     if self.routes.inflight.contains(&key) {
@@ -522,7 +531,7 @@ impl Overlay {
                 return;
             }
             let key = crate::routes::event_id(&frame[34..]).map(|id| (origin.clone(), id));
-            let duplicate = kind == 1
+            let duplicate = kind == message::CRITICAL
                 && key
                     .as_ref()
                     .is_some_and(|key| self.routes.seen.contains(key));
@@ -531,14 +540,14 @@ impl Overlay {
                     .incoming
                     .try_send(NetEvent::Packet {
                         peer: origin.clone(),
-                        kind: if kind == 8 { 1 } else { kind },
+                        kind: if kind == message::LEASE { 1 } else { kind },
                         bytes: data,
                     })
                     .is_ok();
             if !delivered {
                 worker.status.send_modify(|s| s.dropped += 1);
             }
-            if kind == 1 && delivered {
+            if kind == message::CRITICAL && delivered {
                 if let Some(key) = key {
                     if self.routes.seen.insert(key.clone()) {
                         self.routes.order.push_back(key.clone());
@@ -552,7 +561,7 @@ impl Overlay {
                         .routes
                         .acks
                         .entry(key.clone())
-                        .or_insert_with(|| auth.sign(2, &key.1))
+                        .or_insert_with(|| auth.sign(message::RECEIPT, &key.1))
                         .clone();
                     self.send(&origin, 2, &ack, peers, seq, 1);
                 }
@@ -565,8 +574,8 @@ impl Overlay {
         if let Some(peer) = peers.get_mut(&dest).filter(|p| p.direct()) {
             let mut forwarded = frame.to_vec();
             forwarded[33] = 1;
-            if kind == 0 || kind == 6 || kind == 8 {
-                let key = if kind == 6 {
+            if kind == message::STATE || kind == message::SECTOR || kind == message::LEASE {
+                let key = if kind == message::SECTOR {
                     format!(
                         "shared:{origin}:{dest}:{:?}:{:?}",
                         data.get(..16),
@@ -576,7 +585,7 @@ impl Overlay {
                     format!("{kind}:{origin}:{dest}")
                 };
                 peer.state(key, forwarded);
-            } else if kind == 2 {
+            } else if kind == message::RECEIPT {
                 peer.receipt(forwarded);
             } else if !peer.queue(seq, forwarded, seq) {
                 worker.status.send_modify(|s| s.dropped += 1);

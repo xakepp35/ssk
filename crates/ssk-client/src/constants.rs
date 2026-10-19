@@ -234,3 +234,14 @@ pub const MICROS_PER_SECOND: f64 = 1_000_000.;
 pub const QUANTILE_PROBABILITIES: [f64; 5] = [0.05, 0.5, 0.95, 0.99, 1.];
 
 pub const HUD_WIDTH: f32 = 324.;
+
+#[repr(usize)]
+pub enum SoundKind {
+    MachineGun,
+    Shotgun,
+    Plasma,
+    Impact,
+    Destroyed,
+    Pickup,
+    Dry,
+}

@@ -90,6 +90,7 @@ Public hosts are currently unavailable; real internet acceptance remains open.
 - [x] C2b — Pure PeerCombat owns damage, history, frags, death and respawn; Online only adapts authenticated transport.
 - [x] C3 — Independent fixed-step game worker, bounded render handoff and explicit
   overload disconnect. No hidden slow-motion online, no unbounded catch-up.
+- [x] C3b — Reserve all peer slots within the payload budget; stop/disconnect an overloaded transport worker.
 - [ ] C4 — Windows portability/build scripts, Linux release build, LAN duel guide.
 
 Avoid further heavy swarm runs on this workstation after a reported OS freeze.

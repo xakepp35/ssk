@@ -1,4 +1,5 @@
-//! Transport adapter: decode authenticated payloads and hand them to the simulation.
+use ssk_net::constants::message;
+// Transport adapter: decode authenticated payloads and hand them to the simulation.
 use crate::constants::*;
 use ssk_net::{CombatEventCodec, NetEvent, Network, SectorAssembler, SharedChunk, SnapshotCodec};
 use ssk_sim::*;
@@ -51,17 +52,17 @@ impl Online {
                         continue;
                     };
                     match kind {
-                        0 => {
+                        message::STATE => {
                             if let Some(snapshot) = Snapshot::decode(&bytes) {
                                 self.game.snapshot(peer, id, snapshot, now);
                             }
                         }
-                        1 => {
+                        message::CRITICAL => {
                             if let Some(event) = CombatEvent::decode(&bytes) {
                                 self.game.receive(world, peer, id, event, now);
                             }
                         }
-                        6 => {
+                        message::SECTOR => {
                             if let Some(c) = SharedChunk::decode(&bytes) {
                                 if self
                                     .game

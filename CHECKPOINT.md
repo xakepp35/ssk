@@ -30,13 +30,16 @@ Constants in all three libraries now own tuning, UI theme/layout, audio, queues,
 timeouts and defaults. Wire offsets/indices/unit conversions remain schema/math.
 Pure PeerCombat owns the entire gameplay side of Online; no network dependency
 in ssk-sim. Windows paths and Unix-only permissions gated for portability.
-C4 Windows GNU build active in exec session45569, jobs2. MinGW unpacked under
+C4 first Windows GNU release build succeeded (4m20s), no Windows runtime run.
+Final follow-up reserves a heartbeat per peer and disconnects a transport worker
+that misses the100ms deadline; constants name message/frame IDs. cargo check
+passed. Final Windows+Linux rebuild starting, jobs2, sequential. MinGW unpacked under
 ignored target/mingw; target installed. tools/build-windows.{sh,ps1}, examples/lan
 and docs/LAN.md prepared. After GNU build, build Linux release jobs2 and record
 actual artifact paths. No Windows runtime session yet.
 Historical measurements saved in docs/MEASUREMENTS.md; raw /tmp JSON disappeared
 across the workstation incident and are not committed. No new capacity claims.
-No active game/swarm. Build concurrency2. Check git for build sessions.
+No active game/swarm. Build concurrency2. Do not run stress scenarios.
 
 ## Constraints
 Three library crates, one binary. Bounded queues, one transit maximum.

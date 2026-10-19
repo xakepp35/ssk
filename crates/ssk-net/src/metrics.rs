@@ -51,7 +51,7 @@ impl Metrics {
         while self.sent.len() > METRIC_SENT_MEMORY {
             self.sent.pop_front();
         }
-        let mut b = b"SSK2".to_vec();
+        let mut b = PACKET_MAGIC.to_vec();
         b.extend(seq.to_le_bytes());
         let (echo, delay) = self
             .echo
@@ -67,7 +67,7 @@ impl Metrics {
         b
     }
     pub fn receive(&mut self, b: &[u8]) -> bool {
-        if b.len() < 24 || !b.starts_with(b"SSK2") {
+        if b.len() < METRIC_HEADER_BYTES || !b.starts_with(PACKET_MAGIC) {
             return false;
         }
         let now = Instant::now();

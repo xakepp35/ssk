@@ -73,7 +73,11 @@ pub fn run(mut config: Config, opt: Options) -> Result<serde_json::Value, String
             c.discovery_advertise.clear();
         }
         let online = Online::new(c, if i == 0 { opt.connect.clone() } else { None })?;
-        let world = World::duel(config.seed, ShipClass::ALL[i % 3], online.net.player_id);
+        let world = World::duel(
+            config.seed,
+            ShipClass::ALL[i % WEAPON_COUNT],
+            online.net.player_id,
+        );
         online.net.publish(Snapshot::capture(&world, 1, 0).encode());
         bots.push(Some(Bot { online, world }));
     }
@@ -205,7 +209,7 @@ pub fn run(mut config: Config, opt: Options) -> Result<serde_json::Value, String
                             aim: (V2::new(SECTOR_SIZE / 2., SECTOR_SIZE / 2.) - b.world.player.pos)
                                 .angle(),
                             fire: opt.fire && now % BENCH_FIRE_PERIOD < BENCH_FIRE_SECONDS,
-                            weapon: i % 3,
+                            weapon: i % WEAPON_COUNT,
                             ability: now % BENCH_ABILITY_PERIOD < BENCH_ABILITY_SECONDS,
                         };
                         let step = Instant::now();

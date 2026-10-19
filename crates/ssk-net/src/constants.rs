@@ -90,3 +90,29 @@ pub const ROUTE_DEFAULT_RTT_MS: f32 = 1000.;
 pub const ROUTE_JITTER_WEIGHT: f32 = 2.;
 pub const ROUTE_LOSS_WEIGHT: f32 = 100.;
 pub const ROUTE_BALANCE_BUCKETS: u64 = 1000;
+
+pub const FULL_MESH_PEERS: usize = 16;
+pub const PACKET_MAGIC: &[u8] = b"SSK3";
+pub const PROTOCOL_VERSION: u16 = 3;
+pub const RULES_ID: &str = "ssk-rules-3";
+pub const ALPN: &[u8] = b"ssk/game/3";
+pub const FRAME_HEADER_BYTES: usize = 3;
+pub const METRIC_HEADER_BYTES: usize = 24;
+pub const PHASE_HASH_MULTIPLIER: u64 = 31;
+pub mod message {
+    pub const STATE: u8 = 0;
+    pub const CRITICAL: u8 = 1;
+    pub const RECEIPT: u8 = 2;
+    pub const CONTACT: u8 = 3;
+    pub const METRICS: u8 = 5;
+    pub const SECTOR: u8 = 6;
+    pub const LEASE: u8 = 8;
+}
+pub mod frame {
+    pub const RELIABLE: u8 = 1;
+    pub const ACK: u8 = 2;
+    pub const CONTACT: u8 = 3;
+    pub const ROUTED: u8 = 4;
+    pub const METRICS: u8 = 5;
+    pub const MULTICAST: u8 = 7;
+}

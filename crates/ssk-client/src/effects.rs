@@ -107,9 +107,9 @@ impl Effects {
             match *event {
                 WorldEvent::Shot(shot) => {
                     let (index, color) = match shot.weapon {
-                        WeaponKind::MachineGun => (0, YELLOW),
-                        WeaponKind::Shotgun => (1, ORANGE),
-                        WeaponKind::Plasma => (2, VIOLET),
+                        WeaponKind::MachineGun => (SoundKind::MachineGun as usize, YELLOW),
+                        WeaponKind::Shotgun => (SoundKind::Shotgun as usize, ORANGE),
+                        WeaponKind::Plasma => (SoundKind::Plasma as usize, VIOLET),
                     };
                     self.burst(pos, MUZZLE_PARTICLES, color, MUZZLE_PARTICLE_SPEED);
                     self.sound(index, volume);
@@ -123,7 +123,7 @@ impl Effects {
                         ORANGE,
                         IMPACT_PARTICLE_SPEED,
                     );
-                    self.sound(3, volume * IMPACT_SOUND_GAIN);
+                    self.sound(SoundKind::Impact as usize, volume * IMPACT_SOUND_GAIN);
                 }
                 WorldEvent::Destroyed { size, .. } => {
                     self.burst(
@@ -132,7 +132,7 @@ impl Effects {
                         ORANGE,
                         DESTRUCTION_PARTICLE_SPEED,
                     );
-                    self.sound(4, volume);
+                    self.sound(SoundKind::Destroyed as usize, volume);
                     if self.rings.len() < MAX_RINGS {
                         self.rings.push(Ring {
                             pos,
@@ -150,9 +150,9 @@ impl Effects {
                         PickupKind::Health => GREEN,
                     };
                     self.burst(pos, PICKUP_PARTICLES, color, PICKUP_PARTICLE_SPEED);
-                    self.sound(5, volume);
+                    self.sound(SoundKind::Pickup as usize, volume);
                 }
-                WorldEvent::Dry => self.sound(6, volume),
+                WorldEvent::Dry => self.sound(SoundKind::Dry as usize, volume),
                 WorldEvent::Reward { .. } => {}
             }
         }
@@ -213,7 +213,7 @@ fn wave(frequency: f32, duration: f32, noise: f32) -> Vec<u8> {
     bytes.extend(b"WAVEfmt ");
     bytes.extend(WAVE_FMT_BYTES.to_le_bytes());
     bytes.extend(WAVE_PCM_FORMAT.to_le_bytes());
-    bytes.extend(WAVE_PCM_FORMAT.to_le_bytes());
+    bytes.extend(AUDIO_CHANNELS.to_le_bytes());
     bytes.extend(AUDIO_SAMPLE_RATE.to_le_bytes());
     bytes.extend((AUDIO_SAMPLE_RATE * AUDIO_SAMPLE_BYTES as u32).to_le_bytes());
     bytes.extend(AUDIO_SAMPLE_BYTES.to_le_bytes());

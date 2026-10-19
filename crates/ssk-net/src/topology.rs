@@ -5,7 +5,7 @@ pub fn neighbours(members: &[String], id: &str) -> BTreeSet<String> {
         return BTreeSet::new();
     };
     let n = members.len();
-    if n <= 16 {
+    if n <= crate::constants::FULL_MESH_PEERS {
         return members
             .iter()
             .filter(|p| p.as_str() != id)

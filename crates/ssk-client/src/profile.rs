@@ -4,7 +4,7 @@ use std::path::PathBuf;
 #[derive(Serialize, Deserialize)]
 #[serde(default)]
 pub struct Profile {
-    pub records: [u64; 3],
+    pub records: [u64; ssk_sim::ShipClass::ALL.len()],
     pub volume: f32,
     pub shake: f32,
     pub flashes: bool,
@@ -17,7 +17,7 @@ pub struct Profile {
 impl Default for Profile {
     fn default() -> Self {
         Self {
-            records: [0; 3],
+            records: [0; ssk_sim::ShipClass::ALL.len()],
             volume: DEFAULT_VOLUME,
             shake: DEFAULT_SHAKE,
             flashes: true,
@@ -25,7 +25,7 @@ impl Default for Profile {
             fullscreen: false,
             width: DEFAULT_WIDTH,
             height: DEFAULT_HEIGHT,
-            class: 1,
+            class: ssk_sim::ShipClass::Cadet.index(),
         }
     }
 }

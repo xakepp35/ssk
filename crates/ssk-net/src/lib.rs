@@ -24,8 +24,6 @@ pub use replication::*;
 mod transport;
 pub use config::*;
 pub use transport::{decode_ticket, encode_ticket};
-pub const PROTOCOL_VERSION: u16 = 3;
-pub const RULES_ID: &str = "ssk-rules-3";
 #[derive(Clone, Debug, Default)]
 pub struct Status {
     pub contact: Vec<u8>,
