@@ -24,6 +24,15 @@ runtime/freeze-sessions/run-one.py (checks prepared/current boot/nonroot,
 never retries;35s wall timeout records hung PID without killing it). No active
 collector/game at preparation. Remote observer/human visual confirmation absent.
 
+## Latest worker comparison
+Session runtime/freeze-sessions/20261019T233145Z completed10.548s/exit0,
+1384callbacks,3603world ticks/0overloads, max step765us/max lag12082us. Same
+primary GPU/FIFO/static scene/ICD/layers.120kernel records/0errors,11SSK samples/
+64thread observations; main DRM wait9/11while progress/exit succeed, worker
+park/futex waits, final KMS/NVIDIA idle. Full root report stored in session.
+No runtime freeze yet; no claim the intermittent fault is fixed. Next offline
+real renderer/game without net/audio, owner normal close after10–15s.
+
 ## Latest completed hardware scene
 Session runtime/freeze-sessions/20261019T232806Z:10.701s/exit0,1388callbacks,
 NVIDIA615.71.09/Wayland/Vulkan/FIFO, explicit primary PCI0000:65:00.0.120kernel

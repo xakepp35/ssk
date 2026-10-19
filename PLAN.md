@@ -401,3 +401,10 @@ static scene/FIFO/ICD/layer policy unchanged. Not hardware acceptance.
 L5 next prepared gpu-worker: same static scene/GPU/FIFO/ICD/layers, only actual
 offline360Hz Game worker enabled. Durable session and checkpoint saved before
 launch. Runtime one-shot helper refuses repeated/elevated/cross-boot starts.
+
+L5 gpu-worker: session20261019T233145Z, same primary GPU/static scene/FIFO/
+ICD/layers.10.548s/exit0,1384callbacks/world_tick3603,10logic samples360ticks
+each, max step765us/max lag12082us/no overload or ERROR.120kernel records,
+0sampling/read errors,11SSK samples/64thread observations; main DRM wait9/11
+while callbacks/ticks continue, final KMS/NVIDIA idle. No freeze reproduced.
+Next offline full game without audio/network, manual10–15s and normal exit.
