@@ -128,11 +128,17 @@ MSVC script and live cross-platform match remain unverified.
   canonical AI/combat/ownership and wire rate remain unchanged.
 - [x] E2 — Record read-only journal findings; real --no-audio/audio.enabled
   switch that skips native audio initialization, plus startup stage messages.
-- [ ] E3 — Rebuild Linux/Windows packages after incident clarification. The
-  Linux build was interrupted by another reported workstation freeze/reboot;
-  do not retry automatically. Existing packages predate E1/E2. No automatic
-  GUI/freeze reproduction or heavy workloads; manual follow-up stays separate.
+- [x] E3 — Rebuild Linux/Windows packages after owner clarification and explicit
+  request. Both targets built sequentially with one Cargo job; no GUI, automated
+  tests, freeze reproduction or heavy workloads. Manual follow-up stays separate.
 
 E1/E2 compile evidence: cargo check passed; no GUI or freeze reproduction.
 Receiver HUD now distinguishes local/remote stewardship and completed-image age.
 Journal evidence and limits: docs/LINUX_FREEZE.md. Root cause remains unknown.
+
+
+E3 evidence: application fixes ba34ebd/e2d50e0, Linux release completed in
+2m11s, Windows GNU static release in 2m18s. Both archives refreshed; Windows
+import check reports system DLLs only. Default Linux host / Windows join to
+192.168.50.155:4202 preserved. Owner confirms second freeze happened without
+launching the game; cause remains unknown. No live post-fix match performed.

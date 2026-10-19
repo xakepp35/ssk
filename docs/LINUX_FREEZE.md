@@ -101,7 +101,10 @@ The journal confirms the preceding boot ended at 06:47:53 MSK and the next boot
 started at 06:55:39 (uptime reports kernel start 06:55:29). These journal bounds
 are not an exact freeze timestamp. The agent had started only a Linux release
 build with two Cargo jobs, and had not launched SSK or a stress scenario.
-Whether the owner separately launched a game is awaiting clarification.
+The owner subsequently confirmed the second freeze occurred without launching
+the game, and explicitly requested the rebuild. SSK native graphics/audio
+initialization cannot explain that occurrence; the underlying cause remains
+unknown.
 
 The preceding boot contains **231,225** USB submission errors for the same
 USB 1-4 audio path, 06:20:02–06:33:19: 229,260 on URB #0, 1,964 on #8 and one
@@ -113,7 +116,18 @@ between the USB errors and the last journal entry still prevents causal proof.
 The interrupted build's /tmp log disappeared after reboot; no successful release
 completion can be claimed. Existing Linux/Windows executable timestamps are
 06:08–06:13, before E1/E2, so **the distributed packages do not yet contain these
-fixes**. No Cargo/rustc/game build or game process remains. Do not restart builds
-or launch a reproduction automatically while the incident is unresolved.
-The next action is to establish whether the repeat occurred during compilation
-alone or after a separate game launch, and whether network/audio stayed alive.
+fixes**. No Cargo/rustc/game build or game process remains. Do not launch a reproduction automatically. The owner explicitly authorized
+resuming release builds; run the targets sequentially with one Cargo job.
+Network/audio liveness during the freeze remains unknown. No driver or system
+settings have been changed.
+
+## Rebuild after clarification
+
+At the owner's explicit request, both release builds subsequently completed,
+sequentially with `SSK_BUILD_JOBS=1`: Linux in 2m11s, Windows GNU static in
+2m18s. The refreshed `dist/ssk-linux-x64.tar.gz` and `dist/ssk-windows-gnu.zip`
+include E1/E2 (ba34ebd/e2d50e0), replacing the old packages described above.
+The Windows import check found only system DLLs; no external compiler runtime
+DLL is needed. Logs are retained under ignored `runtime/build-incident-*.log`.
+No GUI, automated tests, stress scenario or live post-fix match was run.
+Successful compilation does not identify or fix the workstation freeze cause.
