@@ -157,7 +157,11 @@ pub(crate) async fn run(
                 }
                 seq+=1;
                 if worker.state.has_changed().unwrap_or(false) {let state=worker.state.borrow_and_update().clone();signed_state=auth.sign(0,&state);}
-                for peer in peers.values_mut(){let packet=peer.packet(seq,&signed_state,config.net_hz);if packet.len()<=peer.conn.max_datagram_size().unwrap_or(0){let _=peer.conn.send_datagram(packet.into());}}
+                for peer in peers.values_mut(){let packet=peer.packet(seq,&signed_state,config.net_hz);let len=packet.len();if len<=peer.conn.max_datagram_size().unwrap_or(0)&&peer.conn.send_datagram(packet.into()).is_ok(){peer.metrics.sent(len);}}
+                if seq%config.net_hz as u64==0 {
+                    let links=peers.iter_mut().map(|(id,p)|{p.metrics.stats.peer=id.clone();p.metrics.stats.direct=p.conn.paths().iter().any(|path|path.is_selected()&&path.is_ip());p.metrics.sample()}).collect();
+                    worker.status.send_modify(|s|s.links=links);
+                }
 
             }
         }

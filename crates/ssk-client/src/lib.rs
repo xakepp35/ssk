@@ -414,8 +414,21 @@ async fn run(options: Options, mut profile: profile::Profile) {
                 ORANGE,
             );
             if let Some(session) = &online {
+                let stats = &session.net.status.borrow().links;
+                let tx: f32 = stats.iter().map(|s| s.tx_bps).sum();
+                let rx: f32 = stats.iter().map(|s| s.rx_bps).sum();
+                let worst = stats.iter().filter_map(|s| s.rtt_ms).fold(0f32, f32::max);
+                let loss = stats.iter().map(|s| s.loss).fold(0f32, f32::max);
                 draw_text(
-                    &format!("FRAGS {}  {}", session.frags, session.error),
+                    &format!(
+                        "FRAGS {} | RTT {:.1}ms | loss {:.0}% | TX/RX {:.1}/{:.1}KiB/s | {}",
+                        session.frags,
+                        worst,
+                        loss * 100.,
+                        tx / 1024.,
+                        rx / 1024.,
+                        session.error
+                    ),
                     24.,
                     screen_height() - 125.,
                     20.,

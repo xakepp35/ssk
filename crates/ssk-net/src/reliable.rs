@@ -13,6 +13,7 @@ pub(crate) struct Peer {
     acks: VecDeque<u64>,
     seen: HashSet<u64>,
     order: VecDeque<u64>,
+    pub metrics: crate::metrics::Metrics,
 }
 impl Peer {
     pub fn new(conn: Connection) -> Self {
@@ -22,6 +23,7 @@ impl Peer {
             acks: VecDeque::new(),
             seen: HashSet::new(),
             order: VecDeque::new(),
+            metrics: crate::metrics::Metrics::new(),
         }
     }
     pub fn queue(&mut self, id: u64, data: Vec<u8>, tick: u64) -> bool {
@@ -37,8 +39,7 @@ impl Peer {
         true
     }
     pub fn packet(&mut self, seq: u64, state: &[u8], hz: u32) -> Vec<u8> {
-        let mut packet = b"SSK1".to_vec();
-        packet.extend(seq.to_le_bytes());
+        let mut packet = self.metrics.header(seq);
         for _ in 0..16 {
             if let Some(id) = self.acks.pop_front() {
                 append(&mut packet, 2, &id.to_le_bytes());
@@ -47,8 +48,11 @@ impl Peer {
             }
         }
         append(&mut packet, 0, state);
+        let before = self.pending.len();
         self.pending
             .retain(|e| seq.saturating_sub(e.born) < hz as u64 * 5);
+        self.metrics.stats.expired += (before - self.pending.len()) as u64;
+        self.metrics.stats.queued = self.pending.len();
         for _ in 0..self.pending.len() {
             let mut event = self.pending.pop_front().unwrap();
             if event.last == 0 || seq.saturating_sub(event.last) >= (hz / 10).max(1) as u64 {
@@ -69,10 +73,10 @@ impl Peer {
         worker: &Worker,
         auth: &mut crate::auth::Auth,
     ) {
-        if !bytes.starts_with(b"SSK1") || bytes.len() < 12 {
+        if !self.metrics.receive(bytes) {
             return;
         }
-        let mut rest = &bytes[12..];
+        let mut rest = &bytes[24..];
         while rest.len() >= 3 {
             let kind = rest[0];
             let len = u16::from_le_bytes([rest[1], rest[2]]) as usize;

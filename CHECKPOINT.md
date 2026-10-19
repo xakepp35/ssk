@@ -14,13 +14,13 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - `cargo check --workspace` passed after A2; no tests/manual session.
 
 ## Live state
-- Completed B5: Ed25519 world-scoped source envelopes on async workers, bounded replay/history, movement and weapon/energy checks, 200 ms linear target-history compensation and shot-backed death credit. Full world rollback and adversarial acceptance remain open.
+- Completed B6: Piggyback sequence echo and measured ACK delay, EWMA RTT/jitter, rolling loss estimate, PPS/payload BPS, queue expiry and selected direct/relay path diagnostics. HUD reports aggregate load; transport control overhead is not included.
 - `cargo check --workspace` passed at this step. No automated tests run.
 - No manual play session yet. No public hosts for internet acceptance.
 - No active project processes. Source discussions preserved. No push.
 
 ## Next
-B6: piggyback sequence echo, ACK delay, RTT/loss/load and HUD diagnostics.
+B7: deterministic diameter-two membership graph and signed one-intermediary forwarding.
 
 ## Constraints
 240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.

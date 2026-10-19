@@ -1,5 +1,7 @@
 //! Bounded bridge between game thread and asynchronous network workers.
 mod auth;
+mod metrics;
+pub use metrics::LinkStats;
 mod config;
 mod validation;
 pub use validation::*;
@@ -19,6 +21,7 @@ pub struct Status {
     pub ticket: String,
     pub peers: usize,
     pub dropped: u64,
+    pub links: Vec<LinkStats>,
 }
 #[derive(Debug)]
 pub enum NetEvent {

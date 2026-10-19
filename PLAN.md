@@ -31,7 +31,7 @@ no automated tests unless requested. A short manual game session when available.
 - [x] B3 — Quantized independent snapshots, sequences, interpolation. `feat: add compressed ship replication`
 - [x] B4 — Shots, damage, death, respawn; playable duel MVP. `feat: make peer duel playable`
 - [x] B5 — Origin signatures, history, bounded combat validation. `feat: validate peer combat events`
-- [ ] B6 — Piggyback RTT, loss, load, diagnostics. `feat: measure live peer links`
+- [x] B6 — Piggyback RTT, loss, load, diagnostics. `feat: measure live peer links`
 - [ ] B7 — Row/column/diagonal graph, at most one transit. `feat: add bounded-hop peer routing`
 - [ ] B8 — Prepared backups, dedup, capacity, failover. `feat: balance and recover peer routes`
 - [ ] B9 — Kademlia, bootstrap, signed contacts, node mode. `feat: add decentralized discovery`
