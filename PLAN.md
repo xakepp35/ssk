@@ -177,3 +177,32 @@ Windows import check: only system DLLs, no external compiler runtime. Root
 1600×1000 config retained: Linux host, Windows join to 192.168.50.155:4202.
 No automated tests, GUI launch or live gameplay/continuity verification. Stable
 flight/continuity rules added to AGENTS.md. F1–F4 complete; manual follow-up open.
+
+
+## G: startup hard-freeze investigation after ~10:02 reboot
+
+- [x] G1 — Correlate prior boot and startup order; audit io_uring/eBPF/network,
+  native audio, Xwayland/GLX, TUN settings and crash records. No game launch.
+- [x] G2 — Prepare focused persistent diagnostics for the remaining startup
+  interval, preserving secrets and avoiding heavy reproduction/system tuning.
+- [x] G3 — Record evidence, unresolved causes and exact next diagnostic action;
+  compile only if source changes require it. Do not claim a root cause without
+  a corresponding trace, kernel stack or controlled discriminating evidence.
+- [ ] G4 — With owner feedback/authorization, capture next natural incident or
+  an attended probe: remote liveness, persistent stages/syscalls, kernel dump;
+  identify the responsible stack/component before changing driver/VPN settings.
+
+G1–G3 evidence: first marker precedes native graphics/Macroquad resource init;
+SSK network, simulation and native audio start only after the second marker.
+Latest preceding boot has 0 USB errors, no matching Xid/panic/OOM/lockup;
+pstore and crash dump absent. Current GNOME Wayland uses Miniquad X11/GLX;
+TUN gvisor/MTU9000 present but causality unknown. Read-only BPF metadata has
+cgroup programs, no XDP/tc. Loaded kdump and enabled watchdogs found, but lockup
+panic flags are off. No system/VPN/driver settings changed.
+
+Graphics-only native/Macroquad probes, synced startup stages, bounded ptrace
+wrapper and explicit arm/restore watchdog script prepared. Temporary arming
+awaits owner response; no crash or GUI was triggered. cargo check passed (2.08s);
+Linux release/package succeeded with one Cargo job (2m15s). Windows was not
+rebuilt for this Linux diagnosis. No automated tests or gameplay verification.
+Exact evidence, limits and capture procedure: docs/LINUX_FREEZE.md.

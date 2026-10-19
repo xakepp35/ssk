@@ -5,6 +5,7 @@ pub mod bench;
 mod config;
 pub mod constants;
 pub use config::{AudioConfig, WindowConfig};
+pub mod diagnostics;
 mod effects;
 mod game;
 mod online;
@@ -21,31 +22,23 @@ pub struct Options {
     pub online: bool,
     pub connect: Option<String>,
     pub network: ssk_net::Config,
+    pub startup_log: Option<std::path::PathBuf>,
 }
-pub fn launch(options: Options) {
+pub fn launch(options: Options) -> std::io::Result<()> {
+    let log = diagnostics::StartupLog::open(options.startup_log.as_deref())?;
     let mut profile = profile::Profile::load();
     profile.width = options.window.width;
     profile.height = options.window.height;
     profile.fullscreen = options.window.fullscreen;
-    eprintln!(
-        "SSK startup: graphics init, {}x{}, vsync interval {}",
+    log.mark(&format!(
+        "graphics init, {}x{}, vsync interval {} (context not ready yet)",
         profile.width, profile.height, VSYNC_INTERVAL
-    );
+    ));
     macroquad::Window::from_config(
-        Conf {
-            window_title: "Syrup Space Kadet".into(),
-            window_width: profile.width,
-            window_height: profile.height,
-            fullscreen: profile.fullscreen,
-            high_dpi: true,
-            platform: miniquad::conf::Platform {
-                swap_interval: Some(VSYNC_INTERVAL),
-                ..Default::default()
-            },
-            ..Default::default()
-        },
-        run(options, profile),
+        diagnostics::window_conf(&options.window, diagnostics::GraphicsBackend::Default),
+        run(options, profile, log),
     );
+    Ok(())
 }
 fn screen(p: V2, camera: V2) -> Vec2 {
     vec2(
@@ -109,24 +102,27 @@ fn draw_ship(ship: &Ship, camera: V2, alpha: f32, color: Color) {
         draw_line(start.x, start.y, end.x, end.y, EXHAUST_WIDTH, SKYBLUE);
     }
 }
-async fn run(options: Options, mut profile: profile::Profile) {
-    eprintln!("SSK startup: graphics context ready");
+async fn run(options: Options, mut profile: profile::Profile, log: diagnostics::StartupLog) {
+    log.mark("graphics context ready; Macroquad initialized and future polled");
     let mut class = options
         .class
         .unwrap_or(ssk_sim::ShipClass::ALL[profile.class]);
     profile.class = class.index();
+    log.mark("starting game worker (network only for online mode)");
     let (game, initial) = game::Game::start(&options, class);
+    log.mark("game worker created");
     let mut view = initial;
     let mut world = view.world.clone();
-    eprintln!(
-        "SSK startup: audio {}",
+    log.mark(&format!(
+        "audio {}",
         if options.audio.enabled {
             "worker requested"
         } else {
             "disabled; native audio initialization skipped"
         }
-    );
+    ));
     let mut effects = effects::Effects::new(options.audio.enabled);
+    log.mark("effects ready");
     let mut camera = world.player.pos;
     let mut stars = starfield::Starfield::new(camera);
     let mut weapon = 0;
@@ -136,6 +132,7 @@ async fn run(options: Options, mut profile: profile::Profile) {
     let mut run_number = 0;
     let mut recorded = false;
     let mut save_error = None;
+    let mut first_frame = true;
     show_mouse(false);
     loop {
         let previous_hp = world.player.hp;
@@ -408,7 +405,14 @@ async fn run(options: Options, mut profile: profile::Profile) {
             1.,
             SKYBLUE,
         );
+        if first_frame {
+            log.mark("first game frame queued; awaiting draw/present");
+        }
         next_frame().await;
+        if first_frame {
+            log.mark("frame loop resumed after first game frame");
+            first_frame = false;
+        }
     }
     drop(game);
     if !profile.fullscreen {

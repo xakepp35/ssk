@@ -54,6 +54,10 @@ Move game validation/model/physics to ssk-sim. ssk-net owns only transport,
 identity/authentication, serialization, discovery and routing. Centralize tuning
 values in named constants/configuration modules; do not add mutable global state.
 Do not repeat heavy load scenarios after the reported workstation freeze.
+For hard-freeze diagnosis see docs/LINUX_FREEZE.md: the first graphics marker
+precedes context creation, and SSK game/network/audio start after the second.
+Do not launch GUI probes or deliberate crashes automatically. Preserve current
+and previous boot evidence; record any temporary kernel settings and rollback.
 
 ## Launch and distribution
 

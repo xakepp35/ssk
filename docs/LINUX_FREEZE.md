@@ -131,3 +131,165 @@ The Windows import check found only system DLLs; no external compiler runtime
 DLL is needed. Logs are retained under ignored `runtime/build-incident-*.log`.
 No GUI, automated tests, stress scenario or live post-fix match was run.
 Successful compilation does not identify or fix the workstation freeze cause.
+
+## Third reported freeze — approximately 10:02 MSK
+
+The owner saw only `SSK startup: graphics init, 1600x1000, vsync interval 1`,
+then a frozen desktop before a visible window. The owner reports a correlation
+with v2rayN's Enable TUN mode. A correlation is not yet a demonstrated cause.
+No game, probe, stress run or GUI reproduction was started during this diagnosis.
+
+### Recorded evidence
+
+- Previous boot `f4352ed498444d49bbff57c8d11aebd4`: journal 06:55:39–10:02:06.
+  Current boot `52421155834a4cfe8e06ac79c748ffb6`: kernel start 10:03:47,
+  journal begins 10:03:57. Last journal record is not the exact freeze time.
+- This preceding boot has **zero USB submission/descriptor errors**, unlike
+  the first two incidents. The old Focusrite lead does not explain this one
+  on the available evidence.
+- No matching NVIDIA Xid, panic, OOM, explicit lockup or hardware fault was
+  found in the searched kernel journal. The 10:00:35 perf message reduces the
+  sampling rate after an approximately 3.9 ms interrupt; it is not a lockup
+  diagnosis. No correlated TUN error was found near the freeze either.
+- Read-only root collection found both `/sys/fs/pstore` and
+  `/var/lib/systemd/pstore` empty. Backend is `efi_pstore`. `/var/crash` contains
+  kdump bookkeeping, no vmcore. An abrupt power cut can lose decisive messages.
+- GNOME runs Wayland. Miniquad **0.4.11** defaults to **X11Only** and
+  **GLXWithEGLFallback**, so this application uses Xwayland/GLX on this desktop.
+  Kernel is **7.0.0-38-generic**, NVIDIA open module **615.71.09**, two RTX3090Ti.
+  Installed libGLX NVIDIA version matches the module; no version mismatch was
+  identified. This does not establish that the graphics driver is healthy.
+- Audit of SSK source and lockfile found no io_uring, eBPF/XDP, raw-socket or
+  libbpf/aya dependencies/calls. Networking uses normal Tokio/QUIC transports.
+  The 47 currently loaded BPF programs inspected as root have cgroup_device /
+  cgroup_skb types and systemd-style `sd_*` names; no XDP/tc program was present
+  in that snapshot. This is current metadata, not historical freeze evidence.
+- Current VPN state: v2rayN/xray as user, sing-box as root, interface
+  `singbox_tun`; sanitized config fields: gvisor stack, MTU9000,
+  auto_route=true, strict_route=true, auto_detect_interface=true. No proxy
+  addresses, tokens, keys, traffic or credentials were collected into this doc.
+  These settings can affect networking, but neither their presence nor MTU9000
+  proves a kernel failure. No VPN configuration was changed.
+
+### What the single startup line actually proves
+
+The old wording meant **starting graphics initialization**, not successful
+video initialization. The source order in `ssk-client/src/lib.rs` is:
+
+| Stage | Work |
+| --- | --- |
+| Before first marker | Load application config/profile; no game threads |
+| `graphics init` | Immediately before `Window::from_config` |
+| Unmarked upstream interval | XOpenDisplay, GLX configuration/window/context, make-current/vsync, GL function loading, window/DPI/clipboard setup; Macroquad GPU resources, shaders and UI; event dispatch before first future poll |
+| `graphics context ready` | First execution of SSK's async function |
+| Game worker | Simulation and, in online modes, Network::start |
+| Audio worker request | SSK's explicit quad-snd initialization |
+
+Constructing the async future does not execute its body. Macroquad's built-in
+native audio feature is disabled; its dummy audio context does not open a device.
+Therefore a stall strictly between the first two markers occurs **before SSK's
+game network, 360 Hz worker and native audio start**. This narrows the startup
+path, but does not distinguish an NVIDIA/kernel stall from an independently
+triggered system fault, including one involving TUN. The earlier freeze without
+a game launch also remains relevant.
+
+### Prepared capture tools
+
+`ssk graphics-probe` uses the same window dimensions, high DPI and vsync settings
+as the game, initializes Macroquad, clears a frame and exits. It never starts
+the game worker, identity/transport runtime, simulation or native audio. `--native`
+uses Miniquad directly and additionally skips Macroquad resources/shaders/UI.
+`--backend glx` / `--backend egl` explicitly choose that Linux context path;
+the normal game defaults have not been changed. No Wayland backend migration
+or driver workaround was silently applied.
+
+Probe stage records are appended and `sync_data` is requested for each marker.
+For a future ordinary launch, `--startup-log runtime/startup.log` also persists
+graphics/game/audio/first-frame markers. A resumed frame loop proves the swap
+call returned on the current X11 backend, not that a monitor displayed the frame.
+Upstream native setup remains opaque until the probe callback; syscall tracing
+adds a second level of evidence.
+
+`tools/trace-graphics.py` runs **only** the probe under strace (ptrace, without
+`--seccomp-bpf`). It saves a unique `runtime/graphics-TIMESTAMP-PID/` directory:
+
+- `stages.log`: application stages with timestamps and synchronous flushes;
+- `syscalls.log`: syscall names/times, library/device paths and raw ioctl/buffer
+  pointers; no decoded read/write buffers, game packets or identity contents;
+- `metadata.json`, `result.json`: selected graphics/session/boot metadata and
+  exit/limit status. No full environment or VPN configuration dump.
+
+The trace uses synchronous local writes, a **20-second / 16 MiB** limit and
+terminates the process group when the limit is reached. A whole-kernel hang
+can prevent the timeout from running; it is not a freeze-prevention mechanism.
+Tracing itself changes timing and may hide an intermittent problem. A final
+unfinished ioctl alone is a lead, not a conclusive driver diagnosis.
+
+The workstation lacked strace. Ubuntu's package was downloaded and unpacked
+under ignored `runtime/diag-tools/`, without installing or changing the system;
+the wrapper finds that copy or a normal installed strace. On another machine,
+install/provide strace explicitly. Logs stay local/ignored; do not publish raw
+logs or kernel memory dumps without reviewing their contents.
+
+### Kernel capture readiness and next action
+
+Current read-only checks: `kdump-tools` active, `kexec_crash_loaded=1`,
+watchdog=1, nmi_watchdog=1, watchdog_thresh=10. Both lockup panic flags are **0**;
+all-CPU backtraces are **0** and panic timeout is **0**. Thus a detected lockup
+need not enter kdump. Capture initramfs contains ZFS modules/scripts for this
+ZFS root, but actual crash-dump saving has **not** been verified by crashing it.
+
+`tools/freeze-watchdog.py status` is read-only. Its separately authorized `arm`
+action would temporarily set:
+
+```text
+hardlockup_panic=1
+softlockup_panic=1
+hardlockup_all_cpu_backtrace=1
+softlockup_all_cpu_backtrace=1
+panic=60
+```
+
+It refuses to arm without an already loaded crash kernel and enabled watchdogs,
+saves previous values in root-owned `/run/ssk-freeze-watchdog.json`, and supports
+`restore`. It writes no persistent configuration and triggers no crash/reboot
+itself. Detection can subsequently panic/reboot the machine; permission to apply
+this change is requested separately. A reboot also clears these temporary
+changes. Neither watchdog nor kdump can guarantee recovery from every hardware
+or all-CPU hang. See [kernel lockup watchdogs](https://docs.kernel.org/admin-guide/lockup-watchdogs.html)
+and [Ubuntu kdump](https://ubuntu.com/server/docs/how-to/software/kernel-crash-dump/).
+
+Only after explicit authorization, from this checkout, arm/restore using the
+owner's graphical Polkit prompt (no passwords in chat):
+
+```sh
+pkexec /usr/bin/python3 /home/a/github.com/xakepp35/ssk/tools/freeze-watchdog.py arm
+python3 tools/freeze-watchdog.py status
+# To restore within this boot:
+pkexec /usr/bin/python3 /home/a/github.com/xakepp35/ssk/tools/freeze-watchdog.py restore
+```
+
+Do not automatically run a probe or deliberate crash. The next discriminating
+observation is whether Windows still gets ping/SSH replies **during** a naturally
+occurring frozen display, and whether audio stops. TUN can itself affect ping,
+so no reply alone is not proof of total kernel lockup. An authorized temporary
+watchdog arm can improve evidence on the next natural incident without
+deliberately reproducing it. After a reboot, inspect `/var/crash` and previous
+boot/pstore before starting another experiment.
+
+For a deliberately chosen, attended diagnostic session **after capture is
+ready**, start with the native default-path probe, not a live network match:
+
+```sh
+python3 tools/trace-graphics.py --native
+```
+
+If it completes, a separately chosen Macroquad probe is
+`python3 tools/trace-graphics.py`. Comparing EGL or VPN on/off is a later,
+single-variable experiment, not an automatic loop of risky launches.
+**The root cause is still unknown; no fix or runtime success is claimed.**
+
+Build evidence for these diagnostic additions: focused `cargo check --locked
+-p ssk --jobs 1` completed in 2.08s; Linux release/package completed with one
+Cargo job in 2m15s. `dist/ssk-linux-x64.tar.gz` refreshed. Windows was not rebuilt
+for this Linux investigation. No automated tests or graphical/runtime acceptance.

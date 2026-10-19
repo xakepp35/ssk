@@ -97,8 +97,42 @@ See docs/LINUX_FREEZE.md. No automatic reproduction or heavy swarms.
 - F4: Linux/Windows static packages built successfully; evidence above. Stable
   flight and continuity requirements saved in AGENTS.md.
 
-## Exact next action
-Deliver updated archives. Later short manual match should check thrust/turning,
-shield energy, sector seams and parallax. Gameplay/visual continuity not yet
-observed after these changes. No automatic GUI/stress runs; resume B16 only
-with separate capacity/internet evidence and no local heavy load.
+## Active investigation / G
+Owner reports new freeze after ONLY "SSK startup: graphics init, 1600x1000,
+vsync interval 1", before any visible window; VPN v2rayN TUN often enabled.
+Previous boot f4352ed4 ended 10:02:06; next kernel start 10:03:47, journal
+10:03:57 MSK. No game/GUI/load started by agent. G1–G3 evidence/tools delivered;
+G4 root-cause capture still open. See docs/LINUX_FREEZE.md for full evidence.
+Important source ordering: marker precedes Window::from_config; run is an async
+future, first body line is "graphics context ready", then Game::start (network),
+then Effects::new (native audio). Thus this marker is NOT successful video init.
+Miniquad 0.4.11 default X11Only + GLX-first, on GNOME Wayland => Xwayland/GLX.
+Last boot: 0 USB submission errors; no matching Xid/OOM/panic/lockup found.
+Only recent kernel record 10:00:35 perf sample-rate reduction, not causal proof.
+Current TUN: root sing-box, gvisor, MTU9000, auto_route/strict_route, interface
+singbox_tun, auto_detect_interface; these are current settings, not prior-boot
+proof. No VPN servers/credentials logged. SSK source/lock has no io_uring/eBPF.
+Read-only Polkit collection: pstore empty in both locations; /var/crash has no
+vmcore. 47 currently loaded BPF programs are cgroup_device/cgroup_skb sd_*;
+no XDP/tc in snapshot. Ignored local log runtime/freeze-root-summary.log.
+kdump-tools active, kexec_crash_loaded=1, watchdog/nmi=1, threshold10; lockup
+panic/all-CPU-backtrace flags and panic timeout are 0. Capture initramfs includes
+ZFS support; actual saving unverified (no deliberate crash). Settings untouched.
+
+Prepared --startup-log synced markers and graphics-probe, with --native skipping
+Macroquad, optional explicit GLX/EGL selection; no game/network/profile/audio.
+tools/trace-graphics.py bounds ptrace capture to 20s/16MiB, syncs local writes;
+strace unpacked into runtime/diag-tools without system installation. This does
+not protect against a kernel hang. tools/freeze-watchdog.py status/arm/restore
+supports temporary lockup->panic->existing kdump with 60s fallback reboot,
+saves originals under /run; ARM NOT APPLIED, owner response pending.
+cargo check passed 2.08s, sequential one-job Linux release/package 2m15s:
+runtime/build-freeze-diagnostics-{check,linux}.log; Linux archive refreshed.
+Windows remains previous flight revision; no network-rule change this phase.
+No automated tests, GUI/probe/crash launched; no active builds/diagnostic drivers.
+
+Exact next: owner feedback on audio/remote ping during freeze and temporary
+watchdog arming. If authorized, pkexec /usr/bin/python3 with absolute
+tools/freeze-watchdog.py arm; then status. Do not launch GUI or deliberate crash
+automatically. Next natural incident: inspect previous journal/pstore/var/crash
+before any experiment. Root cause remains unknown; never claim this was fixed.

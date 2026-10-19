@@ -17,6 +17,9 @@ struct Cli {
     /// Skip native audio initialization (useful when diagnosing a USB/audio freeze).
     #[arg(long, global = true)]
     no_audio: bool,
+    /// Persist and sync graphics/game/audio startup stages to a local file.
+    #[arg(long, global = true)]
+    startup_log: Option<std::path::PathBuf>,
 }
 
 #[derive(Subcommand)]
@@ -32,6 +35,17 @@ enum Command {
     #[command(alias = "node")]
     Server,
     InitConfig,
+    /// Initialize only graphics, clear one frame, then exit; no game/network/audio.
+    GraphicsProbe {
+        /// Use Miniquad directly, skipping Macroquad resources and shaders.
+        #[arg(long)]
+        native: bool,
+        /// Linux-only explicit context override; default matches normal startup.
+        #[arg(long, value_enum, default_value_t = ProbeBackend::Default)]
+        backend: ProbeBackend,
+        #[arg(long, default_value = constants::DEFAULT_GRAPHICS_PROBE_LOG)]
+        log: std::path::PathBuf,
+    },
     Bench {
         #[arg(long, default_value_t = ssk_client::constants::BENCH_DEFAULT_PLAYERS)]
         players: usize,
@@ -59,6 +73,13 @@ enum Class {
     Spark,
     Cadet,
     Thunder,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum ProbeBackend {
+    Default,
+    Glx,
+    Egl,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -91,6 +112,20 @@ fn main() -> anyhow::Result<()> {
     }
     let network = app.network;
     match command {
+        Command::GraphicsProbe {
+            native,
+            backend,
+            log,
+        } => {
+            use ssk_client::diagnostics::GraphicsBackend;
+            let backend = match backend {
+                ProbeBackend::Default => GraphicsBackend::Default,
+                ProbeBackend::Glx => GraphicsBackend::Glx,
+                ProbeBackend::Egl => GraphicsBackend::Egl,
+            };
+            ssk_client::diagnostics::graphics_probe(&app.window, native, backend, &log)?;
+            Ok(())
+        }
         Command::Server => ssk_net::run_node(network),
         Command::Bench {
             players,
@@ -149,7 +184,8 @@ fn main() -> anyhow::Result<()> {
                 online,
                 connect,
                 network,
-            });
+                startup_log: cli.startup_log,
+            })?;
             Ok(())
         }
     }
