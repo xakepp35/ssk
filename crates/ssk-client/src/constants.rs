@@ -195,14 +195,13 @@ pub const EXHAUST_PULSE_SIZE: f32 = 4.;
 pub const EXHAUST_WIDTH: f32 = 5.;
 pub const SPACE_COLOR: macroquad::prelude::Color =
     macroquad::prelude::Color::from_rgba(6, 9, 21, 255);
-pub const STAR_LAYERS: usize = 3;
-pub const STARS_PER_LAYER: usize = 110;
-pub const STAR_PARALLAX: [f32; 2] = [0.1, 0.14];
-pub const STAR_POSITION_X: [f32; 2] = [173.73, 2.1];
-pub const STAR_POSITION_Y: [f32; 2] = [91.13, 3.3];
-pub const STAR_BRIGHTNESS: [f32; 2] = [0.18, 0.11];
-pub const STAR_RADIUS: [f32; 2] = [0.6, 0.3];
-pub const STAR_TINT: [f32; 2] = [0.07, 0.18];
+pub const STAR_COUNT: usize = 1320;
+pub const STAR_SEED: u64 = 0x53534b5f53544152;
+pub const STAR_DEPTH_BIAS: f32 = 2.;
+pub const STAR_PARALLAX: std::ops::Range<f32> = 0.025..0.7;
+pub const STAR_BRIGHTNESS: std::ops::Range<f32> = 0.12..0.95;
+pub const STAR_SIZE: std::ops::Range<f32> = 1. ..2.2;
+pub const STAR_TINT: [f32; 3] = [0.78, 0.88, 1.];
 pub const SPACE_GRID_COLOR: macroquad::prelude::Color =
     macroquad::prelude::Color::new(0.08, 0.16, 0.24, 0.3);
 pub const SPACE_GRID_SIZE: f32 = 256.;

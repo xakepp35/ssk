@@ -90,4 +90,7 @@ F2 complete: at most 4 sectors per player with 1600-unit prefetch/keep margin;
 empty prefetch sectors do not spawn encounters and publish terrain at 1 Hz.
 Known active images survive delivery stalls; camera rebases before mouse aim.
 Snapshot v2 uses velocity step 1/8 (covers boost); cargo check passed (1.03s).
-Next: 1320 depth-based stars with phase continuity, then release builds.
+F3 complete: 1320 seeded depth-based stars (previously 330), dim/slower/finer
+far stars and bright/faster/larger near stars; bounded phase continuity across
+rebases. cargo check passed (0.54s); no GUI/visual runtime verification.
+Next: Linux release then static Windows release, one job each; refresh packages.

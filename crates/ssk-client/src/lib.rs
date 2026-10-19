@@ -10,6 +10,7 @@ mod game;
 mod online;
 mod profile;
 mod render;
+mod starfield;
 mod ui;
 pub struct Options {
     pub seed: u64,
@@ -108,48 +109,6 @@ fn draw_ship(ship: &Ship, camera: V2, alpha: f32, color: Color) {
         draw_line(start.x, start.y, end.x, end.y, EXHAUST_WIDTH, SKYBLUE);
     }
 }
-fn background(camera: V2) {
-    clear_background(SPACE_COLOR);
-    for layer in 0..STAR_LAYERS {
-        for i in 0..STARS_PER_LAYER {
-            let parallax = STAR_PARALLAX[0] + layer as f32 * STAR_PARALLAX[1];
-            let x = (i as f32 * STAR_POSITION_X[0] + (i * i) as f32 * STAR_POSITION_X[1]
-                - camera.x * parallax)
-                .rem_euclid(screen_width());
-            let y = (i as f32 * STAR_POSITION_Y[0] + (i * i) as f32 * STAR_POSITION_Y[1]
-                - camera.y * parallax)
-                .rem_euclid(screen_height());
-            let b = STAR_BRIGHTNESS[0] + layer as f32 * STAR_BRIGHTNESS[1];
-            draw_circle(
-                x,
-                y,
-                STAR_RADIUS[0] + layer as f32 * STAR_RADIUS[1],
-                Color::new(b, b + STAR_TINT[0], b + STAR_TINT[1], 1.),
-            );
-        }
-    }
-    let color = SPACE_GRID_COLOR;
-    for x in -SPACE_GRID_COLUMNS..=SPACE_GRID_COLUMNS {
-        let p = screen(
-            V2::new(
-                ((camera.x / SPACE_GRID_SIZE).floor() + x as f32) * SPACE_GRID_SIZE,
-                0.,
-            ),
-            camera,
-        );
-        draw_line(p.x, 0., p.x, screen_height(), 1., color);
-    }
-    for y in -SPACE_GRID_ROWS..=SPACE_GRID_ROWS {
-        let p = screen(
-            V2::new(
-                0.,
-                ((camera.y / SPACE_GRID_SIZE).floor() + y as f32) * SPACE_GRID_SIZE,
-            ),
-            camera,
-        );
-        draw_line(0., p.y, screen_width(), p.y, 1., color);
-    }
-}
 async fn run(options: Options, mut profile: profile::Profile) {
     eprintln!("SSK startup: graphics context ready");
     let mut class = options
@@ -169,6 +128,7 @@ async fn run(options: Options, mut profile: profile::Profile) {
     );
     let mut effects = effects::Effects::new(options.audio.enabled);
     let mut camera = world.player.pos;
+    let mut stars = starfield::Starfield::new(camera);
     let mut weapon = 0;
     let mut menu = !options.play;
     let mut started = options.play;
@@ -185,6 +145,7 @@ async fn run(options: Options, mut profile: profile::Profile) {
         }
         // Rebase before computing cursor aim; camera and ship must use the same
         // coordinate frame, including the first rendered frame after a seam.
+        stars.shift_origin(world.origin_shift);
         camera -= world.origin_shift;
         effects.shift(world.origin_shift);
         world.origin_shift = V2::ZERO;
@@ -270,7 +231,7 @@ async fn run(options: Options, mut profile: profile::Profile) {
             effects.flash = 1.;
         }
         let render_camera = camera + effects.offset(profile.shake);
-        background(render_camera);
+        stars.draw(render_camera);
         render::scene(&world, render_camera, alpha);
         {
             for (ship, age) in &view.peers {

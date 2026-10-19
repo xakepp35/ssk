@@ -151,7 +151,7 @@ launching the game; cause remains unknown. No live post-fix match performed.
   stronger scout thrust and double boost turning; update AI/validation/UI/docs.
 - [x] F2 — Fix coordinate handoff/camera jumps and sector-content continuity;
   preserve nearby objects across sector boundaries and ownership changes.
-- [ ] F3 — Fourfold stars with individual depth, brightness and parallax;
+- [x] F3 — Fourfold stars with individual depth, brightness and parallax;
   retain background continuity across coordinate rebases.
 - [ ] F4 — Sequential one-job Linux/Windows static release builds and packages.
 
@@ -165,3 +165,7 @@ F2 evidence: cargo check passed (1.03s). Bounded 1600-unit sector prefetch/keep,
 no new encounters in empty prefetch sectors, 1 Hz empty terrain checkpoints,
 retain known active images during handoff/delivery delay. Camera rebase occurs
 before mouse aim. Snapshot v2 covers scout boost speed; no runtime claims.
+
+F3 evidence: cargo check passed (0.54s). 1320 seeded stars, continuous depth
+controls parallax/brightness/size; bounded phases compensate coordinate rebases.
+Visual result has not been viewed in-game after the workstation incidents.
