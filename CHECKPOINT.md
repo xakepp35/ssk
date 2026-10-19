@@ -15,49 +15,35 @@ kernel/driver/VPN/display/service/watchdog changes. After reboot read
 runtime/freeze-sessions/current.json and the pointed session.json/app.ndjson/
 console.ndjson, compare boot ID and preserve previous-boot evidence BEFORE
 any new launch. A start without finish is not itself proof of a host freeze.
-Current prepared session: runtime/freeze-sessions/20261019T234225Z.
-Stage audio: same primary-GPU/FIFO/ICD/layers/class host, native audio enabled.
-Only difference from network stage is audio.60s1Hz root capture, observe20s,
-then one owned SIGINT if not manually closed. No active game/collector at
-preparation. Prior CPU/staticGPU/worker/offline/network runs did not reproduce
-freeze; visual feedback/normal menu exit still unverified. If all primary-GPU
-stages pass, next investigate other card (index0 PCI0000:17:00.0) vs display
-card (index1 PCI0000:65:00.0), isolated scene first. Original crash GPU unknown.
+Current prepared session: runtime/freeze-sessions/20261019T234558Z.
+Next: gpu-graphics/static10s on headless PCI0000:17:00.0. Baseline primary
+PCI0000:65:00.0 static scene passed; change GPU only. Same build/FIFO/NVIDIA-only
+ICD/implicit layers disabled. Start60s1Hz collector, await durable ready, then
+ONE timed launch. No active SSK/collector. The original crash GPU is unknown.
 
-## Latest network comparison
-Session runtime/freeze-sessions/20261019T234020Z:32.555s host/no-audio,~141.6FPS,
-360Hz/no overload/ERROR, bootstrap/discovery/QUIC initialized; no admitted peer.
-SIGINT exit-2 intentional, not normal-menu verification. Kernel summary stored,
-no sampling/read errors. No freeze. Next same host+audio only.
+## L5 completed comparisons (current boot, same Linux binary)
 
-## Latest worker comparison
-Session runtime/freeze-sessions/20261019T233145Z completed10.548s/exit0,
-1384callbacks,3603world ticks/0overloads, max step765us/max lag12082us. Same
-primary GPU/FIFO/static scene/ICD/layers.120kernel records/0errors,11SSK samples/
-64thread observations; main DRM wait9/11while progress/exit succeed, worker
-park/futex waits, final KMS/NVIDIA idle. Full root report stored in session.
-No runtime freeze yet; no claim the intermittent fault is fixed. Next offline
-real renderer/game without net/audio, owner normal close after10–15s.
+| Session UTC | Stage | Runtime | Result |
+| --- | --- | --- | --- |
+|20261019T232406Z|CPU static|10.444s|exit0,837updates,no worker|
+|20261019T232806Z|primary GPU static|10.701s|exit0,1388updates|
+|20261019T233145Z|same GPU+360Hz worker|10.548s|exit0,3603world ticks,no overload|
+|20261019T233451Z|offline/no audio|230.496s|~140.5FPS,360Hz,no overload/ERROR|
+|20261019T234020Z|host/no audio|32.555s|~141.6FPS,360Hz,no peers/overload/ERROR|
+|20261019T234225Z|host/audio enabled|12.599s|~140.4FPS,4320ticks,no overload/ERROR|
 
-## Latest completed hardware scene
-Session runtime/freeze-sessions/20261019T232806Z:10.701s/exit0,1388callbacks,
-NVIDIA615.71.09/Wayland/Vulkan/FIFO, explicit primary PCI0000:65:00.0.120kernel
-samples/0sample errors,11SSK samples/53thread observations/0stack errors. Main
-DRM timeline wait8/11samples with progress/clean exit; it is not by itself a
-freeze signature. Final KMS ppoll/NVIDIA idle. kernel-summary.json and all
-metadata saved in session. Human visual confirmation still pending; no remote
-observer. No hardware stability/fix claim. Next: same GPU+360Hz worker only.
-
-## L5 runtime evidence / current stage
-CPU session runtime/freeze-sessions/20261019T232406Z finished: exit0/10.444s,
-Wayland/Vulkan/Mesa llvmpipe/Cpu/FIFO,837update callbacks, duration_elapsed,
-world_tick0/overloads0/no ERROR.120kernel samples/0sample errors;11SSK samples,
-93thread observations/0stack-read errors, final KMS ppoll/NVIDIA idle. No matched
-new kernel fault. Five optional-display-extension warnings; rendering proceeds.
-Human visual confirmation pending; remote observer absent. Collector has exited.
-No long-term stability or hardware fix claim. Next: one hardware graphics-only
-10s scene on confirmed GNOME PCI0000:65:00.0, same FIFO, with implicit layers
-disabled as in CPU baseline, separate durable session/root capture. No auto retry.
+Each directory is under runtime/freeze-sessions; durable metadata/logs and kernel
+summaries saved. First six stages did not reproduce freeze. Hardware stages pin
+primary PCI65:00.0 and disable implicit layers/use NVIDIA-only ICD; these differ
+from the original unrecorded GPU/loader policy. Audio loads queued, not confirmed
+audible/device-ready. Game stages ended with one verified owned SIGINT (exit-2),
+not normal menu/window exit. Human visual feedback pending; remote Windows
+observer absent; no LAN match or hardware acceptance claim.
+Audio root capture90records/0errors,13SSK samples/0stack-read errors. An earlier
+60s collector expired before launch; fresh90s capture overlapped app (metadata).
+Healthy main-thread DRM timeline waits occurred8/11,9/11,90/106 and10/13samples
+with progress; a single such snapshot does NOT identify a deadlock. Final KMS
+ppoll/NVIDIA idle. Review full PID/TID-specific kernel summaries as needed.
 
 ## Completed current work
 - 50efcb3/L1: timed probe1–120s/default10s; --simulation off|worker reuses actual

@@ -444,3 +444,11 @@ Audio stage prepared: same host/GPU/FIFO/ICD/layers, only native audio enabled,
 physical-GPU choice: enumerated first compatible GPU is PCI0000:17:00.0 while
 GNOME primary is65:00.0. This is a new controlled hypothesis, not proof of the
 old crash's selected GPU. Start other GPU comparison with isolated static scene.
+
+L5 audio: session20261019T234225Z,12.599s,~140.4FPS,
+4320logic ticks/no overload/ERROR. Audio enabled/loads queued; actual device
+readiness/sound unverified. Single intentional SIGINT, not normal exit.90kernel
+records/0errors,13SSK samples/0read errors, final display idle. All first six
+stages passed short observation; original intermittent freeze remains open.
+Next prepared 20261019T234558Z: isolated static10s on headless PCI17:00.0;
+change only GPU from successful primary scene, same FIFO/ICD/layers policy.
