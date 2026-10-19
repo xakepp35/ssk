@@ -142,6 +142,7 @@ pub(crate) async fn run(
     let mut published = false;
     let mut last_addr = None;
     let mut signed_state = Vec::new();
+    let mut leases: HashMap<[i64; 2], (Vec<u8>, std::time::Instant)> = HashMap::new();
     let mut metric_record = Vec::new();
     let mut control_budget = 65536f32;
     let mut control_cursor = 0usize;
@@ -183,8 +184,16 @@ pub(crate) async fn run(
                 }
             },
             Some(event)=worker.events.recv()=>{
-                let event=auth.sign(1,&event);
-                overlay.queue(1,&event,&mut peers,seq);
+                match CombatEvent::decode(&event) {
+                    Some(CombatEvent::Shared(SharedEvent::Lease{sector,..}))=>{
+                        if leases.len()<9||leases.contains_key(&sector){leases.insert(sector,(auth.sign(8,&event),std::time::Instant::now()));}
+                    },
+                    decoded=>{
+                        if let Some(CombatEvent::Shared(SharedEvent::Release{sector,..}))=decoded {leases.remove(&sector);}
+                        let event=auth.sign(1,&event);
+                        overlay.queue(1,&event,&mut peers,seq);
+                    }
+                }
 
             },
             _=tick.tick()=>{
@@ -204,6 +213,8 @@ pub(crate) async fn run(
                 if let Some(snapshot)=snapshot {overlay.positions.insert(overlay.id.clone(),snapshot);}
                 if worker.state.has_changed().unwrap_or(false) {let state=worker.state.borrow_and_update().clone();signed_state=auth.sign(0,&state);}
                 if !signed_state.is_empty(){overlay.queue(0,&signed_state,&mut peers,seq);}
+                leases.retain(|_,(_,time)|time.elapsed().as_secs_f32()<2.);
+                if seq%(config.net_hz/5).max(1) as u64==0 {for (lease,_) in leases.values(){overlay.queue(8,lease,&mut peers,seq);}}
                 if worker.shared.has_changed().unwrap_or(false){let frames=worker.shared.borrow_and_update().clone().into_iter().take(256).filter(|f| f.len()<=420).map(|f| auth.sign(6,&f)).collect::<Vec<_>>();overlay.shared(&frames,&mut peers);}
                 overlay.retry(&mut peers,seq,config.net_hz);
                 control_budget=(control_budget+65536./config.net_hz as f32).min(65536.);

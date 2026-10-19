@@ -36,10 +36,16 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - Serial 128-client diagnostic failed: ~467 ms aggregate frame, p95 age546 ms,
   missing shared images; this exposed both workload and harness bottlenecks.
 
+- B16d: inbound state coalesces per origin with local arrival age; leases use
+  expiring latest-state multicast, repeated 5 Hz, avoiding stale reliable queues.
+- Parallel 64-client run: aggregate p95 9.87 ms; no skipped steps; median shared
+  image count1, but p95 image age2916 ms, measured expiry40. 128 still overloaded
+  this single host: p95 client work20.9 ms, low freshness. Not accepted as128.
+
 ## Next
 Build release, rerun isolated 64 then 128 moving/firing clients, measure shared
 object freshness too. Execute tools/nat two-bridge relay scenario, document
-actual results and remaining acceptance limits. No active benchmark; release rebuild in exec session 88655.
+actual results and remaining acceptance limits. No active benchmark; release rebuild in exec session 11201.
 
 ## Constraints
 240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.

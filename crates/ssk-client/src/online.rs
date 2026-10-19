@@ -44,6 +44,20 @@ impl Online {
         })
     }
     pub fn receive(&mut self, world: &mut World, now: f64) {
+        for (peer, bytes, time) in self.net.take_snapshots() {
+            if let Some(snapshot) = Snapshot::decode(&bytes) {
+                let old = self
+                    .replicas
+                    .peers
+                    .get(&peer)
+                    .and_then(|q| q.back())
+                    .map(|(_, s)| *s);
+                if self.guard.snapshot(old, snapshot) {
+                    self.replicas
+                        .push(peer, snapshot, now - time.elapsed().as_secs_f64());
+                }
+            }
+        }
         self.shared.members(world, self.life, &self.replicas, now);
         let stale: Vec<_> = self
             .replicas

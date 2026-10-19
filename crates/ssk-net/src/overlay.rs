@@ -160,7 +160,7 @@ impl Overlay {
         peers: &mut HashMap<String, crate::reliable::Peer>,
         seq: u64,
     ) {
-        if kind == 0 {
+        if kind == 0 || kind == 8 {
             self.batch(kind, &[data.to_vec()], peers);
             return;
         }
@@ -242,7 +242,7 @@ impl Overlay {
                             let key = if kind == 6 {
                                 format!("{prefix}{:?}", data.get(65..83))
                             } else {
-                                format!("multi:{}:{group}", self.id)
+                                format!("multi:{kind}:{}:{group}", self.id)
                             };
                             (key, payload)
                         })
@@ -293,7 +293,7 @@ impl Overlay {
         for next in self.route(dest, peers).into_iter().take(copies) {
             if let Some(frame) = Self::envelope(dest, kind, 0, data) {
                 let peer = peers.get_mut(&next).unwrap();
-                if kind == 0 || kind == 6 {
+                if kind == 0 || kind == 6 || kind == 8 {
                     let key = if kind == 6 {
                         format!(
                             "shared:{}:{dest}:{:?}:{:?}",
@@ -302,7 +302,7 @@ impl Overlay {
                             data.get(65..83)
                         )
                     } else {
-                        dest.into()
+                        format!("{kind}:{dest}")
                     };
                     peer.state(key, frame);
                 } else if kind == 2 {
@@ -426,7 +426,7 @@ impl Overlay {
         seq: u64,
     ) {
         if frame_kind == 7 {
-            if frame.len() < 2 || ![0, 6].contains(&frame[0]) || !(1..=12).contains(&frame[1]) {
+            if frame.len() < 2 || ![0, 6, 8].contains(&frame[0]) || !(1..=12).contains(&frame[1]) {
                 return;
             }
             let header = 2 + frame[1] as usize * 32;
@@ -473,7 +473,7 @@ impl Overlay {
         let dest = dest.to_string();
         let kind = frame[32];
         let hops = frame[33];
-        if ![0, 1, 2, 6].contains(&kind) || hops > 1 {
+        if ![0, 1, 2, 6, 8].contains(&kind) || hops > 1 {
             return;
         }
         let Some((origin, data)) = auth.verify(kind, &frame[34..]) else {
@@ -493,6 +493,22 @@ impl Overlay {
             return;
         }
         if dest == self.id {
+            if kind == 0 {
+                let mut inbox = worker.snapshots.lock().unwrap();
+                if inbox.len() < 128 || inbox.contains_key(&origin) {
+                    let newer = inbox
+                        .get(&origin)
+                        .and_then(|(old, _)| Snapshot::decode(old))
+                        .zip(Snapshot::decode(&data))
+                        .is_none_or(|(old, new)| {
+                            new.sequence.wrapping_sub(old.sequence) as i32 > 0
+                        });
+                    if newer {
+                        inbox.insert(origin, (data, Instant::now()));
+                    }
+                }
+                return;
+            }
             if kind == 2 {
                 if data.len() == 16 && self.routes.acknowledged.len() < 8192 {
                     let key = (origin, data.as_slice().try_into().unwrap());
@@ -512,7 +528,7 @@ impl Overlay {
                     .incoming
                     .try_send(NetEvent::Packet {
                         peer: origin.clone(),
-                        kind,
+                        kind: if kind == 8 { 1 } else { kind },
                         bytes: data,
                     })
                     .is_ok();
@@ -546,7 +562,7 @@ impl Overlay {
         if let Some(peer) = peers.get_mut(&dest).filter(|p| p.direct()) {
             let mut forwarded = frame.to_vec();
             forwarded[33] = 1;
-            if kind == 0 || kind == 6 {
+            if kind == 0 || kind == 6 || kind == 8 {
                 let key = if kind == 6 {
                     format!(
                         "shared:{origin}:{dest}:{:?}:{:?}",
@@ -554,7 +570,7 @@ impl Overlay {
                         data.get(16..34)
                     )
                 } else {
-                    format!("{origin}:{dest}")
+                    format!("{kind}:{origin}:{dest}")
                 };
                 peer.state(key, forwarded);
             } else if kind == 2 {

@@ -67,15 +67,20 @@ pub struct Network {
     contacts: tokio::sync::watch::Sender<Vec<Vec<u8>>>,
     pub incoming: tokio::sync::mpsc::Receiver<NetEvent>,
     pub status: tokio::sync::watch::Receiver<Status>,
+    snapshots: SnapshotInbox,
     stop: tokio::sync::watch::Sender<bool>,
     thread: Option<std::thread::JoinHandle<()>>,
 }
+type SnapshotInbox = std::sync::Arc<
+    std::sync::Mutex<std::collections::HashMap<String, (Vec<u8>, std::time::Instant)>>,
+>;
 pub(crate) struct Worker {
     state: tokio::sync::watch::Receiver<Vec<u8>>,
     events: tokio::sync::mpsc::Receiver<Vec<u8>>,
     shared: tokio::sync::watch::Receiver<Vec<Vec<u8>>>,
     contacts: tokio::sync::watch::Receiver<Vec<Vec<u8>>>,
     incoming: tokio::sync::mpsc::Sender<NetEvent>,
+    snapshots: SnapshotInbox,
     status: tokio::sync::watch::Sender<Status>,
     stop: tokio::sync::watch::Receiver<bool>,
 }
@@ -89,6 +94,7 @@ impl Network {
         let (shared, shared_rx) = tokio::sync::watch::channel(Vec::new());
         let (contacts, contacts_rx) = tokio::sync::watch::channel(Vec::new());
         let (incoming_tx, incoming) = tokio::sync::mpsc::channel(512);
+        let snapshots: SnapshotInbox = Default::default();
         let (status_tx, status) = tokio::sync::watch::channel(Status {
             phase: "Starting network".into(),
             ..Default::default()
@@ -100,6 +106,7 @@ impl Network {
             shared: shared_rx,
             contacts: contacts_rx,
             incoming: incoming_tx,
+            snapshots: snapshots.clone(),
             status: status_tx,
             stop: stop_rx,
         };
@@ -126,12 +133,22 @@ impl Network {
             contacts,
             incoming,
             status,
+            snapshots,
             stop,
             thread: Some(thread),
         })
     }
     pub fn publish(&self, state: Vec<u8>) {
         self.state.send_replace(state);
+    }
+    /// At most one fresh state per origin; old UI backlog is never replayed.
+    pub fn take_snapshots(&self) -> Vec<(String, Vec<u8>, std::time::Instant)> {
+        self.snapshots
+            .lock()
+            .unwrap()
+            .drain()
+            .map(|(peer, (bytes, time))| (peer, bytes, time))
+            .collect()
     }
     pub fn shared(&self, frames: Vec<Vec<u8>>) {
         self.shared.send_replace(frames);

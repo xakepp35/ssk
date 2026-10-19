@@ -30,7 +30,7 @@ fn quantiles(mut values: Vec<f64>) -> serde_json::Value {
     }
     values.sort_by(f64::total_cmp);
     let q = |p: f64| values[((values.len() - 1) as f64 * p) as usize];
-    serde_json::json!({"p50":q(0.5),"p95":q(0.95),"p99":q(0.99),"max":values.last(),"samples":values.len()})
+    serde_json::json!({"min":values.first(),"p05":q(0.05),"p50":q(0.5),"p95":q(0.95),"p99":q(0.99),"max":values.last(),"samples":values.len()})
 }
 pub fn run(mut config: Config, opt: Options) -> Result<serde_json::Value, String> {
     if !(1..=128).contains(&opt.players)

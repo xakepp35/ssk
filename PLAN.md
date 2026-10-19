@@ -44,6 +44,7 @@ no automated tests unless requested. A short manual game session when available.
 - [x] B16a — Fix measured signature/graph recomputation and queue starvation; focused compilation. `perf: bound routing and prioritize fresh game state`
 - [x] B16b — Separate end-to-end receipts and index in-flight ACKs; compilation passed. `perf: keep delivery receipts out of retry queues`
 - [x] B16c — Source multicast, cached verifying keys, parallel swarm and measured counter deltas; compilation passed. `perf: batch source fanout and parallelize swarm clients`
+- [x] B16d — Coalesce incoming ship state; refresh leases as expiring latest state. `perf: bound incoming state and refresh sector leases`
 - [ ] B16 — Measured bottlenecks, operating docs, beta tag. `release: prepare network beta`
 
 ## Network implementation invariants
