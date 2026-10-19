@@ -153,7 +153,7 @@ launching the game; cause remains unknown. No live post-fix match performed.
   preserve nearby objects across sector boundaries and ownership changes.
 - [x] F3 — Fourfold stars with individual depth, brightness and parallax;
   retain background continuity across coordinate rebases.
-- [ ] F4 — Sequential one-job Linux/Windows static release builds and packages.
+- [x] F4 — Sequential one-job Linux/Windows static release builds and packages.
 
 No automated tests, GUI launch or heavy swarms. Compilation and package build
 only; gameplay improvements require a later manual session.
@@ -169,3 +169,11 @@ before mouse aim. Snapshot v2 covers scout boost speed; no runtime claims.
 F3 evidence: cargo check passed (0.54s). 1320 seeded stars, continuous depth
 controls parallax/brightness/size; bounded phases compensate coordinate rebases.
 Visual result has not been viewed in-game after the workstation incidents.
+
+
+F4 evidence: source 115b24c built Linux release (2m39s) and Windows GNU static
+release (2m10s), sequentially with SSK_BUILD_JOBS=1. Both archives refreshed;
+Windows import check: only system DLLs, no external compiler runtime. Root
+1600×1000 config retained: Linux host, Windows join to 192.168.50.155:4202.
+No automated tests, GUI launch or live gameplay/continuity verification. Stable
+flight/continuity rules added to AGENTS.md. F1–F4 complete; manual follow-up open.

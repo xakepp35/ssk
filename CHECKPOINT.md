@@ -35,17 +35,18 @@ Headless seeds keep connections rather than pruning against a ship-only graph.
 Examples removed; NAT tools migrated to nested network section. No tests run.
 
 ## Build evidence / artifacts
-E1/E2 code ba34ebd/e2d50e0: cargo check passed (1.71s). After owner's explicit
-rebuild request, Linux release completed (2m11s), then Windows GNU static release
-(2m18s), sequentially with SSK_BUILD_JOBS=1. E3 complete. Ignored persistent logs:
-runtime/build-incident-linux.log and runtime/build-incident-windows.log.
+F1–F3 source 115b24c: focused cargo checks passed (2.47s / 1.03s / 0.54s).
+Linux release succeeded (2m39s), then Windows GNU static release (2m10s),
+sequentially with SSK_BUILD_JOBS=1. F4 complete. Ignored persistent logs:
+runtime/build-flight-{linux,windows}.log and build-*-check.log.
 Windows import check: system DLLs only; no external libwinpthread/libgcc DLL.
 Refreshed dist/ssk-linux-x64.tar.gz and dist/ssk-windows-gnu.zip each contain
 executable, ssk.yml, PLAY.md. Linux config host; Windows join to
 192.168.50.155:4202, both 1600×1000. No examples, DLLs or identities packaged.
+Both computers must update: rules ssk-rules-4-inertial and snapshot v2.
 MSVC script unexecuted. No automated tests, GUI launch or post-fix live match.
-No active game/server/build/swarm. No push. Owner's pre-existing Cargo.toml
-authors edit preserved and excluded from implementation commits.
+No active game/server/build/swarm. No push. Owner's authors commit c0d298d
+retained without changes.
 
 ## Historical measurements / open work
 22a9737 at 240/30: 2/16/64 loopback completed with zero skipped steps or measured
@@ -78,19 +79,26 @@ that occurrence. Cause unknown; no system/driver settings changed. Initial
 build was interrupted and /tmp log lost, later explicit 1-job rebuild succeeded.
 See docs/LINUX_FREEZE.md. No automatic reproduction or heavy swarms.
 
-## Active request / F
-Owner requests nose-relative inertial thrusters, finite class turn rates,
-750/1400/1000 class HP, full shield for half damage in energy, stronger scout
-boost/double turning, no sector/camera teleports, fourfold depth-based stars.
-F1 complete: nose-relative inertial thrust and finite turning, named ShipStats,
-full shield absorption at 0.5 E/damage, HP 750/1400/1000; cargo check passed
-(2.47s), no tests. Rules ID ssk-rules-4-inertial. Next bounded sector/camera continuity,
-starfield, sequential one-job Linux/Windows packages. No tests/GUI/stress runs.
-F2 complete: at most 4 sectors per player with 1600-unit prefetch/keep margin;
-empty prefetch sectors do not spawn encounters and publish terrain at 1 Hz.
-Known active images survive delivery stalls; camera rebases before mouse aim.
-Snapshot v2 uses velocity step 1/8 (covers boost); cargo check passed (1.03s).
-F3 complete: 1320 seeded depth-based stars (previously 330), dim/slower/finer
-far stars and bright/faster/larger near stars; bounded phase continuity across
-rebases. cargo check passed (0.54s); no GUI/visual runtime verification.
-Next: Linux release then static Windows release, one job each; refresh packages.
+## Latest flight / F1–F4 complete
+- f8df2bd: named ShipStats hp/traction/turn_rate/radius; inertial nose-relative
+  thrusters, finite shortest-path mouse turning at 360 Hz. No speed parameter or
+  hard velocity clamp; linear drag 1.5/s. Class HP 750/1400/1000, traction
+  900/675/480, turning 300/240/180 deg/s. Scout boost traction x4/turn x2.
+  Shield absorbs all affordable damage at 0.5 E/damage; only overflow hits hull.
+  AI/control adapter/validation/UI/README aligned; rules ID bumped.
+- 572c64d: 1600-unit nearby sector prefetch/retention, at most four sectors per
+  player at default viewport. No new encounters in empty prefetch sectors;
+  their terrain publishes at 1 Hz. Known active images survive delivery stalls.
+  Camera/effects rebase before cursor aim. Snapshot v2 velocity step 1/8 covers
+  2400-unit scout boost. Default viewport is covered; oversized viewports need
+  separately tuned interest bounds. Remote snapshot delivery latency remains.
+- 115b24c: 1320 seeded stars (previously 330), individual continuous depth
+  determines brightness/size/parallax. Bounded phases survive origin rebases.
+- F4: Linux/Windows static packages built successfully; evidence above. Stable
+  flight and continuity requirements saved in AGENTS.md.
+
+## Exact next action
+Deliver updated archives. Later short manual match should check thrust/turning,
+shield energy, sector seams and parallax. Gameplay/visual continuity not yet
+observed after these changes. No automatic GUI/stress runs; resume B16 only
+with separate capacity/internet evidence and no local heavy load.

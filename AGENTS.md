@@ -65,3 +65,18 @@ bootstrap, with no ship or central ownership of player state. F2/Esc opens the
 menu/ship selection; F3 copies the invitation. Online class changes apply on
 respawn. Package only executable, ssk.yml and guide; no external Windows runtime
 DLLs, identities or runtime files. Preserve separate per-computer keys.
+
+## Flight and visual continuity
+
+ShipStats has named hp/traction/turn_rate/radius fields. Flight uses finite
+shortest-path mouse steering and nose-relative thrusters (W forward, S reverse,
+A/D strafe), evaluated each simulation tick. Turning does not rotate momentum;
+velocity follows traction plus linear drag, with no per-class speed clamp.
+Scout boost multiplies traction by 4 and turning by 2. Tank shield absorbs
+all affordable damage for 0.5 energy/damage; overflow alone reaches hull.
+Keep AI, validation bounds, UI descriptions and README aligned with these rules.
+Changes to network-visible game rules require a new RULES_ID; both peers update.
+Camera/cursor/effects and star phases must compensate coordinate rebases once.
+Keep nearby sectors active across boundaries; prefetching empty terrain must not
+multiply encounters. Do not erase known visible content just because a replacement
+image is delayed. Never claim runtime continuity from compilation alone.
