@@ -418,3 +418,7 @@ no logged errors/overloads.120kernel records/0errors,106SSK samples/632thread
 observations/0stack errors, main DRM wait90/106with frames continuing, final
 KMS/NVIDIA idle. Window remains open;35s launcher timeout did not kill it and
 is not a freeze. Owner normal-close request pending; do not start second game.
+
+Offline game continued>3min without freeze; owner normal-close feedback absent.
+Prepare30s independent shutdown capture then one SIGINT to verified owned PID
+(no kill spam/retry). This does not verify normal window/menu shutdown.

@@ -23,7 +23,9 @@ status wall_timeout_process_not_killed; this is NOT a host/application freeze.
 Root collector ended:120records/0errors,106SSK samples/632thread observations/
 0stack-read errors. Kernel report saved in session; KMS/NVIDIA idle at capture
 end, main DRM wait90/106observations with ongoing frames. Owner normal-close
-request pending; no visual confirmation/remote observer. Do not launch another
+request unanswered; no visual confirmation/remote observer. Next planned:
+30s independent shutdown capture, one SIGINT to verified owned SSK PID; normal
+menu exit remains unverified. Do not launch another
 game until this PID exits. Next: finish offline process/review, then network.
 
 ## Latest worker comparison
