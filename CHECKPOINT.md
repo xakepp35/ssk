@@ -35,13 +35,17 @@ Headless seeds keep connections rather than pruning against a ship-only graph.
 Examples removed; NAT tools migrated to nested network section. No tests run.
 
 ## Build evidence / artifacts
-Earlier source 962f7bb builds succeeded on Linux and Windows GNU. Current
-LAN revision cargo check passed; one intermediate Linux release succeeded.
-Final Linux rebuild and Windows static release/package still pending (D3).
-No game/server/swarm kept running. Build with 2 jobs, sequential targets.
-Pending packaging scripts set static runtime, inspect PE imports, package only
-exe+ssk.yml+PLAY.md. Preserve owner's unstaged Cargo.toml authors change.
-No Windows runtime/MSVC run or live Linux↔Windows match yet. No push.
+Application source a12f305: cargo check passed; final Linux release succeeded
+(1m32s), Windows GNU static release succeeded (4m19s), sequentially with 2 jobs.
+Windows PE imports: system DLLs only; no libwinpthread/libgcc external runtime.
+D1/D2/D3 complete. tools/build-linux.sh packages dist/ssk-linux-x64.tar.gz;
+tools/build-windows.sh packages dist/ssk-windows-gnu.zip. Both contain only
+executable, root ssk.yml and PLAY.md. Linux config host; Windows config join
+to 192.168.50.155:4202, both 1600×1000. No examples directory or bundled DLL.
+MSVC script also requests static CRT; it has not been run. No automated tests,
+manual new-client/Windows runtime or live Linux↔Windows match performed.
+No active game/server/build/swarm. No push. Owner's pre-existing Cargo.toml
+change to authors was preserved and excluded from these implementation commits.
 
 ## Historical measurements / open work
 22a9737 at 240/30: 2/16/64 loopback completed with zero skipped steps or measured

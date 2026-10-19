@@ -108,7 +108,14 @@ MSVC script prepared; no Windows execution/manual LAN match yet.
 - [x] D2 — Host (play + accept joins), headless server/node, bounded TCP LAN
   invitation endpoint and IP-based joining to 192.168.50.155:4202. Preserve
   headless seed connections while players form the ordinary P2P graph.
-- [ ] D3 — Static Windows compiler runtime, no bundled DLL, root config in both
+- [x] D3 — Static Windows compiler runtime, no bundled DLL, root config in both
   distributions, release builds and PE import evidence; update LAN guide.
 
 No automated tests or heavy swarms. Live cross-platform match remains manual.
+
+D3 evidence: application source a12f305 built Linux release (1m32s) and
+Windows GNU static release (4m19s), sequentially with 2 jobs. PE imports
+contain only Windows system DLLs; no libwinpthread/libgcc DLL. Windows ZIP
+contains exactly ssk.exe, ssk.yml (join to 192.168.50.155:4202), PLAY.md.
+Linux package has executable + root host config + guide. Windows execution,
+MSVC script and live cross-platform match remain unverified.

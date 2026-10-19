@@ -11,6 +11,7 @@
 
    Корневой `ssk.yml` задаёт `mode: host`: игра открывает окно 1600×1000 и
    принимает подключения. Отдельный сервер одновременно запускать не нужно.
+   В готовой Linux-папке вместо этого запустите `./ssk`.
 3. Перенесите **новый** `dist/ssk-windows-gnu.zip` на ноутбук, распакуйте
    в отдельную папку и запустите `ssk.exe`. В архиве рядом лежит `ssk.yml`
    с `mode: join` и `connect: 192.168.50.155:4202`. Аргументы не нужны.
@@ -70,7 +71,8 @@
 
 ## Сборка
 
-Linux: `cargo build --locked --release -p ssk --jobs 2`.
+Linux: `tools/build-linux.sh` → `dist/ssk-linux-x64/` и архив `.tar.gz`.
+Рядом с Linux-бинарём тоже лежит `ssk.yml` с режимом host.
 Linux → Windows: `tools/build-windows.sh` (Rust windows-gnu + MinGW-w64).
 Архив содержит **ssk.exe, ssk.yml, PLAY.md**, без внешних runtime DLL.
 Скрипт включает статическую линковку compiler runtime и проверяет PE imports;
