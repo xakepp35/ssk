@@ -13,7 +13,7 @@ split oversized steps. Never treat compilation as proof of playability.
 - [x] A4 — Sectors, spatial grid, asteroids, swept collisions. `feat: add procedural asteroid field`
 - [x] A5 — Shotgun, plasma, persistent weapon cooldowns. `feat: add three weapon loadout`
 - [x] A6 — NPC, death, score, instant restart; first complete run. `feat: add survival combat loop`
-- [ ] A7 — Three classes and one ability each. `feat: add ship classes and abilities`
+- [x] A7 — Three classes and one ability each. `feat: add ship classes and abilities`
 - [ ] A8 — Pickups, overcap resources, combos. `feat: add pickups and score chains`
 - [ ] A9 — Three AI types, director, spawn telegraphs. `feat: add varied enemies and pressure`
 - [ ] A10 — Bounded effects and prepared audio. `feat: add combat effects and audio`

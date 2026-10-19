@@ -34,11 +34,12 @@ impl Ship {
         self.weapon=WeaponKind::from_index(input.weapon);
         let index=self.weapon as usize;
         let stats=self.weapon.stats();
-        if input.fire && self.cooldowns[index]<=0. && self.energy>=stats.energy {
-            self.energy-=stats.energy; self.quiet=0.; self.cooldowns[index]=stats.interval;
-            Some(Shot { id:shot_id, owner:self.id, pos:self.pos+V2::from_angle(self.angle)*(self.class.stats().3+5.), angle:self.angle, weapon:self.weapon, seed:rng.next_u64(), damage_scale:1. })
+        let scale=if matches!(self.class,ShipClass::Thunder)&&self.ability_active { 4. } else { 1. };
+        if input.fire && self.cooldowns[index]<=0. && self.energy>=stats.energy*scale {
+            self.energy-=stats.energy*scale; self.quiet=0.; self.cooldowns[index]=stats.interval;
+            Some(Shot { id:shot_id, owner:self.id, pos:self.pos+V2::from_angle(self.angle)*(self.class.stats().3+5.), angle:self.angle, weapon:self.weapon, seed:rng.next_u64(), damage_scale:scale })
         } else {
-            if self.quiet>0.6 && self.energy<1000. { self.energy=(self.energy+80.*DT).min(1000.); }
+            if self.quiet>0.6 && !self.ability_active && self.energy<1000. { self.energy=(self.energy+80.*DT).min(1000.); }
             None
         }
     }
@@ -58,6 +59,15 @@ impl World {
     pub fn emit(&mut self,event:WorldEvent) { if self.events.len()<512 { self.events.push(event); } }
     pub fn spawn_shot(&mut self,shot:Shot) {
         let stats=shot.weapon.stats(); let mut rng=Rng(shot.seed);
+        let firing=if shot.owner==self.player.id { Some(&mut self.player) } else { self.npcs.iter_mut().find(|n|n.ship.id==shot.owner).map(|n|&mut n.ship) };
+        if let Some(ship)=firing {
+            if matches!(ship.class,ShipClass::Cadet)&&ship.ability_active {
+                ship.energy=(ship.energy-stats.damage*shot.damage_scale*stats.pellets as f32*0.5).max(0.);
+                if ship.energy<=0. { ship.ability_active=false; }
+                self.emit(WorldEvent::Shot(shot));
+                self.emit(WorldEvent::Impact { pos:shot.pos,damage:20. });return;
+            }
+        }
         for pellet in 0..stats.pellets {
             if self.bullets.len()>=4096 { break; }
             let spread=if stats.pellets>1 { -stats.spread+2.*stats.spread*(pellet as f32+rng.range(0.1,0.9))/stats.pellets as f32 } else { rng.range(-stats.spread,stats.spread) };
@@ -69,6 +79,7 @@ impl World {
     pub(crate) fn combat(&mut self,input:InputFrame) {
         let shot_id=self.next_id;
         if let Some(shot)=self.player.combat_step(input,&mut self.rng,shot_id) { self.next_id+=1; self.spawn_shot(shot); }
+        else if input.fire && self.player.cooldowns[self.player.weapon as usize]<=0. && self.tick%36==0 { self.emit(WorldEvent::Dry); }
         let mut impacts=Vec::new();
         let mut nearby=Vec::new();
         for bullet in &mut self.bullets {
@@ -93,7 +104,7 @@ impl World {
                 if first.is_none_or(|(best,_,_)|t<best) { first=Some((t,2,0)); }
             }
             if let Some((t,kind,index))=first {
-                match kind { 0=>self.asteroids[index].hp-=bullet.damage,1=>self.npcs[index].ship.hp-=bullet.damage,_=>self.player.hp-=bullet.damage }
+                match kind { 0=>self.asteroids[index].hp-=bullet.damage,1=>{self.npcs[index].ship.damage(bullet.damage);},_=>{self.player.damage(bullet.damage);} }
                 bullet.life=0.;
                 impacts.push(WorldEvent::Impact { pos:bullet.previous.lerp(bullet.pos,t), damage:bullet.damage });
             }

@@ -14,13 +14,13 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - `cargo check --workspace` passed after A2; no tests/manual session.
 
 ## Live state
-- Completed A6: Spawning enemies, aimed bursts, swept ship hits, death/results/score and R restart.
+- Completed A7: Boost/shield/quad, activation and sustained energy, release-to-rearm, shield hull split and own-shot interception.
 - `cargo check --workspace` passed at this step. No automated tests run.
 - No manual play session yet. No public hosts for internet acceptance.
 - No active project processes. Source discussions preserved. No push.
 
 ## Next
-A7: class abilities, shields and release-to-rearm semantics.
+A8: pickups, overcap resources, combo scoring.
 
 ## Constraints
 240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.

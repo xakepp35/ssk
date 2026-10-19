@@ -23,6 +23,10 @@ fn draw_ship(ship: &Ship, camera: V2, alpha: f32, color: Color) {
     draw_triangle(a,b,c,Color::new(color.r*0.15,color.g*0.15,color.b*0.15,1.));
     draw_triangle_lines(a,b,c,2.,color);
     let p=screen(pos,camera); draw_circle(p.x,p.y,3.,WHITE);
+    if ship.ability_active {
+        let color=match ship.class { ssk_sim::ShipClass::Spark=>SKYBLUE,ssk_sim::ShipClass::Cadet=>GREEN,ssk_sim::ShipClass::Thunder=>RED };
+        draw_circle_lines(p.x,p.y,radius+9.+(get_time() as f32*12.).sin()*2.,3.,color);
+    }
     if ship.velocity.length()>10. {
         let end=screen(pos-forward*(radius+8.+(get_time() as f32*67.).sin()*4.),camera);
         let start=screen(pos-forward*radius,camera);
@@ -101,6 +105,8 @@ async fn run(options: Options) {
         draw_rectangle(24.,52.,240.*world.player.energy/1000.,10.,SKYBLUE);
         draw_text(&format!("[{}] {}  | Q/E or wheel",weapon+1,world.player.weapon.name()),24.,90.,24.,WHITE);
         draw_text(&format!("HP {:.0}  |  SCORE {}  |  {:.1}s",world.player.hp.max(0.),world.score,world.tick as f32*DT),24.,120.,24.,WHITE);
+        let ability=match world.player.class { ssk_sim::ShipClass::Spark=>"BOOST",ssk_sim::ShipClass::Cadet=>"SHIELD",ssk_sim::ShipClass::Thunder=>"QUAD" };
+        draw_text(&format!("RMB / SHIFT: {}  {}",ability,if world.player.ability_active { "ACTIVE" } else if world.player.ability_latched { "RELEASE TO REARM" } else { "READY AT 160 E" }),24.,150.,20.,GREEN);
         if world.player.hp<=0. {
             draw_rectangle(0.,0.,screen_width(),screen_height(),Color::new(0.01,0.02,0.05,0.8));
             draw_text("SHIP LOST",screen_width()/2.-150.,screen_height()/2.-40.,48.,PINK);

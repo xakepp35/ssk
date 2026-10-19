@@ -48,7 +48,7 @@ impl World {
                     self.player.velocity-=normal*(incoming*1.6);
                     if self.player.bump_cooldown<=0. && incoming < -80. {
                         let damage=(-incoming*0.2).min(100.);
-                        self.player.hp-=damage; self.player.bump_cooldown=0.35;
+                        self.player.damage(damage); self.player.bump_cooldown=0.35;
                         self.emit(WorldEvent::Impact { pos:self.player.pos, damage });
                     }
                 }
