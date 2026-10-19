@@ -469,3 +469,10 @@ L5 default implicit layers:20261019T234933Z,28.347s,no freeze/ERROR/
 overload;60kernel records/0errors,28app samples/0read errors. Next20261019T235124Z:
 same headless full host/audio with default ICD discovery, only unset child
 VK_DRIVER_FILES. No machine environment/driver changes.
+
+L5 default driver discovery:20261019T235124Z,28.353s,
+~139.7FPS,0overload/ERROR,3Vulkan candidates.60kernel records/0errors,
+28app samples/0read errors. No loader/GPU-dependent freeze reproduced.
+Next isolate incident code: rebuild exact de14d7ab668d in runtime worktree,
+without replacing dist, then ONE captured original-host comparison. Original
+selection lacks stable GPU logging/control; record this comparison limitation.
