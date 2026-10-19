@@ -1,0 +1,13 @@
+[package]
+name = "ssk"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+ssk-sim.workspace = true
+ssk-net.workspace = true
+ssk-client.workspace = true
+clap.workspace = true
+anyhow.workspace = true

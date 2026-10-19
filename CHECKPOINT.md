@@ -11,13 +11,13 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - Existing source discussions IDEA.md, NET.md, PING.md preserved.
 
 ## Live state
-- Initial repository, no code yet. Rust 1.99 installed. No tests/builds run.
+- A0 committed as c20b5a9. A1: 3 libraries + one CLI binary; window and headless dispatch.
+- `cargo check --workspace` passed. No tests run; no play session yet.
 - No active project processes. No public hosts available for internet acceptance.
-- Plan mode ended; implementation authorized. Commit A0, then implement A1.
+- A1 implementation complete; optional network commands explicitly report not implemented.
 
 ## Next
-Create 3-library/1-binary Rust workspace, Macroquad client, CLI with headless
-dispatch. Use compilation checks; don't add/run tests unless requested.
+A2: fixed 240 Hz simulation, movement, aim, camera and render interpolation.
 
 ## Constraints
 240 Hz sim, 30–60 game PPS/link; one ability/class; owner-authoritative ships;
