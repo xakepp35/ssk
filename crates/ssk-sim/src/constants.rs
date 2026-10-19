@@ -169,3 +169,51 @@ pub fn weapon_stats(kind: crate::WeaponKind) -> crate::WeaponStats {
         },
     }
 }
+
+pub const ROCK_KEEP_SECTORS: f32 = 2.5;
+pub const ROCKS_PER_SECTOR: usize = 40;
+pub const ROCK_SPAWN_CLEARANCE: f32 = 500.;
+pub const ROCK_RADIUS: std::ops::Range<f32> = 30. ..64.;
+pub const ROCK_HEALTH: f32 = 360.;
+pub const ROCK_SPEED: std::ops::Range<f32> = 3. ..20.;
+pub const ROCK_SPIN: f32 = 0.3;
+pub const ROCK_CHILD_OFFSET: f32 = 0.45;
+pub const ROCK_CHILD_RADIUS: f32 = 0.48;
+pub const ROCK_CHILD_HEALTH: f32 = 100.;
+pub const ROCK_CHILD_SPEED: f32 = 45.;
+pub const ROCK_CHILD_SPIN: f32 = 0.8;
+pub const ROCK_SCORE: u64 = 30;
+pub const ROCK_CHILD_SCORE: u64 = 10;
+pub const CONTACT_EPSILON: f32 = 0.001;
+pub const CONTACT_SEPARATION: f32 = 0.1;
+pub const CONTACT_RESTITUTION: f32 = 1.6;
+pub const CONTACT_DAMAGE_SPEED: f32 = 80.;
+pub const CONTACT_DAMAGE_SCALE: f32 = 0.2;
+pub const CONTACT_DAMAGE_MAX: f32 = 100.;
+pub const CONTACT_COOLDOWN: f32 = 0.35;
+pub const PLAYER_ID_BIT: u64 = 1 << 63;
+pub const SECTOR_HASH_X: u64 = 0x517cc1b727220a95;
+pub const SECTOR_HASH_Y: u64 = 0x9e3779b97f4a7c15;
+pub const SECTOR_ID_MASK: u64 = 0x7fffffff;
+pub const SECTOR_ID_SHIFT: u32 = 32;
+pub const SECTOR_MAX_ROCKS: usize = 160;
+pub const SECTOR_MAX_POSITION: f32 = SECTOR_SIZE * 2.;
+pub const SECTOR_MAX_VELOCITY: f32 = 5000.;
+pub const SECTOR_MAX_ROCK_RADIUS: f32 = 100.;
+pub const SECTOR_SPAWN_RADIUS: f32 = 1000.;
+pub const SECTOR_PROXY_HEALTH: f32 = 1e9;
+pub const SECTOR_PROXY_PROTECTION: f32 = 1000.;
+pub const SHARED_MAGNET_SPEED: f32 = 200.;
+pub const SHARED_SHOT_MARGIN: f32 = 1600.;
+pub const LEASE_CLOCK_SKEW_MILLIS: u64 = 500;
+pub const LEASE_MAX_FUTURE_MILLIS: u64 = (LEASE_SECONDS * 1000.) as u64 + LEASE_CLOCK_SKEW_MILLIS;
+pub const INTERPOLATION_EPSILON: f64 = 0.00001;
+pub const RNG_INCREMENT: u64 = 0x9e3779b97f4a7c15;
+pub const RNG_MULTIPLIERS: [u64; 2] = [0xbf58476d1ce4e5b9, 0x94d049bb133111eb];
+pub const RNG_MIX_SHIFTS: [u32; 3] = [30, 27, 31];
+pub const RNG_FLOAT_SHIFT: u32 = 40;
+pub const RNG_FLOAT_SCALE: f32 = 16777216.;
+
+pub const COMBAT_EVENT_QUEUE: usize = 256;
+pub const SHOT_EVENT_MEMORY: usize = 4096;
+pub const DEATH_EVENT_MEMORY: usize = 1024;

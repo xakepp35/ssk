@@ -1,3 +1,4 @@
+use crate::constants::*;
 use ssk_sim::*;
 #[derive(Clone)]
 pub struct SharedChunk {
@@ -22,7 +23,7 @@ impl SharedChunk {
         b
     }
     pub fn decode(b: &[u8]) -> Option<Self> {
-        if b.len() < 36 || b.len() > 420 {
+        if b.len() < SHARED_HEADER_BYTES || b.len() > SHARED_FRAME_BYTES {
             return None;
         }
         let out = Self {
@@ -36,18 +37,19 @@ impl SharedChunk {
             total: u16::from_le_bytes(b[34..36].try_into().ok()?),
             data: b[36..].to_vec(),
         };
-        (out.total > 0 && out.total <= 128 && out.part < out.total).then_some(out)
+        (out.total > 0 && out.total as usize <= SHARED_MAX_PARTS && out.part < out.total)
+            .then_some(out)
     }
     pub fn snapshot(sector: [i64; 2], epoch: u64, state: &SectorState) -> Vec<Vec<u8>> {
         let Ok(bytes) = postcard::to_allocvec(state) else {
             return vec![];
         };
-        if bytes.len() > 384 * 128 {
+        if bytes.len() > SHARED_PART_BYTES * SHARED_MAX_PARTS {
             return vec![];
         }
-        let total = bytes.len().div_ceil(384) as u16;
+        let total = bytes.len().div_ceil(SHARED_PART_BYTES) as u16;
         bytes
-            .chunks(384)
+            .chunks(SHARED_PART_BYTES)
             .enumerate()
             .map(|(i, b)| {
                 Self {
@@ -84,9 +86,10 @@ impl SectorAssembler {
         chunk: SharedChunk,
         now: f64,
     ) -> Option<([i64; 2], u64, SectorState)> {
-        self.pending.retain(|_, (time, _)| now - *time < 5.);
+        self.pending
+            .retain(|_, (time, _)| now - *time < SHARED_ASSEMBLY_SECONDS);
         let key = (origin, chunk.sector, chunk.epoch, chunk.revision);
-        if self.pending.len() >= 27 && !self.pending.contains_key(&key) {
+        if self.pending.len() >= SHARED_ASSEMBLIES && !self.pending.contains_key(&key) {
             return None;
         }
         let (_, parts) = self

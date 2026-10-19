@@ -1,4 +1,5 @@
 use crate::RelayServerConfig;
+use crate::constants::*;
 use anyhow::Context;
 use iroh_relay::server::*;
 use std::sync::{
@@ -35,7 +36,7 @@ impl AccessControl for Admission {
 }
 pub(crate) async fn start(config: &RelayServerConfig) -> anyhow::Result<Server> {
     let mut relay = RelayConfig::new(config.http_bind);
-    relay.key_cache_capacity = Some(4096);
+    relay.key_cache_capacity = Some(RELAY_KEY_CACHE);
     relay.limits.client_rx = Some(ClientRateLimit::new(
         std::num::NonZeroU32::new(config.bytes_per_second).context("zero relay rate")?,
     ));

@@ -24,15 +24,16 @@ pub(crate) struct Routes {
 }
 impl Routes {
     pub fn metrics(&mut self, origin: &str, b: &[u8]) {
-        if b.len() % 40 != 0 || b.len() > 800 {
+        if b.len() % METRIC_ROW_BYTES != 0 || b.len() > METRIC_ROWS * METRIC_ROW_BYTES {
             return;
         }
-        for row in b.chunks_exact(40) {
+        for row in b.chunks_exact(METRIC_ROW_BYTES) {
             let Ok(id) = iroh::PublicKey::from_bytes(row[..32].try_into().unwrap()) else {
                 continue;
             };
-            let rtt = u16::from_le_bytes(row[32..34].try_into().unwrap()) as f32 / 10.;
-            let jitter = u16::from_le_bytes(row[34..36].try_into().unwrap()) as f32 / 10.;
+            let rtt = u16::from_le_bytes(row[32..34].try_into().unwrap()) as f32 / METRIC_RTT_SCALE;
+            let jitter =
+                u16::from_le_bytes(row[34..36].try_into().unwrap()) as f32 / METRIC_RTT_SCALE;
             self.legs.insert(
                 (origin.into(), id.to_string()),
                 (
@@ -42,20 +43,21 @@ impl Routes {
                         loss: row[36] as f32 / 255.,
                         queued: row[37] as usize,
                         direct: row[38] == 1,
-                        age_ms: row[39] as f32 * 20.,
+                        age_ms: row[39] as f32 * METRIC_AGE_SCALE,
                         ..Default::default()
                     },
                     Instant::now(),
                 ),
             );
         }
-        self.legs.retain(|_, (_, t)| t.elapsed().as_secs() < 6);
+        self.legs
+            .retain(|_, (_, t)| t.elapsed().as_secs() < METRIC_TTL_SECONDS);
     }
     pub fn advertise(peers: &HashMap<String, crate::reliable::Peer>, cursor: usize) -> Vec<u8> {
         let mut ids: Vec<_> = peers.keys().collect();
         ids.sort();
         let mut b = Vec::new();
-        for i in 0..ids.len().min(20) {
+        for i in 0..ids.len().min(METRIC_ROWS) {
             let id = ids[(cursor + i) % ids.len()];
             let p = &peers[id];
             let s = &p.metrics.stats;
@@ -63,13 +65,16 @@ impl Routes {
                 continue;
             };
             b.extend(key.as_bytes());
-            b.extend(((s.rtt_ms.unwrap_or(6553.) * 10.).clamp(0., 65535.) as u16).to_le_bytes());
-            b.extend(((s.jitter_ms * 10.).clamp(0., 65535.) as u16).to_le_bytes());
+            b.extend(
+                ((s.rtt_ms.unwrap_or(6553.) * METRIC_RTT_SCALE).clamp(0., 65535.) as u16)
+                    .to_le_bytes(),
+            );
+            b.extend(((s.jitter_ms * METRIC_RTT_SCALE).clamp(0., 65535.) as u16).to_le_bytes());
             b.extend([
                 (s.loss * 255.) as u8,
                 s.queued.min(255) as u8,
                 p.direct() as u8,
-                (s.age_ms / 20.).min(255.) as u8,
+                (s.age_ms / METRIC_AGE_SCALE).min(255.) as u8,
             ]);
         }
         b
@@ -83,7 +88,8 @@ impl Routes {
             let keep = selected
                 .zip(previous)
                 .is_some_and(|((_, _, time), (_, old))| {
-                    time.elapsed().as_secs_f32() < 1. || old - cost <= 5f32.max(*old * 0.1)
+                    time.elapsed().as_secs_f32() < ROUTE_SWITCH_SECONDS
+                        || old - cost <= ROUTE_HYSTERESIS_MS.max(*old * ROUTE_HYSTERESIS_FRACTION)
                 });
             if !keep {
                 if selected.is_some_and(|(id, _, _)| id != best) {
@@ -98,7 +104,11 @@ impl Routes {
                 }
             }
         }
-        candidates.into_iter().take(3).map(|(id, _)| id).collect()
+        candidates
+            .into_iter()
+            .take(ROUTE_BACKUPS)
+            .map(|(id, _)| id)
+            .collect()
     }
 }
 pub(crate) fn event_id(data: &[u8]) -> Option<[u8; 16]> {

@@ -141,10 +141,10 @@ impl SharedWorld {
                 local: shot.pos,
             }
             .relative_to(*origin);
-            if shot.pos.x >= -1600.
-                && shot.pos.y >= -1600.
-                && shot.pos.x <= 5696.
-                && shot.pos.y <= 5696.
+            if shot.pos.x >= -SHARED_SHOT_MARGIN
+                && shot.pos.y >= -SHARED_SHOT_MARGIN
+                && shot.pos.x <= SECTOR_SIZE + SHARED_SHOT_MARGIN
+                && shot.pos.y <= SECTOR_SIZE + SHARED_SHOT_MARGIN
             {
                 owned.world.spawn_shot(shot);
             }
@@ -167,7 +167,7 @@ impl SharedWorld {
                 let wall = unix_ms();
                 if epoch == 0
                     || until_ms <= wall
-                    || until_ms.saturating_sub(wall) > 2500
+                    || until_ms.saturating_sub(wall) > LEASE_MAX_FUTURE_MILLIS
                     || !self.owners.contains_key(&sector)
                     || !self
                         .players
@@ -249,7 +249,8 @@ impl SharedWorld {
                 if !self.valid_owner(sector, epoch, origin, now)
                     || !shot.pos.finite()
                     || !shot.angle.is_finite()
-                    || ![0.6, 2.4].contains(&shot.damage_scale)
+                    || ![NPC_DAMAGE_SCALE, NPC_DAMAGE_SCALE * QUAD_DAMAGE]
+                        .contains(&shot.damage_scale)
                 {
                     return vec![];
                 }
@@ -417,7 +418,7 @@ impl SharedWorld {
                 owned.world.sector_step(targets);
                 for event in owned.world.events.drain(..) {
                     match event {
-                        WorldEvent::Shot(shot) if shot.owner & (1 << 63) == 0 => {
+                        WorldEvent::Shot(shot) if shot.owner & PLAYER_ID_BIT == 0 => {
                             events.push(SharedEvent::Shot {
                                 sector,
                                 epoch: owned.epoch,

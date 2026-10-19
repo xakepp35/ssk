@@ -85,7 +85,7 @@ impl Replicas {
             let (ta, a) = q[i - 1];
             let (tb, b) = q[i];
             if ta <= target && target <= tb {
-                let t = ((target - ta) / (tb - ta).max(0.00001)) as f32;
+                let t = ((target - ta) / (tb - ta).max(INTERPOLATION_EPSILON)) as f32;
                 let mut out = b;
                 out.pos.local = a.pos.relative_to(b.pos.sector).lerp(b.pos.local, t);
                 let angle = (b.angle - a.angle + std::f32::consts::PI)

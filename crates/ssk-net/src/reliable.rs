@@ -1,3 +1,4 @@
+use crate::constants::*;
 use iroh::endpoint::Connection;
 use std::collections::{HashMap, HashSet, VecDeque};
 struct Pending {
@@ -41,7 +42,7 @@ impl Peer {
         if self.queued.contains(&digest) {
             return true;
         }
-        if self.pending.len() >= 128 || data.len() > 960 {
+        if self.pending.len() >= PEER_EVENT_QUEUE || data.len() > PEER_EVENT_BYTES {
             return false;
         }
         if let Some(origin) = data.get(34..66) {
@@ -50,7 +51,7 @@ impl Peer {
                 .iter()
                 .filter(|p| p.data.get(34..66) == Some(origin))
                 .count()
-                >= 32
+                >= PEER_ORIGIN_EVENT_LIMIT
             {
                 return false;
             }
@@ -84,7 +85,7 @@ impl Peer {
     pub fn shared_batch(&mut self, prefix: &str, frames: Vec<(String, Vec<u8>)>) {
         // Admit an entire revision, and finish the previous one before replacing it.
         if self.states.keys().any(|k| k.starts_with(prefix))
-            || self.states.len() + frames.len() > 256
+            || self.states.len() + frames.len() > PEER_STATE_QUEUE
         {
             return;
         }
@@ -93,14 +94,14 @@ impl Peer {
         }
     }
     pub fn receipt(&mut self, data: Vec<u8>) {
-        if self.receipts.len() < 512 && !self.receipts.contains(&data) {
+        if self.receipts.len() < PEER_RECEIPT_QUEUE && !self.receipts.contains(&data) {
             self.receipts.push_back(data);
         }
     }
     pub fn packet(&mut self, seq: u64, control_kind: u8, contact: &[u8], limit: usize) -> Vec<u8> {
         let mut packet = self.metrics.header(seq);
         append(&mut packet, control_kind, contact, limit);
-        for _ in 0..16 {
+        for _ in 0..ACKS_PER_PACKET {
             let Some(id) = self.acks.front() else {
                 break;
             };
@@ -111,7 +112,7 @@ impl Peer {
         }
         // Reserve complete packets periodically: a multipart checkpoint must fit
         // even when a multicast recipient header makes it larger than one ship.
-        if seq % 4 == 0 {
+        if seq % CHECKPOINT_PACKET_INTERVAL == 0 {
             self.drain_states(&mut packet, true, limit, usize::MAX);
         }
         // Ship positions must advance even while reliable combat traffic is busy.
@@ -127,7 +128,7 @@ impl Peer {
         }
         let before = self.pending.len();
         self.pending.retain(|e| {
-            let keep = seq.saturating_sub(e.born) < ssk_sim::PACKET_PER_SEC * 5;
+            let keep = seq.saturating_sub(e.born) < EVENT_TTL_PACKETS;
             if !keep {
                 self.queued.remove(&e.digest);
             }
@@ -137,9 +138,7 @@ impl Peer {
         self.metrics.stats.queued = self.pending.len();
         for _ in 0..self.pending.len() {
             let mut event = self.pending.pop_front().unwrap();
-            if event.last == 0
-                || seq.saturating_sub(event.last) >= (ssk_sim::PACKET_PER_SEC / 10).max(1) as u64
-            {
+            if event.last == 0 || seq.saturating_sub(event.last) >= EVENT_RETRY_PACKETS {
                 let mut payload = event.id.to_le_bytes().to_vec();
                 payload.extend(&event.data);
                 if append(&mut packet, 1, &payload, limit) {

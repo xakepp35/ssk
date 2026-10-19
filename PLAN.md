@@ -84,9 +84,10 @@ Public hosts are currently unavailable; real internet acceptance remains open.
 ## C — owner's timing and architecture revision (supersedes old rates)
 
 - [x] C1a — One timing source: TICK_PER_SEC=360, TICK_PER_PACKET=6; fixed 60 Hz transport and compatible handshake.
-- [ ] C1b — Finish named simulation/network/client tuning parameters.
+- [x] C1b — Finish named simulation/network/client tuning parameters.
 - [x] C2 — Move CombatGuard, replicated game model/history and shared game rules
   into ssk-sim. Keep authentication/framing/discovery/routing in ssk-net.
+- [x] C2b — Pure PeerCombat owns damage, history, frags, death and respawn; Online only adapts authenticated transport.
 - [x] C3 — Independent fixed-step game worker, bounded render handoff and explicit
   overload disconnect. No hidden slow-motion online, no unbounded catch-up.
 - [ ] C4 — Windows portability/build scripts, Linux release build, LAN duel guide.

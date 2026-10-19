@@ -1,343 +1,121 @@
+//! Transport adapter: decode authenticated payloads and hand them to the simulation.
+use crate::constants::*;
 use ssk_net::{CombatEventCodec, NetEvent, Network, SectorAssembler, SharedChunk, SnapshotCodec};
 use ssk_sim::*;
-use std::collections::{HashSet, VecDeque};
 pub struct Online {
     pub net: Network,
-    pub replicas: Replicas,
-    pub life: u32,
-    pub frags: u32,
-    pub error: String,
-    pub dead_for: f32,
-    sequence: u32,
-    outbox: VecDeque<Vec<u8>>,
-    seen: HashSet<(String, u32, u64)>,
-    order: VecDeque<(String, u32, u64)>,
-    deaths: HashSet<(String, u32)>,
-    death_order: VecDeque<(String, u32)>,
-    guard: CombatGuard,
-    own_history: VecDeque<(f64, WorldPos)>,
-    fired: VecDeque<(u64, f64)>,
-    shared: SharedWorld,
+    game: PeerCombat,
     assemblies: SectorAssembler,
-    last_shared: f64,
+    sequence: u32,
+}
+impl std::ops::Deref for Online {
+    type Target = PeerCombat;
+    fn deref(&self) -> &PeerCombat {
+        &self.game
+    }
+}
+impl std::ops::DerefMut for Online {
+    fn deref_mut(&mut self) -> &mut PeerCombat {
+        &mut self.game
+    }
 }
 impl Online {
-    pub fn shared_stats(&self, now: f64) -> (usize, f64) {
-        self.shared.stats(now)
-    }
     pub fn new(config: ssk_net::Config, connect: Option<String>) -> Result<Self, String> {
         Ok(Self {
             net: Network::start(config, connect).map_err(|e| e.to_string())?,
-            replicas: Replicas::default(),
-            life: 0,
-            frags: 0,
-            error: String::new(),
-            dead_for: 0.,
-            sequence: 0,
-            outbox: VecDeque::with_capacity(256),
-            seen: HashSet::new(),
-            order: VecDeque::new(),
-            deaths: HashSet::new(),
-            death_order: VecDeque::new(),
-            guard: Default::default(),
-            own_history: VecDeque::new(),
-            fired: VecDeque::new(),
-            shared: Default::default(),
+            game: Default::default(),
             assemblies: Default::default(),
-            last_shared: 0.,
+            sequence: 0,
         })
     }
+    pub fn shared_stats(&self, now: f64) -> (usize, f64) {
+        self.game.shared.stats(now)
+    }
     pub fn receive(&mut self, world: &mut World, now: f64) {
-        for (peer, bytes, time) in self.net.take_snapshots() {
-            if let Some(snapshot) = Snapshot::decode(&bytes) {
-                if let Some(id) = ssk_net::player_id(&peer) {
-                    self.replicas.identities.insert(peer.clone(), id);
-                }
-                let old = self
-                    .replicas
-                    .peers
-                    .get(&peer)
-                    .and_then(|q| q.back())
-                    .map(|(_, s)| *s);
-                if self.guard.snapshot(old, snapshot) {
-                    self.replicas
-                        .push(peer, snapshot, now - time.elapsed().as_secs_f64());
-                }
+        for (peer, bytes, at) in self.net.take_snapshots() {
+            if let (Some(id), Some(snapshot)) =
+                (ssk_net::player_id(&peer), Snapshot::decode(&bytes))
+            {
+                self.game
+                    .snapshot(peer, id, snapshot, now - at.elapsed().as_secs_f64());
             }
         }
-        self.shared.members(world, self.life, &self.replicas, now);
-        let stale: Vec<_> = self
-            .replicas
-            .peers
-            .iter()
-            .filter(|(_, q)| q.back().is_none_or(|(t, _)| now - t > 5.))
-            .map(|(p, _)| p.clone())
-            .collect();
-        for peer in stale {
-            self.replicas.peers.remove(&peer);
-            self.guard.forget(&peer);
-        }
-        for _ in 0..512 {
-            let Ok(event) = self.net.incoming.try_recv() else {
+        self.game.maintain(world, now);
+        for _ in 0..MAX_RECEIVE_EVENTS {
+            let Ok(packet) = self.net.incoming.try_recv() else {
                 break;
             };
-            match event {
-                NetEvent::Packet {
-                    peer,
-                    kind: 6,
-                    bytes,
-                } => {
-                    if let Some(id) = ssk_net::player_id(&peer) {
-                        if let Some(c) = SharedChunk::decode(&bytes) {
-                            if self
-                                .shared
-                                .accepts_image(id, c.sector, c.epoch, c.revision, now)
-                            {
-                                if let Some((sector, epoch, state)) =
-                                    self.assemblies.push(id, c, now)
-                                {
-                                    self.shared.image(id, sector, epoch, state, now);
-                                }
+            match packet {
+                NetEvent::Packet { peer, kind, bytes } => {
+                    let Some(id) = ssk_net::player_id(&peer) else {
+                        continue;
+                    };
+                    match kind {
+                        0 => {
+                            if let Some(snapshot) = Snapshot::decode(&bytes) {
+                                self.game.snapshot(peer, id, snapshot, now);
                             }
                         }
-                    }
-                }
-                NetEvent::Packet {
-                    peer,
-                    kind: 0,
-                    bytes,
-                } => {
-                    if let Some(snapshot) = Snapshot::decode(&bytes) {
-                        if let Some(id) = ssk_net::player_id(&peer) {
-                            self.replicas.identities.insert(peer.clone(), id);
-                        }
-                        let old = self
-                            .replicas
-                            .peers
-                            .get(&peer)
-                            .and_then(|q| q.back())
-                            .map(|(_, s)| *s);
-                        if self.guard.snapshot(old, snapshot) {
-                            self.replicas.push(peer, snapshot, now);
-                        }
-                    }
-                }
-                NetEvent::Packet {
-                    peer,
-                    kind: 1,
-                    bytes,
-                } => {
-                    if let Some(event) = CombatEvent::decode(&bytes) {
-                        if matches!(&event, CombatEvent::Shot { .. })
-                            && !self.guard.shot(&peer, &event, &self.replicas)
-                        {
-                            continue;
-                        }
-                        match event {
-                            CombatEvent::Shared(event) => {
-                                if let Some(id) = ssk_net::player_id(&peer) {
-                                    let replies =
-                                        self.shared.event(id, event, world, self.life, now);
-                                    for e in replies {
-                                        self.event(CombatEvent::Shared(e));
-                                    }
-                                }
+                        1 => {
+                            if let Some(event) = CombatEvent::decode(&bytes) {
+                                self.game.receive(world, peer, id, event, now);
                             }
-                            CombatEvent::Shot {
-                                mut shot,
-                                sector,
-                                life,
-                                tick,
-                            } => {
-                                let key = (peer.clone(), life, shot.id);
-                                if self.seen.contains(&key) {
-                                    continue;
-                                }
-                                if !shot.pos.finite()
-                                    || !shot.angle.is_finite()
-                                    || !shot.damage_scale.is_finite()
-                                {
-                                    continue;
-                                }
+                        }
+                        6 => {
+                            if let Some(c) = SharedChunk::decode(&bytes) {
                                 if self
-                                    .replicas
-                                    .peers
-                                    .get(&peer)
-                                    .and_then(|q| q.back())
-                                    .is_some_and(|(_, s)| s.life != life)
+                                    .game
+                                    .shared
+                                    .accepts_image(id, c.sector, c.epoch, c.revision, now)
                                 {
-                                    continue;
-                                }
-                                shot.owner = ssk_net::player_id(&peer).unwrap_or(0);
-                                shot.pos = WorldPos {
-                                    sector,
-                                    local: shot.pos,
-                                }
-                                .relative_to(world.origin);
-                                let mut source_shot = shot;
-                                source_shot.pos = WorldPos {
-                                    sector: world.origin,
-                                    local: shot.pos,
-                                }
-                                .relative_to(sector);
-                                self.shared.shot(source_shot, sector);
-                                if (shot.pos - world.player.pos).length() > 5000. {
-                                    continue;
-                                }
-                                self.seen.insert(key.clone());
-                                self.order.push_back(key);
-                                if self.order.len() > 4096 {
-                                    self.seen.remove(&self.order.pop_front().unwrap());
-                                }
-                                let lag = self
-                                    .replicas
-                                    .peers
-                                    .get(&peer)
-                                    .and_then(|q| q.back())
-                                    .map(|(time, s)| {
-                                        ((now - time)
-                                            + (s.tick as f64 - tick as f64) / TICK_PER_SEC as f64)
-                                            .clamp(0., 0.2)
-                                            as f32
-                                    })
-                                    .unwrap_or(0.);
-                                let past = self
-                                    .own_history
-                                    .iter()
-                                    .min_by(|(a, _), (b, _)| {
-                                        (a - (now - lag as f64))
-                                            .abs()
-                                            .total_cmp(&(b - (now - lag as f64)).abs())
-                                    })
-                                    .map(|(_, p)| p.relative_to(world.origin))
-                                    .unwrap_or(world.player.pos);
-                                world.receive_shot(shot, lag, past);
-                            }
-                            CombatEvent::Death { life, killer, shot } => {
-                                let key = (peer, life);
-                                if self.deaths.insert(key.clone()) {
-                                    self.death_order.push_back(key);
-                                    if self.death_order.len() > 1024 {
-                                        self.deaths.remove(&self.death_order.pop_front().unwrap());
-                                    }
-                                    if killer == world.player.id
-                                        && self
-                                            .fired
-                                            .iter()
-                                            .any(|(id, time)| *id == shot && now - time <= 2.)
+                                    if let Some((sector, epoch, state)) =
+                                        self.assemblies.push(id, c, now)
                                     {
-                                        self.frags += 1;
-                                        world.award(500);
+                                        self.game.shared.image(id, sector, epoch, state, now);
                                     }
                                 }
                             }
                         }
+                        _ => {}
                     }
                 }
-                NetEvent::Disconnected(peer) => {
-                    self.replicas.peers.remove(&peer);
-                    self.guard.forget(&peer);
-                }
-                NetEvent::Error(error) => self.error = error,
+                NetEvent::Disconnected(peer) => self.game.disconnect(&peer),
+                NetEvent::Error(error) => self.game.error = error,
                 _ => {}
             }
         }
     }
-    pub fn leave(&mut self) {
-        self.net.shared(encode_images(self.shared.checkpoint()));
-        for event in self.shared.release() {
-            let _ = self.net.event(CombatEvent::Shared(event).encode());
-        }
-        // Best effort final checkpoint/release; crash recovery uses the lease timeout.
-        std::thread::sleep(std::time::Duration::from_millis(150));
-    }
     pub fn snapshot(&mut self, world: &World) {
         self.sequence = self.sequence.wrapping_add(1);
         self.net
-            .publish(Snapshot::capture(world, self.sequence, self.life).encode());
-    }
-    fn event(&mut self, event: CombatEvent) {
-        if self.outbox.len() < 256 {
-            self.outbox.push_back(event.encode());
-        } else {
-            self.error = "Critical game event backlog full".into();
-        }
+            .publish(Snapshot::capture(world, self.sequence, self.game.life).encode());
     }
     pub fn after_frame(&mut self, world: &mut World, dt: f32, now: f64) -> bool {
-        self.own_history.push_back((
-            now,
-            WorldPos {
-                sector: world.origin,
-                local: world.player.pos,
-            },
-        ));
-        while self.own_history.front().is_some_and(|(t, _)| now - t > 2.) {
-            self.own_history.pop_front();
+        let (respawn, images) = self.game.after_step(world, dt, now);
+        if let Some(images) = images {
+            self.net.shared(encode_images(images));
         }
-        while self.fired.front().is_some_and(|(_, t)| now - t > 2.) {
-            self.fired.pop_front();
-        }
-        for event in &world.events {
-            if let WorldEvent::Shot(shot) = event {
-                if shot.owner == world.player.id {
-                    self.fired.push_back((shot.id, now));
-                    let pos = WorldPos {
-                        sector: world.origin,
-                        local: shot.pos,
-                    }
-                    .normalized();
-                    let mut shot = *shot;
-                    shot.pos = pos.local;
-                    self.shared.shot(shot, pos.sector);
-                    self.event(CombatEvent::Shot {
-                        shot,
-                        sector: pos.sector,
-                        life: self.life,
-                        tick: world.tick,
-                    });
-                }
-            }
-        }
-        if now - self.last_shared >= TICK_PER_PACKET as f64 / TICK_PER_SEC as f64 {
-            let dt = (now - self.last_shared) as f32;
-            self.last_shared = now;
-            let (events, frames) = self.shared.tick(world, self.life, &self.replicas, dt, now);
-            for event in events {
-                self.event(CombatEvent::Shared(event));
-            }
-            if let Some(images) = frames {
-                self.net.shared(encode_images(images));
-            }
-        }
-        if world.player.hp <= 0. {
-            if self.dead_for == 0. {
-                self.event(CombatEvent::Death {
-                    life: self.life,
-                    killer: world.last_attacker,
-                    shot: world.last_shot,
-                });
-                self.snapshot(world);
-            }
-            self.dead_for += dt;
-        }
-        while let Some(event) = self.outbox.pop_front() {
-            if let Err(event) = self.net.event(event) {
-                self.outbox.push_front(event);
+        while let Some(event) = self.game.outbox.front() {
+            if self.net.event(event.encode()).is_err() {
                 break;
             }
+            self.game.outbox.pop_front();
         }
-        self.dead_for >= 2.
+        respawn
     }
     pub fn respawn(&mut self, world: &mut World, class: ShipClass, seed: u64) {
-        self.life = self.life.wrapping_add(1);
-        self.dead_for = 0.;
-        let score = world.score;
-        *world = World::duel(seed, class, self.net.player_id);
-        world.score = score;
+        self.game.respawn(world, class, seed);
         self.snapshot(world);
     }
+    pub fn leave(&mut self) {
+        self.net
+            .shared(encode_images(self.game.shared.checkpoint()));
+        for event in self.game.shared.release() {
+            let _ = self.net.event(CombatEvent::Shared(event).encode());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(LEAVE_GRACE_MILLIS));
+    }
 }
-
 fn encode_images(images: Vec<SectorImage>) -> Vec<Vec<u8>> {
     images
         .into_iter()

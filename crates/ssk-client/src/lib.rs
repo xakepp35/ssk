@@ -46,18 +46,29 @@ fn draw_ship(ship: &Ship, camera: V2, alpha: f32, color: Color) {
     let forward = V2::from_angle(ship.angle);
     let side = forward.perp();
     let radius = ship.class.stats().3;
-    let a = screen(pos + forward * radius * 1.5, camera);
-    let b = screen(pos - forward * radius + side * radius * 0.8, camera);
-    let c = screen(pos - forward * radius - side * radius * 0.8, camera);
+    let a = screen(pos + forward * radius * SHIP_NOSE_SCALE, camera);
+    let b = screen(
+        pos - forward * radius + side * radius * SHIP_WING_SCALE,
+        camera,
+    );
+    let c = screen(
+        pos - forward * radius - side * radius * SHIP_WING_SCALE,
+        camera,
+    );
     draw_triangle(
         a,
         b,
         c,
-        Color::new(color.r * 0.15, color.g * 0.15, color.b * 0.15, 1.),
+        Color::new(
+            color.r * SHIP_FILL_BRIGHTNESS,
+            color.g * SHIP_FILL_BRIGHTNESS,
+            color.b * SHIP_FILL_BRIGHTNESS,
+            1.,
+        ),
     );
     draw_triangle_lines(a, b, c, 2., color);
     let p = screen(pos, camera);
-    draw_circle(p.x, p.y, 3., WHITE);
+    draw_circle(p.x, p.y, SHIP_CORE_RADIUS, WHITE);
     if ship.ability_active {
         let color = match ship.class {
             ssk_sim::ShipClass::Spark => SKYBLUE,
@@ -67,49 +78,62 @@ fn draw_ship(ship: &Ship, camera: V2, alpha: f32, color: Color) {
         draw_circle_lines(
             p.x,
             p.y,
-            radius + 9. + (get_time() as f32 * 12.).sin() * 2.,
-            3.,
+            radius
+                + ABILITY_RING_OFFSET
+                + (get_time() as f32 * ABILITY_RING_SPEED).sin() * ABILITY_RING_PULSE,
+            ABILITY_RING_WIDTH,
             color,
         );
     }
-    if ship.velocity.length() > 10. {
+    if ship.velocity.length() > EXHAUST_MIN_SPEED {
         let end = screen(
-            pos - forward * (radius + 8. + (get_time() as f32 * 67.).sin() * 4.),
+            pos - forward
+                * (radius
+                    + EXHAUST_OFFSET
+                    + (get_time() as f32 * EXHAUST_PULSE_SPEED).sin() * EXHAUST_PULSE_SIZE),
             camera,
         );
         let start = screen(pos - forward * radius, camera);
-        draw_line(start.x, start.y, end.x, end.y, 5., SKYBLUE);
+        draw_line(start.x, start.y, end.x, end.y, EXHAUST_WIDTH, SKYBLUE);
     }
 }
 fn background(camera: V2) {
-    clear_background(Color::from_rgba(6, 9, 21, 255));
-    for layer in 0..3 {
-        for i in 0..110 {
-            let parallax = 0.1 + layer as f32 * 0.14;
-            let x = (i as f32 * 173.73 + (i * i) as f32 * 2.1 - camera.x * parallax)
+    clear_background(SPACE_COLOR);
+    for layer in 0..STAR_LAYERS {
+        for i in 0..STARS_PER_LAYER {
+            let parallax = STAR_PARALLAX[0] + layer as f32 * STAR_PARALLAX[1];
+            let x = (i as f32 * STAR_POSITION_X[0] + (i * i) as f32 * STAR_POSITION_X[1]
+                - camera.x * parallax)
                 .rem_euclid(screen_width());
-            let y = (i as f32 * 91.13 + (i * i) as f32 * 3.3 - camera.y * parallax)
+            let y = (i as f32 * STAR_POSITION_Y[0] + (i * i) as f32 * STAR_POSITION_Y[1]
+                - camera.y * parallax)
                 .rem_euclid(screen_height());
-            let b = 0.18 + layer as f32 * 0.11;
+            let b = STAR_BRIGHTNESS[0] + layer as f32 * STAR_BRIGHTNESS[1];
             draw_circle(
                 x,
                 y,
-                0.6 + layer as f32 * 0.3,
-                Color::new(b, b + 0.07, b + 0.18, 1.),
+                STAR_RADIUS[0] + layer as f32 * STAR_RADIUS[1],
+                Color::new(b, b + STAR_TINT[0], b + STAR_TINT[1], 1.),
             );
         }
     }
-    let color = Color::new(0.08, 0.16, 0.24, 0.3);
-    for x in -8..=8 {
+    let color = SPACE_GRID_COLOR;
+    for x in -SPACE_GRID_COLUMNS..=SPACE_GRID_COLUMNS {
         let p = screen(
-            V2::new(((camera.x / 256.).floor() + x as f32) * 256., 0.),
+            V2::new(
+                ((camera.x / SPACE_GRID_SIZE).floor() + x as f32) * SPACE_GRID_SIZE,
+                0.,
+            ),
             camera,
         );
         draw_line(p.x, 0., p.x, screen_height(), 1., color);
     }
-    for y in -6..=6 {
+    for y in -SPACE_GRID_ROWS..=SPACE_GRID_ROWS {
         let p = screen(
-            V2::new(0., ((camera.y / 256.).floor() + y as f32) * 256.),
+            V2::new(
+                0.,
+                ((camera.y / SPACE_GRID_SIZE).floor() + y as f32) * SPACE_GRID_SIZE,
+            ),
             camera,
         );
         draw_line(0., p.y, screen_width(), p.y, 1., color);
@@ -211,20 +235,20 @@ async fn run(options: Options, mut profile: profile::Profile) {
             input,
             paused: !started || menu || help,
             next_class: ssk_sim::ShipClass::ALL[profile.class],
-            spawn_radius: screen_width().hypot(screen_height()) * 0.5 + 200.,
+            spawn_radius: screen_width().hypot(screen_height()) * 0.5 + SPAWN_SCREEN_MARGIN,
         });
         let alpha = (view.at.elapsed().as_secs_f32() / DT).clamp(0., 1.);
         camera -= world.origin_shift;
         effects.shift(world.origin_shift);
         world.origin_shift = V2::ZERO;
-        let target =
-            world.player.previous.lerp(world.player.pos, alpha) + mouse.clamp_length(200.) * 0.25;
-        camera = camera.lerp(target, 1. - (-12. * dt).exp());
+        let target = world.player.previous.lerp(world.player.pos, alpha)
+            + mouse.clamp_length(CAMERA_LOOKAHEAD) * CAMERA_LOOKAHEAD_SCALE;
+        camera = camera.lerp(target, 1. - (-CAMERA_SMOOTHING * dt).exp());
         effects.events(&world.events, camera, profile.volume);
         world.events.clear();
         effects.update(dt);
         if world.player.hp < previous_hp {
-            effects.shake = (effects.shake + 3.).min(8.);
+            effects.shake = (effects.shake + HIT_SHAKE).min(SHAKE_MAX);
             effects.flash = 1.;
         }
         let render_camera = camera + effects.offset(profile.shake);
@@ -238,24 +262,28 @@ async fn run(options: Options, mut profile: profile::Profile) {
                             &ship,
                             render_camera,
                             1.,
-                            if *age > 0.15 { GRAY } else { GOLD },
+                            if *age > PEER_STALE_SECONDS {
+                                GRAY
+                            } else {
+                                GOLD
+                            },
                         );
                         let p = screen(ship.pos, render_camera);
-                        if p.x < 30.
-                            || p.y < 30.
-                            || p.x > screen_width() - 30.
-                            || p.y > screen_height() - 30.
+                        if p.x < PEER_EDGE_MARGIN
+                            || p.y < PEER_EDGE_MARGIN
+                            || p.x > screen_width() - PEER_EDGE_MARGIN
+                            || p.y > screen_height() - PEER_EDGE_MARGIN
                         {
                             let edge = vec2(
-                                p.x.clamp(30., screen_width() - 30.),
-                                p.y.clamp(30., screen_height() - 30.),
+                                p.x.clamp(PEER_EDGE_MARGIN, screen_width() - PEER_EDGE_MARGIN),
+                                p.y.clamp(PEER_EDGE_MARGIN, screen_height() - PEER_EDGE_MARGIN),
                             );
-                            draw_circle_lines(edge.x, edge.y, 10., 2., GOLD);
+                            draw_circle_lines(edge.x, edge.y, PEER_EDGE_RADIUS, LINE_WIDTH, GOLD);
                             draw_text(
                                 &format!("{:.0}m", (ship.pos - world.player.pos).length()),
-                                edge.x - 25.,
-                                edge.y - 16.,
-                                18.,
+                                edge.x - PEER_DISTANCE_OFFSET[0],
+                                edge.y - PEER_DISTANCE_OFFSET[1],
+                                PEER_DISTANCE_FONT,
                                 GOLD,
                             );
                         }
@@ -263,11 +291,11 @@ async fn run(options: Options, mut profile: profile::Profile) {
                             &format!(
                                 "PEER {:.0} HP{}",
                                 ship.hp,
-                                if *age > 0.15 { " !" } else { "" }
+                                if *age > PEER_STALE_SECONDS { " !" } else { "" }
                             ),
-                            p.x - 40.,
-                            p.y - 40.,
-                            16.,
+                            p.x - PEER_LABEL_OFFSET,
+                            p.y - PEER_LABEL_OFFSET,
+                            PEER_LABEL_FONT,
                             GOLD,
                         );
                     }
@@ -277,16 +305,16 @@ async fn run(options: Options, mut profile: profile::Profile) {
         effects.draw(render_camera, profile.flashes);
         ui::hud(&world, &profile, view.overloads);
         if world.player.hp <= 0. && !menu {
-            draw_rectangle(
-                0.,
-                0.,
-                screen_width(),
-                screen_height(),
-                Color::new(0.01, 0.02, 0.05, 0.8),
-            );
-            let x = screen_width() / 2. - 210.;
+            draw_rectangle(0., 0., screen_width(), screen_height(), RESULT_BACKGROUND);
+            let x = screen_width() / 2. - RESULT_HALF_WIDTH;
             let y = screen_height() / 2.;
-            draw_text("SHIP LOST", x, y - 60., 56., PINK);
+            draw_text(
+                "SHIP LOST",
+                x,
+                y - RESULT_TITLE_TOP,
+                RESULT_TITLE_FONT,
+                PINK,
+            );
             draw_text(
                 &format!(
                     "SCORE {}   BEST {}",
@@ -295,7 +323,7 @@ async fn run(options: Options, mut profile: profile::Profile) {
                 ),
                 x,
                 y,
-                28.,
+                RESULT_SCORE_FONT,
                 WHITE,
             );
             draw_text(
@@ -305,8 +333,8 @@ async fn run(options: Options, mut profile: profile::Profile) {
                     "R: fly again     Esc: choose ship"
                 },
                 x,
-                y + 50.,
-                26.,
+                y + RESULT_HELP_TOP,
+                RESULT_HELP_FONT,
                 SKYBLUE,
             );
         }
@@ -334,7 +362,7 @@ async fn run(options: Options, mut profile: profile::Profile) {
             recorded = false;
         }
         if !options.online && !view.error.is_empty() {
-            draw_text(&view.error, 24., screen_height() - 100., 18., PINK);
+            draw_text(&view.error, 24., screen_height() - NOTICE_BOTTOM, 18., PINK);
         }
         if help {
             ui::help();
@@ -342,9 +370,9 @@ async fn run(options: Options, mut profile: profile::Profile) {
         if let Some(error) = &save_error {
             draw_text(
                 &format!("Profile save: {error}"),
-                24.,
-                screen_height() - 100.,
-                18.,
+                NOTICE_INSET,
+                screen_height() - NOTICE_BOTTOM,
+                NOTICE_FONT,
                 PINK,
             );
         }
@@ -358,9 +386,9 @@ async fn run(options: Options, mut profile: profile::Profile) {
                     "{} | {} peers | F2 copy invite (also in terminal)",
                     status.phase, status.peers
                 ),
-                24.,
-                screen_height() - 100.,
-                20.,
+                NOTICE_INSET,
+                screen_height() - NOTICE_BOTTOM,
+                NETWORK_FONT,
                 ORANGE,
             );
             {
@@ -374,19 +402,25 @@ async fn run(options: Options, mut profile: profile::Profile) {
                         "FRAGS {} | RTT {:.1}ms | loss {:.0}% | TX/RX {:.1}/{:.1}KiB/s | {}",
                         view.frags,
                         worst,
-                        loss * 100.,
-                        tx / 1024.,
-                        rx / 1024.,
+                        loss * PERCENT,
+                        tx / BYTES_PER_KIB,
+                        rx / BYTES_PER_KIB,
                         view.error
                     ),
-                    24.,
-                    screen_height() - 125.,
-                    20.,
+                    NOTICE_INSET,
+                    screen_height() - NETWORK_STATS_BOTTOM,
+                    NETWORK_FONT,
                     GOLD,
                 );
             }
         }
-        draw_circle_lines(mouse_position().0, mouse_position().1, 8., 1., SKYBLUE);
+        draw_circle_lines(
+            mouse_position().0,
+            mouse_position().1,
+            CROSSHAIR_RADIUS,
+            1.,
+            SKYBLUE,
+        );
         next_frame().await;
     }
     drop(game);

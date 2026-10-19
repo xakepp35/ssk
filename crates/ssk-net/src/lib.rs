@@ -1,3 +1,5 @@
+pub mod constants;
+use constants::*;
 use ssk_sim::{CombatEvent, SharedEvent, Snapshot};
 // Bounded bridge between game thread and asynchronous network workers.
 mod auth;
@@ -86,13 +88,13 @@ pub(crate) struct Worker {
 impl Network {
     pub fn start(config: Config, connect: Option<String>) -> anyhow::Result<Self> {
         let key = load_identity(&config.identity_file)?;
-        let player_id =
-            u64::from_le_bytes(key.public().as_bytes()[..8].try_into().unwrap()) | 1 << 63;
+        let player_id = u64::from_le_bytes(key.public().as_bytes()[..8].try_into().unwrap())
+            | ssk_sim::PLAYER_ID_BIT;
         let (state, state_rx) = tokio::sync::watch::channel(Vec::new());
-        let (events, events_rx) = tokio::sync::mpsc::channel(128);
+        let (events, events_rx) = tokio::sync::mpsc::channel(EVENT_CHANNEL);
         let (shared, shared_rx) = tokio::sync::watch::channel(Vec::new());
         let (contacts, contacts_rx) = tokio::sync::watch::channel(Vec::new());
-        let (incoming_tx, incoming) = tokio::sync::mpsc::channel(512);
+        let (incoming_tx, incoming) = tokio::sync::mpsc::channel(INCOMING_CHANNEL);
         let snapshots: SnapshotInbox = Default::default();
         let (status_tx, status) = tokio::sync::watch::channel(Status {
             phase: "Starting network".into(),
@@ -114,7 +116,7 @@ impl Network {
             .name("ssk-net".into())
             .spawn(move || {
                 let result = tokio::runtime::Builder::new_multi_thread()
-                    .worker_threads(2)
+                    .worker_threads(NET_WORKERS)
                     .enable_all()
                     .build()
                     .map_err(anyhow::Error::from)
@@ -157,8 +159,8 @@ impl Network {
         self.contacts.send_replace(
             records
                 .into_iter()
-                .filter(|r| r.len() <= 1000)
-                .take(128)
+                .filter(|r| r.len() <= MAX_SIGNED_BYTES)
+                .take(MAX_PEERS)
                 .collect(),
         );
     }
@@ -179,7 +181,7 @@ impl Drop for Network {
 }
 pub fn run_node(config: Config) -> anyhow::Result<()> {
     let rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(2)
+        .worker_threads(NET_WORKERS)
         .enable_all()
         .build()?;
     rt.block_on(async move {

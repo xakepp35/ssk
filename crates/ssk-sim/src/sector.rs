@@ -22,17 +22,21 @@ impl SectorState {
         }
     }
     pub fn valid(&self) -> bool {
-        let pos = |p: V2| p.finite() && p.x.abs() <= 8192. && p.y.abs() <= 8192.;
-        let vel = |v: V2| v.finite() && v.x.abs() <= 5000. && v.y.abs() <= 5000.;
-        self.asteroids.len() <= 160
-            && self.npcs.len() <= 24
-            && self.pickups.len() <= 256
+        let pos = |p: V2| {
+            p.finite() && p.x.abs() <= SECTOR_MAX_POSITION && p.y.abs() <= SECTOR_MAX_POSITION
+        };
+        let vel = |v: V2| {
+            v.finite() && v.x.abs() <= SECTOR_MAX_VELOCITY && v.y.abs() <= SECTOR_MAX_VELOCITY
+        };
+        self.asteroids.len() <= SECTOR_MAX_ROCKS
+            && self.npcs.len() <= MAX_NPCS
+            && self.pickups.len() <= MAX_PICKUPS
             && self.next_spawn.is_finite()
             && self.asteroids.iter().all(|a| {
                 pos(a.pos)
                     && vel(a.velocity)
                     && a.radius.is_finite()
-                    && (1. ..=100.).contains(&a.radius)
+                    && (1. ..=SECTOR_MAX_ROCK_RADIUS).contains(&a.radius)
                     && a.hp.is_finite()
                     && a.angle.is_finite()
                     && a.spin.is_finite()
@@ -53,7 +57,7 @@ impl SectorState {
             && self.pickups.iter().all(|p| {
                 pos(p.pos)
                     && p.amount.is_finite()
-                    && (0. ..=300.).contains(&p.amount)
+                    && (0. ..=PICKUP_MAX_AMOUNT).contains(&p.amount)
                     && p.life.is_finite()
             })
     }
@@ -72,7 +76,7 @@ impl World {
     pub fn sector(seed: u64, sector: [i64; 2]) -> Self {
         let mut w = Self::new(seed, ShipClass::Cadet);
         w.origin = sector;
-        w.player.pos = V2::new(2048., 2048.);
+        w.player.pos = V2::new(SECTOR_SIZE / 2., SECTOR_SIZE / 2.);
         w.player.previous = w.player.pos;
         w.player.id = 0;
         // Generate only this sector, with stable object IDs scoped by its epoch.
@@ -85,14 +89,14 @@ impl World {
             }
         }
         w.next_id = ((seed
-            ^ (sector[0] as u64).wrapping_mul(0x517cc1b727220a95)
-            ^ (sector[1] as u64).wrapping_mul(0x9e3779b97f4a7c15))
-            & 0x7fffffff)
-            << 32
+            ^ (sector[0] as u64).wrapping_mul(SECTOR_HASH_X)
+            ^ (sector[1] as u64).wrapping_mul(SECTOR_HASH_Y))
+            & SECTOR_ID_MASK)
+            << SECTOR_ID_SHIFT
             | 2;
         w.field_step();
         w.shared_authority = true;
-        w.spawn_radius = 1000.;
+        w.spawn_radius = SECTOR_SPAWN_RADIUS;
         w
     }
     pub fn sector_step(&mut self, targets: Vec<Ship>) {
@@ -102,23 +106,23 @@ impl World {
             self.player.previous = target.pos;
             self.player.velocity = target.velocity;
         }
-        self.player.hp = 1e9;
-        self.player.invulnerable = 1000.;
+        self.player.hp = SECTOR_PROXY_HEALTH;
+        self.player.invulnerable = SECTOR_PROXY_PROTECTION;
         self.step(InputFrame::default());
         for a in &mut self.asteroids {
             for (pos, v) in [
                 (&mut a.pos.x, &mut a.velocity.x),
                 (&mut a.pos.y, &mut a.velocity.y),
             ] {
-                if *pos < 0. || *pos > 4096. {
+                if *pos < 0. || *pos > SECTOR_SIZE {
                     *v = -*v;
-                    *pos = pos.clamp(0., 4096.);
+                    *pos = pos.clamp(0., SECTOR_SIZE);
                 }
             }
         }
         for n in &mut self.npcs {
-            n.ship.pos.x = n.ship.pos.x.clamp(0., 4096.);
-            n.ship.pos.y = n.ship.pos.y.clamp(0., 4096.);
+            n.ship.pos.x = n.ship.pos.x.clamp(0., SECTOR_SIZE);
+            n.ship.pos.y = n.ship.pos.y.clamp(0., SECTOR_SIZE);
         }
         for p in &mut self.pickups {
             if let Some(target) = self.targets.iter().filter(|t| t.hp > 0.).min_by(|a, b| {
@@ -127,8 +131,8 @@ impl World {
                     .total_cmp(&(b.pos - p.pos).length_squared())
             }) {
                 let delta = target.pos - p.pos;
-                if delta.length() < 180. {
-                    p.pos += delta.normalized() * 200. * DT;
+                if delta.length() < PICKUP_MAGNET_RADIUS {
+                    p.pos += delta.normalized() * SHARED_MAGNET_SPEED * DT;
                 }
             }
         }

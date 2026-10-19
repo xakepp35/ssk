@@ -162,7 +162,7 @@ impl World {
         self.npcs.retain(|n| n.ship.hp > 0.);
         for (pos, class, owned, id, player) in dead {
             let amount = NPC_SCORE[class.index()];
-            if self.shared_authority && player & (1 << 63) != 0 {
+            if self.shared_authority && player & PLAYER_ID_BIT != 0 {
                 self.emit(WorldEvent::Reward { id, player, amount });
             }
             if owned {

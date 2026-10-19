@@ -63,7 +63,7 @@ impl World {
             a.angle += a.spin * DT;
         }
         self.asteroids
-            .retain(|a| (a.pos - self.player.pos).length() < SECTOR_SIZE * 2.5);
+            .retain(|a| (a.pos - self.player.pos).length() < SECTOR_SIZE * ROCK_KEEP_SECTORS);
         self.grid.rebuild(&self.asteroids);
         self.player.bump_cooldown = (self.player.bump_cooldown - DT).max(0.);
         let mut nearby = Vec::new();
@@ -79,19 +79,19 @@ impl World {
             let distance = delta.length();
             let min = a.radius + self.player.class.stats().3;
             if distance < min {
-                let normal = if distance > 0.001 {
+                let normal = if distance > CONTACT_EPSILON {
                     delta / distance
                 } else {
                     V2::new(1., 0.)
                 };
-                self.player.pos = a.pos + normal * (min + 0.1);
+                self.player.pos = a.pos + normal * (min + CONTACT_SEPARATION);
                 let incoming = (self.player.velocity - a.velocity).dot(normal);
                 if incoming < 0. {
-                    self.player.velocity -= normal * (incoming * 1.6);
-                    if self.player.bump_cooldown <= 0. && incoming < -80. {
-                        let damage = (-incoming * 0.2).min(100.);
+                    self.player.velocity -= normal * (incoming * CONTACT_RESTITUTION);
+                    if self.player.bump_cooldown <= 0. && incoming < -CONTACT_DAMAGE_SPEED {
+                        let damage = (-incoming * CONTACT_DAMAGE_SCALE).min(CONTACT_DAMAGE_MAX);
                         self.player.damage(damage);
-                        self.player.bump_cooldown = 0.35;
+                        self.player.bump_cooldown = CONTACT_COOLDOWN;
                         self.emit(WorldEvent::Impact {
                             pos: self.player.pos,
                             damage,
@@ -153,22 +153,23 @@ impl World {
                     continue;
                 }
                 let mut rng = Rng(self.seed
-                    ^ (sector[0] as u64).wrapping_mul(0x517cc1b727220a95)
-                    ^ (sector[1] as u64).wrapping_mul(0x9e3779b97f4a7c15));
-                for _ in 0..40 {
+                    ^ (sector[0] as u64).wrapping_mul(SECTOR_HASH_X)
+                    ^ (sector[1] as u64).wrapping_mul(SECTOR_HASH_Y));
+                for _ in 0..ROCKS_PER_SECTOR {
                     let local = V2::new(rng.range(0., SECTOR_SIZE), rng.range(0., SECTOR_SIZE));
                     let pos = WorldPos { sector, local }.relative_to(self.origin);
-                    if (pos - self.player.pos).length() < 500. {
+                    if (pos - self.player.pos).length() < ROCK_SPAWN_CLEARANCE {
                         continue;
                     }
                     let a = Asteroid {
                         id: self.next_id,
                         pos,
-                        radius: rng.range(30., 64.),
-                        hp: 360.,
-                        velocity: V2::from_angle(rng.range(0., 6.2831855)) * rng.range(3., 20.),
-                        angle: rng.range(0., 6.2831855),
-                        spin: rng.range(-0.3, 0.3),
+                        radius: rng.range(ROCK_RADIUS.start, ROCK_RADIUS.end),
+                        hp: ROCK_HEALTH,
+                        velocity: V2::from_angle(rng.range(0., std::f32::consts::TAU))
+                            * rng.range(ROCK_SPEED.start, ROCK_SPEED.end),
+                        angle: rng.range(0., std::f32::consts::TAU),
+                        spin: rng.range(-ROCK_SPIN, ROCK_SPIN),
                         small: false,
                         last_hit: 0,
                     };
@@ -200,12 +201,12 @@ impl World {
                         let normal = V2::from_angle(a.angle) * sign;
                         children.push(Asteroid {
                             id: self.next_id,
-                            pos: a.pos + normal * a.radius * 0.45,
-                            radius: a.radius * 0.48,
-                            hp: 100.,
-                            velocity: a.velocity + normal * 45.,
+                            pos: a.pos + normal * a.radius * ROCK_CHILD_OFFSET,
+                            radius: a.radius * ROCK_CHILD_RADIUS,
+                            hp: ROCK_CHILD_HEALTH,
+                            velocity: a.velocity + normal * ROCK_CHILD_SPEED,
                             angle: a.angle,
-                            spin: sign * 0.8,
+                            spin: sign * ROCK_CHILD_SPIN,
                             small: true,
                             last_hit: 0,
                         });
@@ -220,15 +221,15 @@ impl World {
             self.emit(event);
         }
         for (pos, small, owned, id, player) in rewards {
-            if self.shared_authority && player & (1 << 63) != 0 {
+            if self.shared_authority && player & PLAYER_ID_BIT != 0 {
                 self.emit(WorldEvent::Reward {
                     id,
                     player,
-                    amount: if small { 10 } else { 30 },
+                    amount: if small { ROCK_CHILD_SCORE } else { ROCK_SCORE },
                 });
             }
             if owned {
-                self.award(if small { 10 } else { 30 });
+                self.award(if small { ROCK_CHILD_SCORE } else { ROCK_SCORE });
             }
             self.drop_loot(pos, false);
         }

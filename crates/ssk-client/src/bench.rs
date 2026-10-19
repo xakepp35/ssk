@@ -1,4 +1,5 @@
-//! Real headless clients; no window, mocks or assertions. Reports measurements only.
+use crate::constants::*;
+// Real headless clients; no window, mocks or assertions. Reports measurements only.
 use crate::online::Online;
 use rayon::prelude::*;
 use ssk_net::{Config, SnapshotCodec};
@@ -28,14 +29,14 @@ fn quantiles(mut values: Vec<f64>) -> serde_json::Value {
     }
     values.sort_by(f64::total_cmp);
     let q = |p: f64| values[((values.len() - 1) as f64 * p) as usize];
-    serde_json::json!({"min":values.first(),"p05":q(0.05),"p50":q(0.5),"p95":q(0.95),"p99":q(0.99),"max":values.last(),"samples":values.len()})
+    serde_json::json!({"min":values.first(),"p05":q(QUANTILE_PROBABILITIES[0]),"p50":q(QUANTILE_PROBABILITIES[1]),"p95":q(QUANTILE_PROBABILITIES[2]),"p99":q(QUANTILE_PROBABILITIES[3]),"max":values.last(),"samples":values.len()})
 }
 pub fn run(mut config: Config, opt: Options) -> Result<serde_json::Value, String> {
-    if !(1..=128).contains(&opt.players)
-        || !(1..=3600).contains(&opt.seconds)
-        || opt.warmup > 300
+    if !(1..=ssk_net::constants::MAX_PEERS).contains(&opt.players)
+        || !(1..=BENCH_MAX_SECONDS).contains(&opt.seconds)
+        || opt.warmup > BENCH_MAX_WARMUP
         || opt.drop_count >= opt.players
-        || !(1..=128).contains(&opt.workers)
+        || !(1..=BENCH_MAX_WORKERS).contains(&opt.workers)
     {
         return Err("players 1..128, seconds 1..3600, warmup <=300, drop_count < players".into());
     }
@@ -85,10 +86,10 @@ pub fn run(mut config: Config, opt: Options) -> Result<serde_json::Value, String
         {
             break;
         }
-        if ready.elapsed().as_secs() > 30 {
+        if ready.elapsed().as_secs() > BENCH_STARTUP_SECONDS {
             return Err("network startup timed out".into());
         }
-        std::thread::sleep(Duration::from_millis(10));
+        std::thread::sleep(Duration::from_millis(BENCH_POLL_MILLIS));
     }
     if !external {
         let roster: Vec<_> = bots
@@ -103,7 +104,7 @@ pub fn run(mut config: Config, opt: Options) -> Result<serde_json::Value, String
     if let Some(path) = &opt.invite_file {
         // Give the configured relay time to enter the endpoint address before export.
         let start = Instant::now();
-        while !config.relays.is_empty() && start.elapsed().as_secs() < 8 {
+        while !config.relays.is_empty() && start.elapsed().as_secs() < BENCH_RELAY_SECONDS {
             let ticket = bots[0]
                 .as_ref()
                 .unwrap()
@@ -120,7 +121,7 @@ pub fn run(mut config: Config, opt: Options) -> Result<serde_json::Value, String
             }) {
                 break;
             }
-            std::thread::sleep(Duration::from_millis(50));
+            std::thread::sleep(Duration::from_millis(BENCH_RELAY_POLL_MILLIS));
         }
         let ticket = bots[0]
             .as_ref()
@@ -166,7 +167,7 @@ pub fn run(mut config: Config, opt: Options) -> Result<serde_json::Value, String
         let frame = Instant::now();
         let elapsed = frame.duration_since(previous).as_secs_f32();
         previous = frame;
-        let dt = elapsed.min(0.1);
+        let dt = elapsed.min(MAX_RENDER_DELTA);
         let now = start.elapsed().as_secs_f64();
         let measured = now >= opt.warmup as f64;
         if opt.drop_count > 0 && !removed && now >= opt.warmup as f64 + opt.seconds as f64 / 2. {
@@ -192,18 +193,20 @@ pub fn run(mut config: Config, opt: Options) -> Result<serde_json::Value, String
                     let b = bot.as_mut()?;
                     let client_start = Instant::now();
                     b.online.receive(&mut b.world, now);
-                    let receive_ms = client_start.elapsed().as_secs_f64() * 1000.;
+                    let receive_ms = client_start.elapsed().as_secs_f64() * MILLIS_PER_SECOND;
                     let mut timings = Vec::new();
                     for _ in 0..steps {
-                        let t = now as f32 * 0.5
+                        let t = now as f32 * BENCH_ORBIT_SPEED
                             + i as f32 * std::f32::consts::TAU / opt.players as f32;
-                        let target = V2::new(2048., 2048.) + V2::from_angle(t) * 300.;
+                        let target = V2::new(SECTOR_SIZE / 2., SECTOR_SIZE / 2.)
+                            + V2::from_angle(t) * BENCH_ORBIT_RADIUS;
                         let input = InputFrame {
                             movement: (target - b.world.player.pos).normalized(),
-                            aim: (V2::new(2048., 2048.) - b.world.player.pos).angle(),
-                            fire: opt.fire && now % 2. < 1.3,
+                            aim: (V2::new(SECTOR_SIZE / 2., SECTOR_SIZE / 2.) - b.world.player.pos)
+                                .angle(),
+                            fire: opt.fire && now % BENCH_FIRE_PERIOD < BENCH_FIRE_SECONDS,
                             weapon: i % 3,
-                            ability: now % 8. < 0.7,
+                            ability: now % BENCH_ABILITY_PERIOD < BENCH_ABILITY_SECONDS,
                         };
                         let step = Instant::now();
                         b.world.step(input);
@@ -211,7 +214,7 @@ pub fn run(mut config: Config, opt: Options) -> Result<serde_json::Value, String
                             b.online.snapshot(&b.world);
                         }
                         if measured {
-                            timings.push(step.elapsed().as_secs_f64() * 1e6);
+                            timings.push(step.elapsed().as_secs_f64() * MICROS_PER_SECOND);
                         }
                     }
                     if b.online.after_frame(&mut b.world, dt, now) {
@@ -220,7 +223,7 @@ pub fn run(mut config: Config, opt: Options) -> Result<serde_json::Value, String
                     }
                     b.world.events.clear();
                     Some((
-                        client_start.elapsed().as_secs_f64() * 1000.,
+                        client_start.elapsed().as_secs_f64() * MILLIS_PER_SECOND,
                         receive_ms,
                         timings,
                     ))
@@ -231,11 +234,11 @@ pub fn run(mut config: Config, opt: Options) -> Result<serde_json::Value, String
             for (client_ms, receive_ms, timings) in work {
                 client_work.push(client_ms);
                 receive_work.push(receive_ms);
-                if sim_steps.len() < 500_000 {
+                if sim_steps.len() < BENCH_MAX_STEP_SAMPLES {
                     sim_steps.extend(timings);
                 }
             }
-            frames.push(frame.elapsed().as_secs_f64() * 1000.);
+            frames.push(frame.elapsed().as_secs_f64() * MILLIS_PER_SECOND);
             if now - samples_at >= 1. {
                 samples_at = now;
                 let expected = if external {
@@ -277,8 +280,8 @@ pub fn run(mut config: Config, opt: Options) -> Result<serde_json::Value, String
                     for q in b.online.replicas.peers.values() {
                         if let Some((t, _)) = q.back() {
                             let age = now - t;
-                            ages.push(age * 1000.);
-                            if age < 0.25 {
+                            ages.push(age * MILLIS_PER_SECOND);
+                            if age < BENCH_FRESH_SECONDS {
                                 n += 1;
                             }
                         }

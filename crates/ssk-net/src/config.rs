@@ -1,3 +1,4 @@
+use crate::constants::*;
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -26,8 +27,8 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             relay_server: None,
-            world: "ssk-playground-v1".into(),
-            seed: 42,
+            world: DEFAULT_WORLD.into(),
+            seed: DEFAULT_SEED,
             udp_bind: "0.0.0.0:0".parse().unwrap(),
             advertise: None,
             relays: vec![],
@@ -35,28 +36,36 @@ impl Default for Config {
             friends: vec![],
             contact_cache: Some(data_dir().join("contacts.json")),
             identity_file: data_dir().join("identity.key"),
-            max_peers: 128,
+            max_peers: MAX_PEERS,
             discovery_bind: "0.0.0.0:0".parse().unwrap(),
             discovery_advertise: vec![],
-            interest_radius: 3000.,
+            interest_radius: DEFAULT_INTEREST_RADIUS,
         }
     }
 }
 pub fn data_dir() -> PathBuf {
-    std::env::var_os("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".local/share")
-        })
-        .join("ssk")
+    app_dir("XDG_DATA_HOME", "LOCALAPPDATA", ".local/share")
 }
 pub fn config_path() -> PathBuf {
-    std::env::var_os("XDG_CONFIG_HOME")
+    app_dir("XDG_CONFIG_HOME", "APPDATA", ".config").join("config.yaml")
+}
+fn app_dir(xdg: &str, windows: &str, unix: &str) -> PathBuf {
+    if let Some(path) = std::env::var_os(xdg) {
+        return PathBuf::from(path).join("ssk");
+    }
+    #[cfg(windows)]
+    let base = std::env::var_os(windows)
+        .or_else(|| std::env::var_os("USERPROFILE"))
         .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".config")
-        })
-        .join("ssk/config.yaml")
+        .unwrap_or_else(std::env::temp_dir);
+    #[cfg(not(windows))]
+    let base = {
+        let _ = windows;
+        PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(unix)
+    };
+    #[cfg(windows)]
+    let _ = unix;
+    base.join("ssk")
 }
 impl Config {
     pub fn load(path: Option<&Path>) -> anyhow::Result<Self> {
@@ -72,25 +81,27 @@ impl Config {
             anyhow::bail!("Config does not exist: {}", path.display())
         };
         anyhow::ensure!(
-            config.seeds.len() <= 16 && config.friends.len() <= 4 && config.relays.len() <= 8,
+            config.seeds.len() <= MAX_SEEDS
+                && config.friends.len() <= MAX_FRIENDS
+                && config.relays.len() <= MAX_RELAYS,
             "limits: 16 seeds, 4 friends, 8 relays"
         );
         anyhow::ensure!(
-            config.max_peers > 0 && config.max_peers <= 128,
+            config.max_peers > 0 && config.max_peers <= MAX_PEERS,
             "max_peers must be 1..128"
         );
         anyhow::ensure!(
-            !config.world.is_empty() && config.world.len() <= 96,
+            !config.world.is_empty() && config.world.len() <= MAX_WORLD_NAME,
             "world must contain 1..96 bytes"
         );
         anyhow::ensure!(
             config.interest_radius.is_finite()
-                && (1000. ..=8192.).contains(&config.interest_radius),
+                && INTEREST_RADIUS_RANGE.contains(&config.interest_radius),
             "interest_radius must be 1000..8192"
         );
         if let Some(r) = &config.relay_server {
             anyhow::ensure!(
-                (1..=4096).contains(&r.max_clients),
+                (1..=MAX_RELAY_CLIENTS).contains(&r.max_clients),
                 "relay max_clients must be 1..4096"
             );
             anyhow::ensure!(
@@ -106,7 +117,7 @@ impl Config {
                 "relay QUIC requires TLS"
             );
             anyhow::ensure!(
-                r.quic_bind.is_none_or(|a| a.port() == 7842),
+                r.quic_bind.is_none_or(|a| a.port() == RELAY_QUIC_PORT),
                 "relay QUIC port must be 7842"
             );
         }
@@ -146,33 +157,33 @@ impl Default for RelayServerConfig {
             quic_bind: None,
             cert_file: None,
             key_file: None,
-            max_clients: 128,
-            bytes_per_second: 2 * 1024 * 1024,
+            max_clients: DEFAULT_RELAY_CLIENTS,
+            bytes_per_second: RELAY_BYTES_PER_SEC,
             allow: vec![],
         }
     }
 }
 pub fn load_identity(path: &Path) -> anyhow::Result<iroh::SecretKey> {
-    use std::{
-        io::Write,
-        os::unix::fs::{OpenOptionsExt, PermissionsExt},
-    };
+    use std::io::Write;
+    #[cfg(unix)]
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
     if path.exists() {
         let bytes: [u8; 32] = std::fs::read(path)?
             .try_into()
             .map_err(|_| anyhow::anyhow!("Identity must contain exactly 32 bytes"))?;
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+        #[cfg(unix)]
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(SECRET_FILE_MODE))?;
         return Ok(iroh::SecretKey::from_bytes(&bytes));
     }
     if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
         std::fs::create_dir_all(parent)?;
     }
     let key = iroh::SecretKey::generate();
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(path)?;
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    options.mode(SECRET_FILE_MODE);
+    let mut file = options.open(path)?;
     file.write_all(&key.to_bytes())?;
     file.sync_all()?;
     Ok(key)

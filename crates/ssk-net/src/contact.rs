@@ -1,3 +1,4 @@
+use crate::constants::*;
 use serde::{Deserialize, Serialize};
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct Contact {
@@ -20,15 +21,15 @@ pub(crate) fn discovery_id(key: &iroh::PublicKey) -> Option<libp2p::PeerId> {
 }
 impl Contact {
     pub fn decode(origin: &str, bytes: &[u8]) -> Option<Self> {
-        if bytes.len() > 880 {
+        if bytes.len() > MAX_CONTACT_BYTES {
             return None;
         }
         let c: Self = serde_json::from_slice(bytes).ok()?;
         let now = unix_time();
         if c.addr.id.to_string() != origin
-            || c.addr.addrs.len() > 16
+            || c.addr.addrs.len() > MAX_ENDPOINT_ADDRS
             || c.expires <= now
-            || c.expires > now + 90
+            || c.expires > now + CONTACT_MAX_TTL_SECONDS
             || discovery_id(&c.addr.id)?.to_string() != c.discovery
         {
             return None;

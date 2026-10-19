@@ -1,4 +1,5 @@
 use super::screen;
+use crate::constants::*;
 use macroquad::{
     audio::{PlaySoundParams, Sound, load_sound_from_bytes, play_sound},
     prelude::*,
@@ -29,15 +30,7 @@ pub struct Effects {
 impl Effects {
     pub async fn new() -> Self {
         let mut sounds = Vec::new();
-        for (frequency, duration, noise) in [
-            (160., 0.055, 0.65),
-            (95., 0.13, 0.85),
-            (480., 0.20, 0.12),
-            (250., 0.065, 0.8),
-            (65., 0.35, 0.9),
-            (880., 0.14, 0.02),
-            (110., 0.07, 0.05),
-        ] {
+        for (frequency, duration, noise) in SOUND_PRESETS {
             sounds.push(
                 load_sound_from_bytes(&wave(frequency, duration, noise))
                     .await
@@ -45,10 +38,10 @@ impl Effects {
             );
         }
         Self {
-            particles: Vec::with_capacity(2400),
-            rings: Vec::with_capacity(64),
+            particles: Vec::with_capacity(MAX_PARTICLES),
+            rings: Vec::with_capacity(MAX_RINGS),
             sounds,
-            rng: Rng(82),
+            rng: Rng(EFFECT_RNG_SEED),
             shake: 0.,
             flash: 0.,
         }
@@ -82,18 +75,18 @@ impl Effects {
     }
     fn burst(&mut self, pos: V2, count: usize, color: Color, speed: f32) {
         for _ in 0..count {
-            if self.particles.len() >= 2400 {
+            if self.particles.len() >= MAX_PARTICLES {
                 break;
             }
-            let life = self.rng.range(0.12, 0.5);
+            let life = self.rng.range(PARTICLE_LIFE.start, PARTICLE_LIFE.end);
             self.particles.push(Particle {
                 pos,
                 velocity: V2::from_angle(self.rng.range(0., std::f32::consts::TAU))
-                    * self.rng.range(30., speed),
+                    * self.rng.range(PARTICLE_MIN_SPEED, speed),
                 life,
                 max: life,
                 color,
-                size: self.rng.range(1., 3.5),
+                size: self.rng.range(PARTICLE_SIZE.start, PARTICLE_SIZE.end),
             });
         }
     }
@@ -107,10 +100,10 @@ impl Effects {
                 _ => camera,
             };
             let distance = (pos - camera).length();
-            if distance > 1800. {
+            if distance > EFFECT_DISTANCE {
                 continue;
             }
-            let volume = volume * (1. - distance / 2100.).max(0.) * 0.5;
+            let volume = volume * (1. - distance / SOUND_DISTANCE).max(0.) * SOUND_GAIN;
             match *event {
                 WorldEvent::Shot(shot) => {
                     let (index, color) = match shot.weapon {
@@ -118,32 +111,45 @@ impl Effects {
                         WeaponKind::Shotgun => (1, ORANGE),
                         WeaponKind::Plasma => (2, VIOLET),
                     };
-                    self.burst(pos, 4, color, 110.);
+                    self.burst(pos, MUZZLE_PARTICLES, color, MUZZLE_PARTICLE_SPEED);
                     self.sound(index, volume);
                 }
                 WorldEvent::Impact { damage, .. } => {
-                    self.burst(pos, (damage / 12.).clamp(4., 20.) as usize, ORANGE, 210.);
-                    self.sound(3, volume * 0.6);
+                    self.burst(
+                        pos,
+                        (damage / IMPACT_PARTICLE_DAMAGE)
+                            .clamp(*IMPACT_PARTICLE_COUNT.start(), *IMPACT_PARTICLE_COUNT.end())
+                            as usize,
+                        ORANGE,
+                        IMPACT_PARTICLE_SPEED,
+                    );
+                    self.sound(3, volume * IMPACT_SOUND_GAIN);
                 }
                 WorldEvent::Destroyed { size, .. } => {
-                    self.burst(pos, 32, ORANGE, 300.);
+                    self.burst(
+                        pos,
+                        DESTRUCTION_PARTICLES,
+                        ORANGE,
+                        DESTRUCTION_PARTICLE_SPEED,
+                    );
                     self.sound(4, volume);
-                    if self.rings.len() < 64 {
+                    if self.rings.len() < MAX_RINGS {
                         self.rings.push(Ring {
                             pos,
-                            life: 0.4,
-                            size: size * 2.,
+                            life: RING_LIFE,
+                            size: size * RING_SCALE,
                             color: ORANGE,
                         });
                     }
-                    self.shake = (self.shake + 2. * (1. - distance / 1800.)).min(8.);
+                    self.shake = (self.shake + SHAKE_IMPACT * (1. - distance / EFFECT_DISTANCE))
+                        .min(SHAKE_MAX);
                 }
                 WorldEvent::Pickup { kind, .. } => {
                     let color = match kind {
                         PickupKind::Energy => SKYBLUE,
                         PickupKind::Health => GREEN,
                     };
-                    self.burst(pos, 18, color, 180.);
+                    self.burst(pos, PICKUP_PARTICLES, color, PICKUP_PARTICLE_SPEED);
                     self.sound(5, volume);
                 }
                 WorldEvent::Dry => self.sound(6, volume),
@@ -154,7 +160,7 @@ impl Effects {
     pub fn update(&mut self, dt: f32) {
         for p in &mut self.particles {
             p.pos += p.velocity * dt;
-            p.velocity *= (-3. * dt).exp();
+            p.velocity *= (-PARTICLE_DRAG * dt).exp();
             p.life -= dt;
         }
         self.particles.retain(|p| p.life > 0.);
@@ -162,8 +168,8 @@ impl Effects {
             r.life -= dt;
         }
         self.rings.retain(|r| r.life > 0.);
-        self.shake *= (-15. * dt).exp();
-        self.flash = (self.flash - dt * 5.).max(0.);
+        self.shake *= (-SHAKE_DECAY * dt).exp();
+        self.flash = (self.flash - dt * FLASH_DECAY).max(0.);
     }
     pub fn offset(&mut self, strength: f32) -> V2 {
         V2::new(self.rng.range(-1., 1.), self.rng.range(-1., 1.)) * self.shake * strength
@@ -171,7 +177,7 @@ impl Effects {
     pub fn draw(&self, camera: V2, flashes: bool) {
         for p in &self.particles {
             let point = screen(p.pos, camera);
-            let tail = screen(p.pos - p.velocity * 0.025, camera);
+            let tail = screen(p.pos - p.velocity * PARTICLE_TAIL_SECONDS, camera);
             let mut color = p.color;
             color.a = p.life / p.max;
             draw_line(tail.x, tail.y, point.x, point.y, p.size, color);
@@ -179,8 +185,8 @@ impl Effects {
         for r in &self.rings {
             let p = screen(r.pos, camera);
             let mut color = r.color;
-            color.a = r.life * 2.;
-            draw_circle_lines(p.x, p.y, (1. - r.life / 0.4) * r.size, 2., color);
+            color.a = r.life * RING_SCALE;
+            draw_circle_lines(p.x, p.y, (1. - r.life / RING_LIFE) * r.size, 2., color);
         }
         if flashes && self.flash > 0. {
             draw_rectangle(
@@ -188,35 +194,42 @@ impl Effects {
                 0.,
                 screen_width(),
                 screen_height(),
-                Color::new(0.9, 0.12, 0.08, self.flash * 0.15),
+                Color::new(
+                    FLASH_COLOR[0],
+                    FLASH_COLOR[1],
+                    FLASH_COLOR[2],
+                    self.flash * FLASH_COLOR[3],
+                ),
             );
         }
     }
 }
 fn wave(frequency: f32, duration: f32, noise: f32) -> Vec<u8> {
-    let samples = (44100. * duration) as usize;
-    let size = (samples * 2) as u32;
-    let mut bytes = Vec::with_capacity(samples * 2 + 44);
+    let samples = (AUDIO_SAMPLE_RATE as f32 * duration) as usize;
+    let size = (samples * AUDIO_SAMPLE_BYTES as usize) as u32;
+    let mut bytes = Vec::with_capacity(samples * AUDIO_SAMPLE_BYTES as usize + WAVE_HEADER_BYTES);
     bytes.extend(b"RIFF");
-    bytes.extend((size + 36).to_le_bytes());
+    bytes.extend((size + WAVE_HEADER_BYTES as u32 - 8).to_le_bytes());
     bytes.extend(b"WAVEfmt ");
-    bytes.extend(16u32.to_le_bytes());
-    bytes.extend(1u16.to_le_bytes());
-    bytes.extend(1u16.to_le_bytes());
-    bytes.extend(44100u32.to_le_bytes());
-    bytes.extend(88200u32.to_le_bytes());
-    bytes.extend(2u16.to_le_bytes());
-    bytes.extend(16u16.to_le_bytes());
+    bytes.extend(WAVE_FMT_BYTES.to_le_bytes());
+    bytes.extend(WAVE_PCM_FORMAT.to_le_bytes());
+    bytes.extend(WAVE_PCM_FORMAT.to_le_bytes());
+    bytes.extend(AUDIO_SAMPLE_RATE.to_le_bytes());
+    bytes.extend((AUDIO_SAMPLE_RATE * AUDIO_SAMPLE_BYTES as u32).to_le_bytes());
+    bytes.extend(AUDIO_SAMPLE_BYTES.to_le_bytes());
+    bytes.extend(AUDIO_BITS.to_le_bytes());
     bytes.extend(b"data");
     bytes.extend(size.to_le_bytes());
-    let mut rng = Rng(118);
+    let mut rng = Rng(WAVE_RNG_SEED);
     let mut phase = 0.;
     for i in 0..samples {
         let t = i as f32 / samples as f32;
-        phase += std::f32::consts::TAU * frequency * (1. - t * 0.6) / 44100.;
-        let envelope = (1. - t).powf(2.) * (t * 80.).min(1.);
-        let sample =
-            ((phase.sin() * (1. - noise) + rng.range(-1., 1.) * noise) * envelope * 22000.) as i16;
+        phase += std::f32::consts::TAU * frequency * (1. - t * AUDIO_PITCH_DECAY)
+            / AUDIO_SAMPLE_RATE as f32;
+        let envelope = (1. - t).powf(2.) * (t * AUDIO_ATTACK).min(1.);
+        let sample = ((phase.sin() * (1. - noise) + rng.range(-1., 1.) * noise)
+            * envelope
+            * AUDIO_AMPLITUDE) as i16;
         bytes.extend(sample.to_le_bytes());
     }
     bytes

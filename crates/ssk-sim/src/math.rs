@@ -94,14 +94,14 @@ impl MulAssign<f32> for V2 {
 pub struct Rng(pub u64);
 impl Rng {
     pub fn next_u64(&mut self) -> u64 {
-        self.0 = self.0.wrapping_add(0x9e3779b97f4a7c15);
+        self.0 = self.0.wrapping_add(crate::RNG_INCREMENT);
         let mut z = self.0;
-        z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
-        z ^ (z >> 31)
+        z = (z ^ (z >> crate::RNG_MIX_SHIFTS[0])).wrapping_mul(crate::RNG_MULTIPLIERS[0]);
+        z = (z ^ (z >> crate::RNG_MIX_SHIFTS[1])).wrapping_mul(crate::RNG_MULTIPLIERS[1]);
+        z ^ (z >> crate::RNG_MIX_SHIFTS[2])
     }
     pub fn unit(&mut self) -> f32 {
-        (self.next_u64() >> 40) as f32 / 16777216.
+        (self.next_u64() >> crate::RNG_FLOAT_SHIFT) as f32 / crate::RNG_FLOAT_SCALE
     }
     pub fn range(&mut self, a: f32, b: f32) -> f32 {
         a + (b - a) * self.unit()

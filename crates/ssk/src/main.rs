@@ -5,7 +5,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
-    #[arg(long, global = true, default_value_t = 42)]
+    #[arg(long, global = true, default_value_t = ssk_net::constants::DEFAULT_SEED)]
     seed: u64,
     #[arg(long, global = true, value_enum, default_value_t = Class::Cadet)]
     class: Class,
@@ -23,11 +23,11 @@ enum Command {
     Node,
     InitConfig,
     Bench {
-        #[arg(long, default_value_t = 2)]
+        #[arg(long, default_value_t = ssk_client::constants::BENCH_DEFAULT_PLAYERS)]
         players: usize,
-        #[arg(long, default_value_t = 15)]
+        #[arg(long, default_value_t = ssk_client::constants::BENCH_DEFAULT_SECONDS)]
         seconds: u64,
-        #[arg(long, default_value_t = 15)]
+        #[arg(long, default_value_t = ssk_client::constants::BENCH_DEFAULT_SECONDS)]
         warmup: u64,
         #[arg(long)]
         no_fire: bool,
@@ -39,7 +39,7 @@ enum Command {
         output: Option<std::path::PathBuf>,
         #[arg(long, default_value_t = 0)]
         drop_count: usize,
-        #[arg(long, default_value_t = 8)]
+        #[arg(long, default_value_t = ssk_client::constants::BENCH_DEFAULT_WORKERS)]
         workers: usize,
     },
 }

@@ -1,3 +1,4 @@
+use crate::constants::*;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 #[derive(Serialize, Deserialize)]
@@ -17,25 +18,20 @@ impl Default for Profile {
     fn default() -> Self {
         Self {
             records: [0; 3],
-            volume: 0.6,
-            shake: 0.7,
+            volume: DEFAULT_VOLUME,
+            shake: DEFAULT_SHAKE,
             flashes: true,
             ui_scale: 1.,
             fullscreen: false,
-            width: 1440,
-            height: 900,
+            width: DEFAULT_WIDTH,
+            height: DEFAULT_HEIGHT,
             class: 1,
         }
     }
 }
 impl Profile {
     pub fn path() -> PathBuf {
-        std::env::var_os("XDG_DATA_HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| {
-                PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".local/share")
-            })
-            .join("ssk/profile.json")
+        ssk_net::data_dir().join("profile.json")
     }
     pub fn load() -> Self {
         let mut profile: Self = std::fs::read(Self::path())
@@ -44,10 +40,16 @@ impl Profile {
             .unwrap_or_default();
         profile.volume = profile.volume.clamp(0., 1.);
         profile.shake = profile.shake.clamp(0., 1.);
-        profile.ui_scale = profile.ui_scale.clamp(0.75, 1.25);
-        profile.width = profile.width.clamp(800, 7680);
-        profile.height = profile.height.clamp(600, 4320);
-        profile.class = profile.class.min(2);
+        profile.ui_scale = profile
+            .ui_scale
+            .clamp(*UI_SCALE_RANGE.start(), *UI_SCALE_RANGE.end());
+        profile.width = profile
+            .width
+            .clamp(*WINDOW_WIDTH_RANGE.start(), *WINDOW_WIDTH_RANGE.end());
+        profile.height = profile
+            .height
+            .clamp(*WINDOW_HEIGHT_RANGE.start(), *WINDOW_HEIGHT_RANGE.end());
+        profile.class = profile.class.min(ssk_sim::ShipClass::ALL.len() - 1);
         profile
     }
     pub fn save(&self) -> std::io::Result<()> {

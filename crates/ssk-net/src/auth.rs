@@ -53,14 +53,17 @@ impl Auth {
         body
     }
     pub fn verify(&mut self, kind: u8, payload: &[u8]) -> Option<(String, Vec<u8>)> {
-        if payload.len() < 113 || payload.len() > 1000 || payload[48] != kind {
+        if payload.len() < AUTH_ENVELOPE_BYTES
+            || payload.len() > MAX_SIGNED_BYTES
+            || payload[48] != kind
+        {
             return None;
         }
         let key_bytes: [u8; 32] = payload[..32].try_into().ok()?;
         let session: [u8; 8] = payload[32..40].try_into().ok()?;
         let serial = u64::from_le_bytes(payload[40..48].try_into().ok()?);
         let latest = self.latest.get(&(key_bytes, session)).copied().unwrap_or(0);
-        if serial.saturating_add(4096) < latest {
+        if serial.saturating_add(AUTH_REPLAY_WINDOW) < latest {
             return None;
         }
         let digest = *blake3::hash(payload).as_bytes();
@@ -71,7 +74,7 @@ impl Auth {
         if !self.keys.contains_key(&key_bytes) {
             let key = ed25519_dalek::VerifyingKey::from_bytes(&key_bytes).ok()?;
             let peer = iroh::PublicKey::from_bytes(&key_bytes).ok()?.to_string();
-            if self.keys.len() >= 512 {
+            if self.keys.len() >= AUTH_KEY_CACHE {
                 self.keys.clear();
             }
             self.keys.insert(key_bytes, (peer, key));
@@ -92,13 +95,13 @@ impl Auth {
             return None;
         }
         self.latest.insert((key_bytes, session), latest.max(serial));
-        if self.latest.len() > 512 {
+        if self.latest.len() > AUTH_KEY_CACHE {
             self.latest.retain(|(p, _), _| p == &key_bytes);
         }
         let result = (peer, payload[49..end].to_vec());
         self.verified.insert(digest, result.clone());
         self.order.push_back(digest);
-        if self.order.len() > 16384 {
+        if self.order.len() > AUTH_ENVELOPE_CACHE {
             self.verified.remove(&self.order.pop_front()?);
         }
         Some(result)

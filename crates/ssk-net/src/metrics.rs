@@ -1,3 +1,4 @@
+use crate::constants::*;
 use std::{
     collections::VecDeque,
     time::{Duration, Instant},
@@ -47,7 +48,7 @@ impl Metrics {
     pub fn header(&mut self, seq: u64) -> Vec<u8> {
         let now = Instant::now();
         self.sent.push_back((seq, now));
-        while self.sent.len() > 256 {
+        while self.sent.len() > METRIC_SENT_MEMORY {
             self.sent.pop_front();
         }
         let mut b = b"SSK2".to_vec();
@@ -80,23 +81,28 @@ impl Metrics {
                 if delay <= elapsed {
                     let rtt = (elapsed - delay).as_secs_f32() * 1000.;
                     let previous = self.stats.rtt_ms.unwrap_or(rtt);
-                    self.stats.jitter_ms += 0.125 * ((rtt - previous).abs() - self.stats.jitter_ms);
-                    self.stats.rtt_ms = Some(previous + 0.125 * (rtt - previous));
+                    self.stats.jitter_ms +=
+                        METRIC_EWMA * ((rtt - previous).abs() - self.stats.jitter_ms);
+                    self.stats.rtt_ms = Some(previous + METRIC_EWMA * (rtt - previous));
                     self.last_echo = echo;
                 }
             }
         }
         if seq > self.max_seq {
             let gap = seq - self.max_seq;
-            self.mask = if gap >= 64 { 0 } else { self.mask << gap };
+            self.mask = if gap >= METRIC_LOSS_BITS {
+                0
+            } else {
+                self.mask << gap
+            };
             self.mask |= 1;
             self.max_seq = seq;
             self.echo = Some((seq, now));
-        } else if self.max_seq - seq < 64 {
+        } else if self.max_seq - seq < METRIC_LOSS_BITS {
             self.mask |= 1 << (self.max_seq - seq);
         }
-        let count = self.max_seq.min(64) as u32;
-        let valid_mask = if count == 64 {
+        let count = self.max_seq.min(METRIC_LOSS_BITS) as u32;
+        let valid_mask = if count == METRIC_LOSS_BITS as u32 {
             u64::MAX
         } else {
             (1u64 << count) - 1
@@ -117,7 +123,7 @@ impl Metrics {
     }
     pub fn sample(&mut self) -> LinkStats {
         let elapsed = self.window.elapsed().as_secs_f32();
-        if elapsed >= 1. {
+        if elapsed >= METRIC_SAMPLE_SECONDS {
             self.stats.tx_pps = self.tx[0] as f32 / elapsed;
             self.stats.tx_bps = self.tx[1] as f32 / elapsed;
             self.stats.rx_pps = self.rx[0] as f32 / elapsed;

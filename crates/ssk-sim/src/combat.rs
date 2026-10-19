@@ -268,7 +268,7 @@ impl World {
                 }
             }
             if bullet.shot.owner == self.player.id
-                || (self.shared_authority && bullet.shot.owner & (1 << 63) != 0)
+                || (self.shared_authority && bullet.shot.owner & PLAYER_ID_BIT != 0)
             {
                 for (index, npc) in self.npcs.iter().enumerate() {
                     if npc.telegraph > 0. || npc.ship.hp <= 0. {

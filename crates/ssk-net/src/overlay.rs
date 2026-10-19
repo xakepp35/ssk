@@ -32,7 +32,7 @@ impl Overlay {
             routes: Default::default(),
             presence: HashMap::new(),
             positions: HashMap::new(),
-            radius: 3000.,
+            radius: DEFAULT_INTEREST_RADIUS,
             position_seen: HashMap::new(),
             fallback: BTreeMap::new(),
             friends: Default::default(),
@@ -49,7 +49,7 @@ impl Overlay {
             .collect()
     }
     pub fn learn(&mut self, id: String, bytes: &[u8], signed: &[u8]) -> bool {
-        if self.contacts.len() >= 128 && !self.contacts.contains_key(&id) {
+        if self.contacts.len() >= MAX_PEERS && !self.contacts.contains_key(&id) {
             return false;
         }
         let Some(contact) = crate::contact::Contact::decode(&id, bytes) else {
@@ -63,7 +63,7 @@ impl Overlay {
         {
             return false;
         }
-        if addr.id.to_string() != id || addr.addrs.len() > 16 {
+        if addr.id.to_string() != id || addr.addrs.len() > MAX_ENDPOINT_ADDRS {
             return false;
         }
         if !self.contacts.contains_key(&id) {
@@ -86,10 +86,9 @@ impl Overlay {
         dest: &str,
         peers: &HashMap<String, crate::reliable::Peer>,
     ) -> Vec<String> {
-        if peers
-            .get(dest)
-            .is_some_and(|p| p.metrics.stats.age_ms < 2000. && p.metrics.stats.queued < 96)
-        {
+        if peers.get(dest).is_some_and(|p| {
+            p.metrics.stats.age_ms < ROUTE_FRESH_MS && p.metrics.stats.queued < ROUTE_QUEUE_LIMIT
+        }) {
             return vec![dest.into()];
         }
         self.refresh_graph();
@@ -102,23 +101,27 @@ impl Overlay {
             .filter_map(|id| {
                 let local = peers.get(&id)?;
                 if !local.direct()
-                    || local.metrics.stats.age_ms > 2000.
-                    || local.metrics.stats.queued >= 96
+                    || local.metrics.stats.age_ms > ROUTE_FRESH_MS
+                    || local.metrics.stats.queued >= ROUTE_QUEUE_LIMIT
                 {
                     return None;
                 }
                 let (remote, time) = self.routes.legs.get(&(id.clone(), dest.into()))?;
                 if !remote.direct
-                    || time.elapsed().as_secs() > 5
-                    || remote.age_ms > 2000.
-                    || remote.queued >= 96
+                    || time.elapsed().as_secs() > ROUTE_METRIC_SECONDS
+                    || remote.age_ms > ROUTE_FRESH_MS
+                    || remote.queued >= ROUTE_QUEUE_LIMIT
                 {
                     return None;
                 }
                 let cost = |s: &LinkStats| {
-                    s.rtt_ms.unwrap_or(1000.) + s.jitter_ms * 2. + s.loss * 100. + s.queued as f32
+                    s.rtt_ms.unwrap_or(ROUTE_DEFAULT_RTT_MS)
+                        + s.jitter_ms * ROUTE_JITTER_WEIGHT
+                        + s.loss * ROUTE_LOSS_WEIGHT
+                        + s.queued as f32
                 };
-                let balance = (stable_rank(&self.id, dest, &id) % 1000) as f32 / 1000.;
+                let balance = (stable_rank(&self.id, dest, &id) % ROUTE_BALANCE_BUCKETS) as f32
+                    / ROUTE_BALANCE_BUCKETS as f32;
                 Some((id, cost(&local.metrics.stats) + cost(remote) + balance))
             })
             .collect();
@@ -172,7 +175,7 @@ impl Overlay {
             .collect();
         for dest in destinations {
             if kind == 1 {
-                if self.routes.pending.len() < 4096 {
+                if self.routes.pending.len() < ROUTE_EVENT_QUEUE {
                     if let Some(id) = crate::routes::event_id(data) {
                         self.routes.inflight.insert((dest.clone(), id));
                     }
@@ -227,7 +230,7 @@ impl Overlay {
         }
         for (next, destinations) in groups {
             let peer = peers.get_mut(&next).unwrap();
-            for (group, recipients) in destinations.chunks(12).enumerate() {
+            for (group, recipients) in destinations.chunks(MULTICAST_RECIPIENTS).enumerate() {
                 let mut header = vec![kind, recipients.len() as u8];
                 for dest in recipients {
                     header.extend(dest.parse::<iroh::PublicKey>().unwrap().as_bytes());
@@ -320,15 +323,15 @@ impl Overlay {
                 self.routes.inflight.remove(key.as_ref().unwrap());
                 continue;
             }
-            if seq.saturating_sub(p.born) > ssk_sim::PACKET_PER_SEC * 5 {
+            if seq.saturating_sub(p.born) > EVENT_TTL_PACKETS {
                 if let Some(key) = key {
                     self.routes.inflight.remove(&key);
                 }
                 self.routes.expired += 1;
                 continue;
             }
-            if p.last == 0 || seq - p.last >= (ssk_sim::PACKET_PER_SEC / 10) as u64 {
-                let copies = if seq.saturating_sub(p.born) >= ssk_sim::PACKET_PER_SEC / 3 {
+            if p.last == 0 || seq - p.last >= EVENT_RETRY_PACKETS {
+                let copies = if seq.saturating_sub(p.born) >= EVENT_BACKUP_PACKETS {
                     3
                 } else {
                     1
@@ -363,7 +366,7 @@ impl Overlay {
                         .get(id)
                         .is_none_or(|(_, next)| Instant::now() >= *next)
             })
-            .take(4usize.saturating_sub(self.connecting.len()))
+            .take(CONNECT_CONCURRENCY.saturating_sub(self.connecting.len()))
             .collect();
         desired
             .into_iter()
@@ -378,7 +381,8 @@ impl Overlay {
                     .get(&id)
                     .map_or(0, |(n, _)| *n)
                     .saturating_add(1);
-                let delay = (1u64 << failures.min(5)) + stable_rank(&self.id, &id, "retry") % 3;
+                let delay = (1u64 << failures.min(CONNECT_MAX_BACKOFF_SHIFT))
+                    + stable_rank(&self.id, &id, "retry") % CONNECT_JITTER_SECONDS;
                 self.retries.insert(
                     id.clone(),
                     (failures, Instant::now() + Duration::from_secs(delay)),
@@ -389,7 +393,7 @@ impl Overlay {
             .collect()
     }
     pub fn settled(&self) -> bool {
-        self.last_change.elapsed() > Duration::from_secs(10)
+        self.last_change.elapsed() > Duration::from_secs(TOPOLOGY_SETTLE_SECONDS)
     }
     pub fn prune(&mut self) -> Vec<String> {
         let expired: Vec<_> = self
@@ -422,7 +426,10 @@ impl Overlay {
         seq: u64,
     ) {
         if frame_kind == 7 {
-            if frame.len() < 2 || ![0, 6, 8].contains(&frame[0]) || !(1..=12).contains(&frame[1]) {
+            if frame.len() < 2
+                || ![0, 6, 8].contains(&frame[0])
+                || !(1..=MULTICAST_RECIPIENTS as u8).contains(&frame[1])
+            {
                 return;
             }
             let header = 2 + frame[1] as usize * 32;
@@ -491,7 +498,7 @@ impl Overlay {
         if dest == self.id {
             if kind == 0 {
                 let mut inbox = worker.snapshots.lock().unwrap();
-                if inbox.len() < 128 || inbox.contains_key(&origin) {
+                if inbox.len() < MAX_PEERS || inbox.contains_key(&origin) {
                     let newer = inbox
                         .get(&origin)
                         .and_then(|(old, _)| Snapshot::decode(old))
@@ -506,7 +513,7 @@ impl Overlay {
                 return;
             }
             if kind == 2 {
-                if data.len() == 16 && self.routes.acknowledged.len() < 8192 {
+                if data.len() == 16 && self.routes.acknowledged.len() < ROUTE_EVENT_MEMORY {
                     let key = (origin, data.as_slice().try_into().unwrap());
                     if self.routes.inflight.contains(&key) {
                         self.routes.acknowledged.insert(key);
@@ -536,7 +543,7 @@ impl Overlay {
                     if self.routes.seen.insert(key.clone()) {
                         self.routes.order.push_back(key.clone());
                     }
-                    while self.routes.order.len() > 8192 {
+                    while self.routes.order.len() > ROUTE_EVENT_MEMORY {
                         let old = self.routes.order.pop_front().unwrap();
                         self.routes.seen.remove(&old);
                         self.routes.acks.remove(&old);

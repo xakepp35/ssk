@@ -1,3 +1,4 @@
+use crate::constants::{HUD_WIDTH, ui::*};
 use crate::profile::Profile;
 use macroquad::prelude::*;
 use ssk_sim::*;
@@ -8,14 +9,14 @@ pub struct MenuAction {
     pub quit: bool,
 }
 fn button(label: &str, x: f32, y: f32, w: f32, s: f32, selected: bool) -> bool {
-    let r = Rect::new(x, y, w * s, 40. * s);
+    let r = Rect::new(x, y, w * s, BUTTON_HEIGHT * s);
     let hover = r.contains(mouse_position().into());
     let color = if selected {
-        Color::new(0.08, 0.27, 0.34, 1.)
+        BUTTON_SELECTED
     } else if hover {
-        Color::new(0.12, 0.2, 0.29, 1.)
+        BUTTON_HOVER
     } else {
-        Color::new(0.05, 0.09, 0.16, 1.)
+        BUTTON_IDLE
     };
     draw_rectangle(r.x, r.y, r.w, r.h, color);
     draw_rectangle_lines(
@@ -27,25 +28,25 @@ fn button(label: &str, x: f32, y: f32, w: f32, s: f32, selected: bool) -> bool {
         if hover || selected {
             SKYBLUE
         } else {
-            Color::new(0.15, 0.25, 0.35, 1.)
+            BUTTON_BORDER
         },
     );
-    draw_text(label, x + 12. * s, y + 27. * s, 22. * s, WHITE);
+    draw_text(
+        label,
+        x + TEXT_INSET * s,
+        y + BUTTON_BASELINE * s,
+        FONT_BUTTON * s,
+        WHITE,
+    );
     hover && is_mouse_button_pressed(MouseButton::Left)
 }
 pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
-    draw_rectangle(
-        0.,
-        0.,
-        screen_width(),
-        screen_height(),
-        Color::new(0.015, 0.025, 0.055, 0.95),
-    );
-    let s = (screen_height() / 850.).min(1.) * profile.ui_scale;
-    let x = screen_width() / 2. - 330. * s;
-    let y = (screen_height() - 740. * s) * 0.5;
-    draw_text("SYRUP SPACE", x, y + 55. * s, 54. * s, WHITE);
-    draw_text("KADET", x, y + 105. * s, 54. * s, SKYBLUE);
+    draw_rectangle(0., 0., screen_width(), screen_height(), MENU_BACKGROUND);
+    let s = (screen_height() / MENU_REFERENCE_HEIGHT).min(1.) * profile.ui_scale;
+    let x = screen_width() / 2. - MENU_HALF_WIDTH * s;
+    let y = (screen_height() - MENU_HEIGHT * s) * 0.5;
+    draw_text("SYRUP SPACE", x, y + TITLE_TOP * s, FONT_TITLE * s, WHITE);
+    draw_text("KADET", x, y + SUBTITLE_TOP * s, FONT_TITLE * s, SKYBLUE);
     draw_text(
         if online {
             "PEER DUEL"
@@ -53,16 +54,16 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
             "ONE SHIP. THREE GUNS. SURVIVE."
         },
         x,
-        y + 142. * s,
-        20. * s,
+        y + TAGLINE_TOP * s,
+        FONT_BODY * s,
         GRAY,
     );
     for (i, class) in ShipClass::ALL.into_iter().enumerate() {
         if button(
             class.name(),
-            x + i as f32 * 220. * s,
-            y + 175. * s,
-            205.,
+            x + i as f32 * COLUMN_STRIDE * s,
+            y + CLASSES_TOP * s,
+            COLUMN_WIDTH,
             s,
             profile.class == i,
         ) {
@@ -77,8 +78,8 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
             profile.records[profile.class]
         ),
         x,
-        y + 250. * s,
-        23. * s,
+        y + CLASS_STATS_TOP * s,
+        FONT_STATS * s,
         WHITE,
     );
     let description = match class {
@@ -86,7 +87,13 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
         ShipClass::Cadet => "SHIELD: absorb half damage; stop firing!",
         ShipClass::Thunder => "QUAD: devastating bursts, heavy energy use",
     };
-    draw_text(description, x, y + 282. * s, 21. * s, GREEN);
+    draw_text(
+        description,
+        x,
+        y + CLASS_DESCRIPTION_TOP * s,
+        FONT_DESCRIPTION * s,
+        GREEN,
+    );
     let mut action = MenuAction::default();
     if button(
         if started {
@@ -95,8 +102,8 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
             "START SURVIVAL  [Enter]"
         },
         x,
-        y + 315. * s,
-        660.,
+        y + START_TOP * s,
+        MENU_WIDTH,
         s,
         true,
     ) || is_key_pressed(KeyCode::Enter)
@@ -112,8 +119,8 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
         && button(
             "NEW RUN WITH SELECTED SHIP  [N]",
             x,
-            y + 367. * s,
-            660.,
+            y + NEW_RUN_TOP * s,
+            MENU_WIDTH,
             s,
             false,
         )
@@ -124,31 +131,31 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
         action.new_run = true;
     }
     if button(
-        &format!("VOLUME  {:.0}%", profile.volume * 100.),
+        &format!("VOLUME  {:.0}%", profile.volume * crate::constants::PERCENT),
         x,
-        y + 430. * s,
-        205.,
+        y + SETTINGS_TOP * s,
+        COLUMN_WIDTH,
         s,
         false,
     ) {
-        profile.volume = if profile.volume >= 0.99 {
+        profile.volume = if profile.volume >= SETTING_WRAP {
             0.
         } else {
-            (profile.volume + 0.2).min(1.)
+            (profile.volume + VOLUME_STEP).min(1.)
         };
     }
     if button(
-        &format!("SHAKE  {:.0}%", profile.shake * 100.),
-        x + 220. * s,
-        y + 430. * s,
-        205.,
+        &format!("SHAKE  {:.0}%", profile.shake * crate::constants::PERCENT),
+        x + COLUMN_STRIDE * s,
+        y + SETTINGS_TOP * s,
+        COLUMN_WIDTH,
         s,
         false,
     ) {
-        profile.shake = if profile.shake >= 0.99 {
+        profile.shake = if profile.shake >= SETTING_WRAP {
             0.
         } else {
-            (profile.shake + 0.25).min(1.)
+            (profile.shake + SETTING_STEP).min(1.)
         };
     }
     if button(
@@ -157,33 +164,36 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
         } else {
             "FLASHES  OFF"
         },
-        x + 440. * s,
-        y + 430. * s,
-        205.,
+        x + FLASHES_X * s,
+        y + SETTINGS_TOP * s,
+        COLUMN_WIDTH,
         s,
         false,
     ) {
         profile.flashes = !profile.flashes;
     }
     if button(
-        &format!("HUD SCALE  {:.0}%", profile.ui_scale * 100.),
+        &format!(
+            "HUD SCALE  {:.0}%",
+            profile.ui_scale * crate::constants::PERCENT
+        ),
         x,
-        y + 482. * s,
-        315.,
+        y + DISPLAY_TOP * s,
+        START_TOP,
         s,
         false,
     ) {
-        profile.ui_scale = if profile.ui_scale >= 1.24 {
-            0.75
+        profile.ui_scale = if profile.ui_scale >= SCALE_WRAP {
+            SCALE_MIN
         } else {
-            profile.ui_scale + 0.25
+            profile.ui_scale + SETTING_STEP
         };
     }
     if button(
         "FULLSCREEN  [F11]",
-        x + 335. * s,
-        y + 482. * s,
-        310.,
+        x + FULLSCREEN_X * s,
+        y + DISPLAY_TOP * s,
+        FULLSCREEN_WIDTH,
         s,
         false,
     ) {
@@ -198,22 +208,28 @@ pub fn menu(profile: &mut Profile, started: bool, online: bool) -> MenuAction {
     .into_iter()
     .enumerate()
     {
-        draw_text(line, x, y + (570. + i as f32 * 28.) * s, 20. * s, GRAY);
+        draw_text(
+            line,
+            x,
+            y + (CONTROLS_TOP + i as f32 * HUD_INSET) * s,
+            FONT_BODY * s,
+            GRAY,
+        );
     }
-    if button("QUIT", x, y + 680. * s, 660., s, false) {
+    if button("QUIT", x, y + QUIT_TOP * s, MENU_WIDTH, s, false) {
         action.quit = true;
     }
     action
 }
 pub fn hud(world: &World, profile: &Profile, skipped: u64) {
-    let s = (screen_height() / 900.).min(1.) * profile.ui_scale;
+    let s = (screen_height() / HUD_REFERENCE_HEIGHT).min(1.) * profile.ui_scale;
     let ship = &world.player;
     draw_rectangle(
-        16. * s,
-        16. * s,
-        324. * s,
-        150. * s,
-        Color::new(0.02, 0.04, 0.09, 0.85),
+        HUD_MARGIN * s,
+        HUD_MARGIN * s,
+        HUD_WIDTH * s,
+        HUD_HEIGHT * s,
+        HUD_BACKGROUND,
     );
     draw_text(
         &format!(
@@ -222,44 +238,44 @@ pub fn hud(world: &World, profile: &Profile, skipped: u64) {
             world.score,
             world.combo
         ),
-        28. * s,
-        40. * s,
-        22. * s,
+        HUD_INSET * s,
+        BUTTON_HEIGHT * s,
+        FONT_BUTTON * s,
         WHITE,
     );
     for (row, value, base, color, label) in [
         (0, ship.hp, ship.class.stats().0, GREEN, "HULL"),
-        (1, ship.energy, 1000., SKYBLUE, "ENERGY"),
+        (1, ship.energy, ENERGY_BASE, SKYBLUE, "ENERGY"),
     ] {
-        let y = (55. + row as f32 * 32.) * s;
+        let y = (TITLE_TOP + row as f32 * BAR_ROW_HEIGHT) * s;
         draw_rectangle(
-            28. * s,
+            HUD_INSET * s,
             y,
-            290. * s,
-            14. * s,
-            Color::new(0.08, 0.12, 0.18, 1.),
+            BAR_WIDTH * s,
+            BAR_HEIGHT * s,
+            BAR_BACKGROUND,
         );
         draw_rectangle(
-            28. * s,
+            HUD_INSET * s,
             y,
-            290. * s * (value / base).clamp(0., 1.),
-            14. * s,
+            BAR_WIDTH * s * (value / base).clamp(0., 1.),
+            BAR_HEIGHT * s,
             color,
         );
         if value > base {
             draw_rectangle(
-                28. * s,
+                HUD_INSET * s,
                 y,
-                290. * s * ((value - base) / base).clamp(0., 1.),
-                4. * s,
+                BAR_WIDTH * s * ((value - base) / base).clamp(0., 1.),
+                OVERCAP_BAR_HEIGHT * s,
                 YELLOW,
             );
         }
         draw_text(
             &format!("{} {:.0}", label, value.max(0.)),
-            30. * s,
-            y + 12. * s,
-            15. * s,
+            BAR_LABEL_X * s,
+            y + TEXT_INSET * s,
+            FONT_BAR * s,
             BLACK,
         );
     }
@@ -267,16 +283,16 @@ pub fn hud(world: &World, profile: &Profile, skipped: u64) {
         "ACTIVE"
     } else if ship.ability_latched {
         "RELEASE"
-    } else if ship.energy >= 160. {
+    } else if ship.energy >= ABILITY_MIN_ENERGY {
         "READY"
     } else {
         "LOW E"
     };
     draw_text(
         &format!("{} | {}", ship.weapon.name(), ready),
-        28. * s,
-        137. * s,
-        20. * s,
+        HUD_INSET * s,
+        WEAPON_INFO_TOP * s,
+        FONT_BODY * s,
         WHITE,
     );
     draw_text(
@@ -285,9 +301,9 @@ pub fn hud(world: &World, profile: &Profile, skipped: u64) {
             world.tick as f32 * DT,
             profile.records[ship.class.index()]
         ),
-        28. * s,
-        158. * s,
-        17. * s,
+        HUD_INSET * s,
+        RECORD_TOP * s,
+        FONT_CAPTION * s,
         GRAY,
     );
     for (i, weapon) in [
@@ -298,14 +314,14 @@ pub fn hud(world: &World, profile: &Profile, skipped: u64) {
     .into_iter()
     .enumerate()
     {
-        let x = screen_width() / 2. - 252. * s + i as f32 * 172. * s;
-        let y = screen_height() - 64. * s;
-        draw_rectangle(x, y, 164. * s, 44. * s, Color::new(0.025, 0.05, 0.10, 0.9));
+        let x = screen_width() / 2. - WEAPONS_HALF_WIDTH * s + i as f32 * WEAPON_STRIDE * s;
+        let y = screen_height() - WEAPONS_BOTTOM * s;
+        draw_rectangle(x, y, WEAPON_WIDTH * s, WEAPON_HEIGHT * s, WEAPON_BACKGROUND);
         draw_rectangle_lines(
             x,
             y,
-            164. * s,
-            44. * s,
+            WEAPON_WIDTH * s,
+            WEAPON_HEIGHT * s,
             1.,
             if ship.weapon == weapon {
                 SKYBLUE
@@ -315,13 +331,19 @@ pub fn hud(world: &World, profile: &Profile, skipped: u64) {
         );
         draw_text(
             &format!("{} {}", i + 1, weapon.name()),
-            x + 8. * s,
-            y + 22. * s,
-            17. * s,
+            x + WEAPON_TEXT_INSET * s,
+            y + FONT_BUTTON * s,
+            FONT_CAPTION * s,
             WHITE,
         );
         let ready = 1. - (ship.cooldowns[i] / weapon.stats().interval).clamp(0., 1.);
-        draw_rectangle(x, y + 38. * s, 164. * s * ready, 3. * s, SKYBLUE);
+        draw_rectangle(
+            x,
+            y + COOLDOWN_TOP * s,
+            WEAPON_WIDTH * s * ready,
+            3. * s,
+            SKYBLUE,
+        );
     }
     draw_text(
         &format!(
@@ -330,22 +352,16 @@ pub fn hud(world: &World, profile: &Profile, skipped: u64) {
             get_fps(),
             skipped
         ),
-        screen_width() - 320. * s,
-        26. * s,
-        17. * s,
+        screen_width() - PERF_WIDTH * s,
+        PERF_TOP * s,
+        FONT_CAPTION * s,
         GRAY,
     );
 }
 pub fn help() {
-    draw_rectangle(
-        0.,
-        0.,
-        screen_width(),
-        screen_height(),
-        Color::new(0.01, 0.02, 0.05, 0.92),
-    );
-    let x = screen_width() / 2. - 360.;
-    let y = screen_height() / 2. - 220.;
+    draw_rectangle(0., 0., screen_width(), screen_height(), HELP_BACKGROUND);
+    let x = screen_width() / 2. - HELP_HALF_WIDTH;
+    let y = screen_height() / 2. - COLUMN_STRIDE;
     for (i, line) in [
         "FLIGHT MANUAL  [F1 to close]",
         "WASD: accelerate; release to coast and slow down.",
@@ -367,8 +383,8 @@ pub fn help() {
         draw_text(
             line,
             x,
-            y + i as f32 * 33.,
-            23.,
+            y + i as f32 * HELP_ROW_HEIGHT,
+            FONT_STATS,
             if i == 0 { SKYBLUE } else { WHITE },
         );
     }
