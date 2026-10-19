@@ -15,15 +15,20 @@ kernel/driver/VPN/display/service/watchdog changes. After reboot read
 runtime/freeze-sessions/current.json and the pointed session.json/app.ndjson/
 console.ndjson, compare boot ID and preserve previous-boot evidence BEFORE
 any new launch. A start without finish is not itself proof of a host freeze.
-Current completed session: runtime/freeze-sessions/20261019T235124Z.
-No active SSK/collector. Default driver discovery/layers on headless host/audio
-passed28.353s; no freeze yet. Next: build exact incident source de14d7ab668d in
-isolated runtime/freeze-baseline-source worktree, four jobs/shared Cargo cache,
-no GUI during build. Preserve dist executable/hash; archive baseline separately
-under runtime before any launch. Then prepare ONE original-code host comparison
-under fresh root capture, using original-compatible config and default driver
-policy. Original physical GPU unknown; automatic selection may differ from
-explicit current selection, so record that limitation. No automatic retries.
+Current PREPARED original-code session: runtime/freeze-sessions/20261019T235520Z.
+Binary runtime/freeze-baseline/ssk, unmodified incident source de14d7ab668d,
+four-job release1m29s. SHA2568389c1d751f1229638d00f4b233f38d534079ad1094333a7a00d0baecbcd7c10. Rebuilt artifact differs from
+historical ELF (recorded in manifest), same source/original lockfile. Config
+baseline.yml original except absolute path to existing dist identity, no key
+copied. Original automatic high-performance GPU selection has no PCI/UUID log;
+may differ from current first-compatible selection. Same FIFO/host/audio/class/
+default Vulkan drivers/layers. Start60s1Hz capture, await durable ready, ONE
+launch20s, then one owned SIGINT if no manual close. Stop at first freeze.
+No active game/collector/build. dist unchanged; target/release/ssk restored from
+dist using atomic replacement, baseline kept separately. Worktree remains under
+runtime/freeze-baseline-source, detached/unmodified; not another mutation driver.
+If original also passes, do not claim causation of earlier mutex/WSI repairs;
+review session/terminal/focus/storage differences before more identical launches.
 
 ## L5 completed comparisons (current boot, same Linux binary)
 

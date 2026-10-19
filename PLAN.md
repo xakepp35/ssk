@@ -476,3 +476,11 @@ L5 default driver discovery:20261019T235124Z,28.353s,
 Next isolate incident code: rebuild exact de14d7ab668d in runtime worktree,
 without replacing dist, then ONE captured original-host comparison. Original
 selection lacks stable GPU logging/control; record this comparison limitation.
+
+L5 original-source comparison prepared20261019T235520Z: unmodified
+incident source de14d7ab668d rebuilt release/four jobs1m29s, baseline binary kept
+under runtime/freeze-baseline/ssk SHA2568389c1d751f1229638d00f4b233f38d534079ad1094333a7a00d0baecbcd7c10.
+Historical ELF hash differs; not a bit-identical reproduction. dist unchanged,
+target normal entry restored. Original-compatible config except absolute existing
+identity path. Same full host/audio/FIFO/default loader, but original automatic
+GPU selection lacks stable identity logging. Fresh60s capture, single20s run.
