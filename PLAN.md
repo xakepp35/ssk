@@ -408,3 +408,7 @@ each, max step765us/max lag12082us/no overload or ERROR.120kernel records,
 0sampling/read errors,11SSK samples/64thread observations; main DRM wait9/11
 while callbacks/ticks continue, final KMS/NVIDIA idle. No freeze reproduced.
 Next offline full game without audio/network, manual10–15s and normal exit.
+
+L5 next prepared offline game on same GPU/FIFO/layers, no audio/network, class
+Cadet/seed42 as probe worker. Owner normal window exit after10–15s; this game
+mode has no timed close. Durable session/checkpoint saved before launch.
