@@ -266,6 +266,7 @@ pub use replication::*;
 mod validation;
 pub use validation::*;
 
+mod motion;
 mod shared;
 pub use shared::*;
 

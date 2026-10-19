@@ -134,6 +134,7 @@ impl Game {
                     if slot.is_none() {
                         let mut render_world=world.clone();render_world.events=std::mem::take(&mut events);render_world.origin_shift=shift;shift=V2::ZERO;
                         let (peers,status,frags,net_error)=if let Some(n)=&online {
+                            n.shared.present(&mut render_world,time);
                             let peers=n.replicas.peers.keys().filter_map(|p| {let (s,age)=n.replicas.sample(p,time)?;Some((s.ship(ssk_net::player_id(p)?,world.origin),age))}).collect();
                             (peers,n.net.status.borrow().clone(),n.frags,n.error.clone())
                         } else {(Vec::new(),ssk_net::Status {phase:if failed {error.clone()}else {"Offline".into()},..Default::default()},0,String::new())};

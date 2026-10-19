@@ -119,3 +119,14 @@ contain only Windows system DLLs; no libwinpthread/libgcc DLL. Windows ZIP
 contains exactly ssk.exe, ssk.yml (join to 192.168.50.155:4202), PLAY.md.
 Linux package has executable + root host config + guide. Windows execution,
 MSVC script and live cross-platform match remain unverified.
+
+## E: reported hard freeze and remote NPC motion
+
+- [x] E1 — Remote sector images were held at 5 Hz with previous=position.
+  Add bounded NPC/asteroid dead reckoning and 100 ms correction decay in
+  ssk-sim, sampled only into render copies. Reset by sector epoch/entity ID;
+  canonical AI/combat/ownership and wire rate remain unchanged.
+- [ ] E2 — Record read-only journal findings; real --no-audio/audio.enabled
+  switch that skips native audio initialization, plus startup stage messages.
+- [ ] E3 — Rebuild Linux/Windows packages. No automatic GUI/freeze reproduction
+  or heavy workloads; manual cross-platform follow-up remains separate.

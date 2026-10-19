@@ -1,3 +1,4 @@
+use crate::motion::MotionCorrection;
 use crate::*;
 use std::collections::{HashMap, HashSet, VecDeque};
 struct Owned {
@@ -9,6 +10,81 @@ struct Image {
     epoch: u64,
     revision: u64,
     time: f64,
+    local: bool,
+    npc_motion: HashMap<u64, MotionCorrection>,
+    rock_motion: HashMap<u64, MotionCorrection>,
+}
+impl Image {
+    fn new(state: SectorState, epoch: u64, time: f64, local: bool) -> Self {
+        Self {
+            revision: state.tick,
+            state,
+            epoch,
+            time,
+            local,
+            npc_motion: HashMap::new(),
+            rock_motion: HashMap::new(),
+        }
+    }
+    fn horizon(&self) -> f64 {
+        if self.local {
+            TICK_PER_PACKET as f64 / TICK_PER_SEC as f64
+        } else {
+            SHARED_PREDICTION_SECONDS
+        }
+    }
+    fn npc_pose(&self, npc: &Npc, now: f64) -> (V2, f32) {
+        self.npc_motion
+            .get(&npc.ship.id)
+            .copied()
+            .unwrap_or_default()
+            .sample(
+                npc.ship.pos,
+                npc.ship.velocity,
+                npc.ship.angle,
+                0.,
+                now - self.time,
+                self.horizon(),
+            )
+    }
+    fn rock_pose(&self, rock: &Asteroid, now: f64) -> (V2, f32) {
+        self.rock_motion
+            .get(&rock.id)
+            .copied()
+            .unwrap_or_default()
+            .sample(
+                rock.pos,
+                rock.velocity,
+                rock.angle,
+                rock.spin,
+                now - self.time,
+                self.horizon(),
+            )
+    }
+    fn correct_from(&mut self, old: &Self, now: f64) {
+        let npcs: HashMap<_, _> = old.state.npcs.iter().map(|n| (n.ship.id, n)).collect();
+        for npc in &self.state.npcs {
+            if let Some(previous) = npcs.get(&npc.ship.id) {
+                self.npc_motion.insert(
+                    npc.ship.id,
+                    MotionCorrection::between(
+                        old.npc_pose(previous, now),
+                        npc.ship.pos,
+                        npc.ship.angle,
+                    ),
+                );
+            }
+        }
+        let rocks: HashMap<_, _> = old.state.asteroids.iter().map(|a| (a.id, a)).collect();
+        for rock in &self.state.asteroids {
+            if let Some(previous) = rocks.get(&rock.id) {
+                self.rock_motion.insert(
+                    rock.id,
+                    MotionCorrection::between(old.rock_pose(previous, now), rock.pos, rock.angle),
+                );
+            }
+        }
+    }
 }
 struct Lease {
     owner: u64,
@@ -122,15 +198,38 @@ impl SharedWorld {
         now: f64,
     ) {
         if state.valid() && self.accepts_image(origin, sector, epoch, state.tick, now) {
-            self.images.insert(
+            let mut image = Image::new(state, epoch, now, false);
+            if let Some(old) = self.images.get(&sector).filter(|i| i.epoch == epoch) {
+                image.correct_from(old, now);
+            }
+            self.images.insert(sector, image);
+        }
+    }
+    /// Apply only to a render copy. Canonical snapshots used by game rules stay intact.
+    pub fn present(&self, w: &mut World, now: f64) {
+        w.npcs.clear();
+        w.asteroids.clear();
+        for (&sector, image) in &self.images {
+            let offset = WorldPos {
                 sector,
-                Image {
-                    revision: state.tick,
-                    state,
-                    epoch,
-                    time: now,
-                },
-            );
+                local: V2::ZERO,
+            }
+            .relative_to(w.origin);
+            for npc in &image.state.npcs {
+                let mut npc = npc.clone();
+                let (position, angle) = image.npc_pose(&npc, now);
+                npc.ship.previous = image.npc_pose(&npc, now - DT as f64).0 + offset;
+                npc.ship.pos = position + offset;
+                npc.ship.angle = angle;
+                w.npcs.push(npc);
+            }
+            for rock in &image.state.asteroids {
+                let mut rock = rock.clone();
+                let (position, angle) = image.rock_pose(&rock, now);
+                rock.pos = position + offset;
+                rock.angle = angle;
+                w.asteroids.push(rock);
+            }
         }
     }
     pub fn shot(&mut self, shot: Shot, sector: [i64; 2]) {
@@ -448,12 +547,7 @@ impl SharedWorld {
         for (&sector, owned) in &self.owned {
             self.images.insert(
                 sector,
-                Image {
-                    state: SectorState::capture(&owned.world),
-                    epoch: owned.epoch,
-                    revision: owned.world.tick,
-                    time: now,
-                },
+                Image::new(SectorState::capture(&owned.world), owned.epoch, now, true),
             );
         }
         self.images

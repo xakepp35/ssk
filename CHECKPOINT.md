@@ -57,3 +57,13 @@ claim. Do not repeat heavy swarms after the owner's reported OS freeze.
 Next B16 acceptance: short manual new-client/LAN match when available, then
 separately planned distributed capacity/failure/internet evidence. 128 remains
 unaccepted. No public hosts currently supplied; no beta tag until justified.
+
+## Active incident / E1
+Owner reports real Linux↔Windows gameplay: NPCs smooth on Windows and jerky
+on Linux regardless of host/join; Linux sometimes hard-freezes at client start.
+Found sector snapshots 5 Hz, replicated NPC.previous=pos, no remote smoothing;
+owner election uses ID/lease, not host/join. E1 adds bounded visual dead
+reckoning (400 ms) and correction decay 100 ms, applied only to render copies.
+Canonical game rules remain unchanged. cargo check passes; no runtime replay.
+E2 audio initialization switch and incident notes are in progress; E3 builds
+pending. No game/server/load process. Preserve owner's Cargo authors edit.
