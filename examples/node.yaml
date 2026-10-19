@@ -1,7 +1,7 @@
 # Local self-hosted bootstrap and relay. Copy and edit addresses for a LAN/VPS.
 world: ssk-playground-v1
 seed: 42
-identity_file: ./node-identity.key
+identity_file: ./runtime/node-identity.key
 udp_bind: 127.0.0.1:4200
 discovery_bind: 127.0.0.1:4201
 discovery_advertise: [/ip4/127.0.0.1/udp/4201/quic-v1]

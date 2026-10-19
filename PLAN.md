@@ -45,6 +45,7 @@ no automated tests unless requested. A short manual game session when available.
 - [x] B16b — Separate end-to-end receipts and index in-flight ACKs; compilation passed. `perf: keep delivery receipts out of retry queues`
 - [x] B16c — Source multicast, cached verifying keys, parallel swarm and measured counter deltas; compilation passed. `perf: batch source fanout and parallelize swarm clients`
 - [x] B16d — Coalesce incoming ship state; refresh leases as expiring latest state. `perf: bound incoming state and refresh sector leases`
+- [x] B16e — Record 2/16/64/128 loopback and blocked-UDP relay measurements at 240 Hz. `docs: record measured network operating limits`
 - [ ] B16 — Measured bottlenecks, operating docs, beta tag. `release: prepare network beta`
 
 ## Network implementation invariants
@@ -79,3 +80,16 @@ For beta claims, measure 2→16→64→128 moving/firing participants. Record ho
 build, transport paths, network conditions, sim/frame percentiles, queues,
 PPS/BPS, relay delay and crypto cost. A loopback run is not internet acceptance.
 Public hosts are currently unavailable; real internet acceptance remains open.
+
+## C — owner's timing and architecture revision (supersedes old rates)
+
+- [ ] C1 — Central named simulation/network/client parameters; one timing source:
+  TICK_PER_SEC=360, TICK_PER_PACKET=6; fixed 60 Hz transport, independent vsync.
+- [ ] C2 — Move CombatGuard, replicated game model/history and shared game rules
+  into ssk-sim. Keep authentication/framing/discovery/routing in ssk-net.
+- [ ] C3 — Independent fixed-step game worker, bounded render handoff and explicit
+  overload disconnect. No hidden slow-motion online, no unbounded catch-up.
+- [ ] C4 — Windows portability/build scripts, Linux release build, LAN duel guide.
+
+Avoid further heavy swarm runs on this workstation after a reported OS freeze.
+Old 240 Hz measurements are historical and do not establish 360 Hz capacity.

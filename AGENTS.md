@@ -21,7 +21,7 @@ including speculative and incorrect claims. Do not copy those claims as facts.
   verified when only compilation or a topology calculation was performed.
 - Three library crates and one binary. Rust 1.99 / edition 2024. Keep changes
   small, bounded queues, stable object IDs, simple spatial indexing.
-- Simulation 240 Hz; network 30–60 game datagrams/s per connection, including
+- Simulation TICK_PER_SEC=360; TICK_PER_PACKET=6, fixed 60 game datagrams/s per connection, including
   forwarding. Account for transport control packets separately.
 - Each player owns their ship. Sector steward owns NPCs/asteroids/pickups only.
 - Maximum one transit intermediary for game data. Never hide extra transport
@@ -44,3 +44,13 @@ Follow the active execution policy; do not request an unavailable sandbox mode.
 The owner is in the docker group; stale agent groups can use
 `sg docker -c 'docker ...'` without sudo. No root work is needed for normal SSK
 development. Use one mutation driver for this workspace.
+
+## Timing, parameters and crate boundaries
+
+The owner's latest instruction supersedes the earlier 240 Hz / 30–60 Hz design.
+Use ssk-sim constants TICK_PER_SEC=360 and TICK_PER_PACKET=6 everywhere; derive
+step duration and packet frequency. Render follows monitor vsync independently.
+Move game validation/model/physics to ssk-sim. ssk-net owns only transport,
+identity/authentication, serialization, discovery and routing. Centralize tuning
+values in named constants/configuration modules; do not add mutable global state.
+Do not repeat heavy load scenarios after the reported workstation freeze.

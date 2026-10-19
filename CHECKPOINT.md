@@ -1,54 +1,29 @@
 # SSK checkpoint
 
-## Objective
-Implement the approved plan through offline alpha, UDP/QUIC duel MVP and
-decentralized beta. Continue in small committed steps. Full design: README.md;
-ordered work: PLAN.md; stable instructions: AGENTS.md.
+## Objective / authority
+Implement README and PLAN in small committed steps; no push, no automated tests.
+Latest owner revision: 360 simulation ticks/s, one packet each 6 ticks (60 Hz),
+monitor-vsync render independently; remove magic tuning numbers; game validation
+and model in ssk-sim; build Linux and prepare Windows/LAN play. See AGENTS.md.
 
-## Completed
-- A0: saved all agreed artifacts, including PING.md corrections, full gameplay
-  baseline and 64–128-player topology/bandwidth requirements.
-- Existing source discussions IDEA.md, NET.md, PING.md preserved.
+## Completed / evidence
+A0–A12, B1–B15, B16a–d committed; alpha tag v0.1.0-alpha.1. No beta tag.
+Historical HEAD 22a9737 (240 Hz /30 Hz): 2/16/64 loopback clients, zero skipped
+steps or measured event expiry. 64: p95 replica age96.8 ms, shared image502.4 ms,
+client work1.02 ms. 128 overloaded this host (p95 age3524 ms,3121 skipped steps).
+Final reports /tmp/ssk-final-{2,16,64,128}.json, sanitized artifact being saved.
+Blocked-UDP two-bridge Docker relay scenario completed: both sides received
+replicas over relay, p95 age32.4/34.0 ms, measured expiry0; not public internet.
+Reports /tmp/ssk-nat-{a,b}.json. Containers/temporary volume removed.
+One short offline window observation only; full manual class/death/restart and
+real LAN/internet acceptance remain open. Latest offline launch exited.
 
-- A2: 240 Hz movement, cursor aim, interpolated ship, aim lookahead camera, procedural stars.
-- `cargo check --workspace` passed after A2; no tests/manual session.
-
-## Live state
-- A0–A12 and B1–B15 committed. B16 is in progress; no beta tag.
-- B16 first fixes: verified-envelope cache, cached structural graph, compact
-  protocol v2 events, cached end-to-end ACKs, pending-event deduplication,
-  fair ship/checkpoint queues and staggered control with payload token bucket.
-- `cargo check --workspace` passes. No automated tests run.
-- Baseline loopback 2/16 clients stayed fresh; 64 failed: median fresh fraction
-  0.492, p95 replica age 3548 ms, 4585 unconfirmed events. These are diagnostic
-  baselines, not beta acceptance. JSON/logs in /tmp/ssk-baseline-{2,16,64}.*.
-- One short offline window observation completed; full class/death/restart
-  and real internet acceptance remain open. No push.
-
-- B16b: separate E2E receipts and indexed ACK membership. 64-client rerun:
-  fresh fraction median 1.0, p95 replica age 98 ms; shared images still missing
-  for most clients; cumulative event expiry 2299. Frame is all 64 clients on
-  one serial simulation thread (~46 ms), with skipped steps. Not accepted.
-
-- B16c: bounded source multicast (one intermediary), verifying-key cache,
-  parallel headless simulations and measured drop/expiry deltas. README weapon
-  numbers now match existing simulation; AOI range corrected to 4096.
-- Serial 128-client diagnostic failed: ~467 ms aggregate frame, p95 age546 ms,
-  missing shared images; this exposed both workload and harness bottlenecks.
-
-- B16d: inbound state coalesces per origin with local arrival age; leases use
-  expiring latest-state multicast, repeated 5 Hz, avoiding stale reliable queues.
-- Parallel 64-client run: aggregate p95 9.87 ms; no skipped steps; median shared
-  image count1, but p95 image age2916 ms, measured expiry40. 128 still overloaded
-  this single host: p95 client work20.9 ms, low freshness. Not accepted as128.
-
-## Next
-Build release, rerun isolated 64 then 128 moving/firing clients, measure shared
-object freshness too. Execute tools/nat two-bridge relay scenario, document
-actual results and remaining acceptance limits. No active benchmark; release rebuild in exec session 11201.
+## Active work / next
+Save historical measurements and helper configs, commit B16e. Then implement C1–C4
+from PLAN. Current source edit only docs/examples; git status authoritative.
+Do not run more heavy swarms: owner reported a complete OS freeze.
+No active build/bench/game. No other mutation driver.
 
 ## Constraints
-240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.
-Owner-authoritative ships, at most one intermediary, bounded queues.
-Do not claim gameplay/network/performance acceptance from compilation alone.
-Read PLAN.md for all completed milestones; README.md for design.
+Three library crates, one binary. Bounded queues, one transit maximum.
+Old 240 Hz measurements cannot establish new 360 Hz performance.
