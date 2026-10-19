@@ -15,18 +15,13 @@ kernel/driver/VPN/display/service/watchdog changes. After reboot read
 runtime/freeze-sessions/current.json and the pointed session.json/app.ndjson/
 console.ndjson, compare boot ID and preserve previous-boot evidence BEFORE
 any new launch. A start without finish is not itself proof of a host freeze.
-Latest completed offline session: runtime/freeze-sessions/20261019T233451Z.
-Offline full game PID1491412 was stopped by one verified SIGINT after 230.496s,
-no errors/overloads. Class Cadet/seed42, primary PCI0000:65:00.0/FIFO, no net/
-audio, same NVIDIA-only ICD/implicit layers off. Launcher35s limit only returned
-status wall_timeout_process_not_killed; this is NOT a host/application freeze.
-Root collector ended:120records/0errors,106SSK samples/632thread observations/
-0stack-read errors. Kernel report saved in session; KMS/NVIDIA idle at capture
-end, main DRM wait90/106observations with ongoing frames. Owner normal-close
-request unanswered; no visual confirmation/remote observer. Next planned:
-30s independent shutdown capture, one SIGINT to verified owned SSK PID; normal
-menu exit remains unverified. PID is gone;30s shutdown capture completed. Normal menu exit unverified.
-Next: network/no-audio20s and60s capture on same GPU.
+Current prepared session: runtime/freeze-sessions/20261019T234020Z.
+Stage network: host/no-audio20s, same primary PCI0000:65:00.0/FIFO/NVIDIA-only
+ICD/implicit layers off/class Cadet. Network/discovery/bootstrap enabled; no
+LAN peer promised.60s root stacks at same1Hz covers startup/run/termination.
+One owned SIGINT if not manually closed; no menu-exit claim. No active game/
+collector at preparation. Prior offline renderer ran>3min, no recorded freeze,
+then exited on SIGINT. Next root capture durable-ready, one host launch.
 
 ## Latest worker comparison
 Session runtime/freeze-sessions/20261019T233145Z completed10.548s/exit0,

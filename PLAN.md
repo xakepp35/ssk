@@ -428,3 +428,6 @@ last FPS140.51, no overload/error; stopped one verified owned PID
 with SIGINT, PID gone.30s shutdown capture also completed. Normal menu exit
 unverified. Next network/no-audio20s on same GPU with60s stack capture (same1Hz,
 shorter total window only); one SIGINT if owner does not close normally.
+
+Network session prepared: host/no-audio20s, same hardware/FIFO/ICD/layers,
+60s independent stacks, no promised LAN peer. Save state before launch.
