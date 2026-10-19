@@ -17,6 +17,7 @@ pub(crate) struct Peer {
     pub metrics: crate::metrics::Metrics,
     states: HashMap<String, Vec<u8>>,
     state_order: VecDeque<String>,
+    receipts: VecDeque<Vec<u8>>,
     next_event: u64,
 }
 impl Peer {
@@ -31,6 +32,7 @@ impl Peer {
             metrics: crate::metrics::Metrics::new(),
             states: HashMap::new(),
             state_order: VecDeque::new(),
+            receipts: VecDeque::new(),
             next_event: 0,
         }
     }
@@ -90,6 +92,11 @@ impl Peer {
             self.state(key, data);
         }
     }
+    pub fn receipt(&mut self, data: Vec<u8>) {
+        if self.receipts.len() < 512 && !self.receipts.contains(&data) {
+            self.receipts.push_back(data);
+        }
+    }
     pub fn packet(
         &mut self,
         seq: u64,
@@ -112,6 +119,15 @@ impl Peer {
         // Ship positions must advance even while reliable combat traffic is busy.
         let ship_limit = limit.min(packet.len() + 420);
         self.drain_states(&mut packet, false, ship_limit);
+        // E2E receipts do not recursively need reliable receipt-of-receipt traffic.
+        // A lost receipt is regenerated when the source retries the event.
+        for _ in 0..self.receipts.len() {
+            let data = self.receipts.pop_front().unwrap();
+            if !append(&mut packet, 4, &data, limit) {
+                self.receipts.push_front(data);
+                break;
+            }
+        }
         // Give sector checkpoints a bounded share instead of starving indefinitely.
         if seq % 4 == 0 {
             let shared_limit = limit.min(packet.len() + 570);

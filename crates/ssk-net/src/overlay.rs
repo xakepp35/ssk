@@ -169,6 +169,9 @@ impl Overlay {
         for dest in destinations {
             if kind == 1 {
                 if self.routes.pending.len() < 4096 {
+                    if let Some(id) = crate::routes::event_id(data) {
+                        self.routes.inflight.insert((dest.clone(), id));
+                    }
                     self.routes.pending.push_back(crate::routes::Pending {
                         dest,
                         data: data.to_vec(),
@@ -261,6 +264,8 @@ impl Overlay {
                         dest.into()
                     };
                     peer.state(key, frame);
+                } else if kind == 2 {
+                    peer.receipt(frame);
                 } else {
                     peer.queue(seq, frame, seq);
                 }
@@ -270,7 +275,18 @@ impl Overlay {
     pub fn retry(&mut self, peers: &mut HashMap<String, crate::reliable::Peer>, seq: u64, hz: u32) {
         for _ in 0..self.routes.pending.len() {
             let mut p = self.routes.pending.pop_front().unwrap();
+            let key = crate::routes::event_id(&p.data).map(|id| (p.dest.clone(), id));
+            if key
+                .as_ref()
+                .is_some_and(|key| self.routes.acknowledged.remove(key))
+            {
+                self.routes.inflight.remove(key.as_ref().unwrap());
+                continue;
+            }
             if seq.saturating_sub(p.born) > hz as u64 * 5 {
+                if let Some(key) = key {
+                    self.routes.inflight.remove(&key);
+                }
                 self.routes.expired += 1;
                 continue;
             }
@@ -412,12 +428,11 @@ impl Overlay {
         }
         if dest == self.id {
             if kind == 2 {
-                if data.len() == 16 {
-                    self.routes.pending.retain(|p| {
-                        p.dest != origin
-                            || crate::routes::event_id(&p.data)
-                                .is_none_or(|id| id.as_slice() != data)
-                    });
+                if data.len() == 16 && self.routes.acknowledged.len() < 8192 {
+                    let key = (origin, data.as_slice().try_into().unwrap());
+                    if self.routes.inflight.contains(&key) {
+                        self.routes.acknowledged.insert(key);
+                    }
                 }
                 return;
             }
@@ -476,6 +491,8 @@ impl Overlay {
                     format!("{origin}:{dest}")
                 };
                 peer.state(key, forwarded);
+            } else if kind == 2 {
+                peer.receipt(forwarded);
             } else if !peer.queue(seq, forwarded, seq) {
                 worker.status.send_modify(|s| s.dropped += 1);
             }

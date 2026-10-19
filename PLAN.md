@@ -42,6 +42,7 @@ no automated tests unless requested. A short manual game session when available.
 - [x] B14 — Multiple seeds/relays, cache, reconnect, friends. `feat: handle network interruptions`
 - [x] B15 — Headless swarm, measurements, isolated NAT/relay setup. `feat: add network load scenarios`
 - [x] B16a — Fix measured signature/graph recomputation and queue starvation; focused compilation. `perf: bound routing and prioritize fresh game state`
+- [x] B16b — Separate end-to-end receipts and index in-flight ACKs; compilation passed. `perf: keep delivery receipts out of retry queues`
 - [ ] B16 — Measured bottlenecks, operating docs, beta tag. `release: prepare network beta`
 
 ## Network implementation invariants

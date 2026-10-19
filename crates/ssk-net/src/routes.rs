@@ -12,6 +12,8 @@ pub(crate) struct Pending {
 #[derive(Default)]
 pub(crate) struct Routes {
     pub pending: VecDeque<Pending>,
+    pub inflight: HashSet<(String, [u8; 16])>,
+    pub acknowledged: HashSet<(String, [u8; 16])>,
     pub seen: HashSet<(String, [u8; 16])>,
     pub order: VecDeque<(String, [u8; 16])>,
     pub acks: HashMap<(String, [u8; 16]), Vec<u8>>,

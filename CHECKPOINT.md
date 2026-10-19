@@ -25,10 +25,15 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - One short offline window observation completed; full class/death/restart
   and real internet acceptance remain open. No push.
 
+- B16b: separate E2E receipts and indexed ACK membership. 64-client rerun:
+  fresh fraction median 1.0, p95 replica age 98 ms; shared images still missing
+  for most clients; cumulative event expiry 2299. Frame is all 64 clients on
+  one serial simulation thread (~46 ms), with skipped steps. Not accepted.
+
 ## Next
 Build release, rerun isolated 64 then 128 moving/firing clients, measure shared
 object freshness too. Execute tools/nat two-bridge relay scenario, document
-actual results and remaining acceptance limits. No active project processes.
+actual results and remaining acceptance limits. 128-client diagnostic currently running (exec session 96752 may differ; inspect processes).
 
 ## Constraints
 240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.
