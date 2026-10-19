@@ -1,16 +1,20 @@
 use macroquad::prelude::*;
 use ssk_sim::{DT, InputFrame, Ship, V2, World};
 mod effects;
+mod profile;
+mod ui;
+mod render;
 pub struct Options {
     pub seed: u64, pub class: ssk_sim::ShipClass, pub play: bool,
     pub online: bool, pub connect: Option<String>,
 }
 pub fn launch(options: Options) {
+    let profile=profile::Profile::load();
     macroquad::Window::from_config(Conf {
-        window_title: "Syrup Space Kadet".into(), window_width: 1440, window_height: 900, high_dpi: true,
+        window_title: "Syrup Space Kadet".into(), window_width: profile.width, window_height: profile.height, fullscreen:profile.fullscreen, high_dpi: true,
         platform: miniquad::conf::Platform { swap_interval: Some(0), ..Default::default() },
         ..Default::default()
-    }, run(options));
+    }, run(options,profile));
 }
 fn screen(p: V2, camera: V2) -> Vec2 {
     vec2(p.x-camera.x+screen_width()/2.,p.y-camera.y+screen_height()/2.)
@@ -53,90 +57,71 @@ fn background(camera: V2) {
         draw_line(0.,p.y,screen_width(),p.y,1.,color);
     }
 }
-async fn run(options: Options) {
-    let mut world=World::new(options.seed,options.class);
+async fn run(options:Options,mut profile:profile::Profile) {
+    let mut class=if options.play {options.class}else{ssk_sim::ShipClass::ALL[profile.class]};
+    let mut world=World::new(options.seed,class);
     let mut effects=effects::Effects::new().await;
-    let mut accumulator=0.; let mut camera=V2::ZERO; let mut fullscreen=false; let mut dropped_steps=0u64; let mut weapon=0;
+    let mut accumulator=0.;let mut camera=V2::ZERO;let mut skipped=0;let mut weapon=0;
+    let mut menu=!options.play;let mut started=options.play;let mut help=false;let mut run_number=0;
+    let mut recorded=false;let mut save_error=None;
+    show_mouse(false);
     loop {
-        let frame_start=std::time::Instant::now();
-        if is_key_pressed(KeyCode::Escape) { break; }
-        if is_key_pressed(KeyCode::F11) { fullscreen=!fullscreen; set_fullscreen(fullscreen); }
-        if world.player.hp<=0. && is_key_pressed(KeyCode::R) { world=World::new(options.seed,options.class);camera=V2::ZERO;accumulator=0.;effects.clear(); }
-        let dt=get_frame_time().min(0.1);
+        let frame_start=std::time::Instant::now();let dt=get_frame_time().min(0.1);
+        if is_quit_requested() {break;}
+        if is_key_pressed(KeyCode::Escape) {menu=!menu;help=false;}
+        if is_key_pressed(KeyCode::F1) {help=!help;}
+        if is_key_pressed(KeyCode::F11) {profile.fullscreen=!profile.fullscreen;set_fullscreen(profile.fullscreen);}
+        let mut restart=world.player.hp<=0.&&is_key_pressed(KeyCode::R)&&!menu;
+        if world.player.hp<=0.&&!recorded {profile.records[class.index()]=profile.records[class.index()].max(world.score);recorded=true;if let Err(e)=profile.save(){save_error=Some(e.to_string());}}
         world.spawn_radius=screen_width().hypot(screen_height())*0.5+200.;
-        if is_key_pressed(KeyCode::Q)||mouse_wheel().1>0. { weapon=(weapon+2)%3; }
-        if is_key_pressed(KeyCode::E)||mouse_wheel().1<0. { weapon=(weapon+1)%3; }
-        for (i,key) in [KeyCode::Key1,KeyCode::Key2,KeyCode::Key3].into_iter().enumerate() { if is_key_pressed(key) { weapon=i; } }
+        if !menu&&!help {
+            if is_key_pressed(KeyCode::Q)||mouse_wheel().1>0. {weapon=(weapon+2)%3;}
+            if is_key_pressed(KeyCode::E)||mouse_wheel().1<0. {weapon=(weapon+1)%3;}
+            for (i,key) in [KeyCode::Key1,KeyCode::Key2,KeyCode::Key3].into_iter().enumerate(){if is_key_pressed(key){weapon=i;}}
+        }
         let mouse=V2::new(mouse_position().0-screen_width()/2.,mouse_position().1-screen_height()/2.);
-        let input=InputFrame {
-            movement: V2::new((is_key_down(KeyCode::D) as i8-is_key_down(KeyCode::A) as i8) as f32,(is_key_down(KeyCode::S) as i8-is_key_down(KeyCode::W) as i8) as f32),
-            aim:(camera+mouse-world.player.pos).angle(),
-            fire:is_mouse_button_down(MouseButton::Left)||is_key_down(KeyCode::Space),
-            ability:is_mouse_button_down(MouseButton::Right)||is_key_down(KeyCode::LeftShift)||is_key_down(KeyCode::RightShift), weapon,
-        };
+        let input=if menu||help {InputFrame {aim:world.player.angle,weapon,..Default::default()}}else{InputFrame {
+            movement:V2::new((is_key_down(KeyCode::D) as i8-is_key_down(KeyCode::A) as i8) as f32,(is_key_down(KeyCode::S) as i8-is_key_down(KeyCode::W) as i8) as f32),
+            aim:(camera+mouse-world.player.pos).angle(),fire:is_mouse_button_down(MouseButton::Left)||is_key_down(KeyCode::Space),
+            ability:is_mouse_button_down(MouseButton::Right)||is_key_down(KeyCode::LeftShift)||is_key_down(KeyCode::RightShift),weapon,
+        }};
         let previous_hp=world.player.hp;
-        accumulator+=dt; let mut steps=0;
-        while accumulator>=DT && steps<8 { world.step(input); accumulator-=DT; steps+=1; }
-        if accumulator>=DT { dropped_steps+=(accumulator/DT) as u64; accumulator=accumulator.rem_euclid(DT); }
+        if started&&(!(menu||help)||options.online) {
+            accumulator+=dt;let mut steps=0;
+            while accumulator>=DT&&steps<8 {world.step(input);accumulator-=DT;steps+=1;}
+            if accumulator>=DT {skipped+=(accumulator/DT) as u64;accumulator=accumulator.rem_euclid(DT);}
+        }else{accumulator=0.;}
         let alpha=accumulator/DT;
-        camera-=world.origin_shift;effects.shift(world.origin_shift); world.origin_shift=V2::ZERO;
+        camera-=world.origin_shift;effects.shift(world.origin_shift);world.origin_shift=V2::ZERO;
         let target=world.player.previous.lerp(world.player.pos,alpha)+mouse.clamp_length(200.)*0.25;
         camera=camera.lerp(target,1.-(-12.*dt).exp());
-        effects.events(&world.events,camera,0.6);effects.update(dt);
+        effects.events(&world.events,camera,profile.volume);world.events.clear();effects.update(dt);
         if world.player.hp<previous_hp {effects.shake=(effects.shake+3.).min(8.);effects.flash=1.;}
-        let render_camera=camera+effects.offset(1.);
-        background(render_camera);
-        let aim_camera=camera;let camera=render_camera;
-        for target in &world.asteroids {
-            let p=screen(target.pos,camera);
-            if p.x < -100. || p.y < -100. || p.x>screen_width()+100. || p.y>screen_height()+100. { continue; }
-            for i in 0..9 {
-                let a=target.angle+i as f32*std::f32::consts::TAU/9.; let b=target.angle+(i+1) as f32*std::f32::consts::TAU/9.;
-                let r1=target.radius*(0.85+((target.id.wrapping_mul(i+1)%17) as f32)*0.009);
-                let r2=target.radius*(0.85+((target.id.wrapping_mul((i+1)%9+1)%17) as f32)*0.009);
-                draw_line(p.x+a.cos()*r1,p.y+a.sin()*r1,p.x+b.cos()*r2,p.y+b.sin()*r2,2.,Color::new(0.35,0.4,0.5,1.));
-            }
-        }
-        for bullet in &world.bullets {
-            let p=screen(bullet.previous.lerp(bullet.pos,alpha),camera);
-            let tail=screen(bullet.pos-bullet.velocity*0.012,camera);
-            let color=match bullet.shot.weapon { ssk_sim::WeaponKind::Plasma=>VIOLET, ssk_sim::WeaponKind::Shotgun=>ORANGE, _=>YELLOW };
-            draw_line(tail.x,tail.y,p.x,p.y,2.,color); draw_circle(p.x,p.y,bullet.radius,color);
-        }
-        draw_ship(&world.player,camera,alpha,SKYBLUE);
-        for pickup in &world.pickups {
-            let p=screen(pickup.pos,camera);
-            let color=match pickup.kind { ssk_sim::PickupKind::Energy=>SKYBLUE,ssk_sim::PickupKind::Health=>GREEN };
-            let pulse=1.+(get_time() as f32*5.+pickup.id as f32).sin()*0.15;
-            draw_poly_lines(p.x,p.y,4,10.*pulse,45.,2.,color);
-            draw_line(p.x-4.,p.y,p.x+4.,p.y,2.,color);
-            if matches!(pickup.kind,ssk_sim::PickupKind::Health) { draw_line(p.x,p.y-4.,p.x,p.y+4.,2.,color); }
-        }
-        for npc in &world.npcs {
-            if npc.telegraph>0. {
-                let p=screen(npc.ship.pos,camera);draw_circle_lines(p.x,p.y,45.*npc.telegraph/0.8,2.,RED);
-                let edge=vec2(p.x.clamp(24.,screen_width()-24.),p.y.clamp(180.,screen_height()-24.));
-                draw_circle_lines(edge.x,edge.y,12.,2.,RED);
-            } else { draw_ship(&npc.ship,camera,alpha,PINK); }
-        }
-        effects.draw(camera,true);
-        let camera=aim_camera;
-        let _=camera;
-        draw_rectangle(24.,52.,240.,10.,DARKGRAY);
-        draw_rectangle(24.,52.,240.*world.player.energy/1000.,10.,SKYBLUE);
-        draw_text(&format!("[{}] {}  | Q/E or wheel",weapon+1,world.player.weapon.name()),24.,90.,24.,WHITE);
-        draw_text(&format!("HP {:.0}  |  SCORE {} x{:.2}  |  {:.1}s",world.player.hp.max(0.),world.score,world.combo,world.tick as f32*DT),24.,120.,24.,WHITE);
-        let ability=match world.player.class { ssk_sim::ShipClass::Spark=>"BOOST",ssk_sim::ShipClass::Cadet=>"SHIELD",ssk_sim::ShipClass::Thunder=>"QUAD" };
-        draw_text(&format!("RMB / SHIFT: {}  {}",ability,if world.player.ability_active { "ACTIVE" } else if world.player.ability_latched { "RELEASE TO REARM" } else { "READY AT 160 E" }),24.,150.,20.,GREEN);
-        if world.player.hp<=0. {
+        let render_camera=camera+effects.offset(profile.shake);
+        background(render_camera);render::scene(&world,render_camera,alpha);effects.draw(render_camera,profile.flashes);
+        ui::hud(&world,&profile,skipped);
+        if world.player.hp<=0.&&!menu {
             draw_rectangle(0.,0.,screen_width(),screen_height(),Color::new(0.01,0.02,0.05,0.8));
-            draw_text("SHIP LOST",screen_width()/2.-150.,screen_height()/2.-40.,48.,PINK);
-            draw_text(&format!("SCORE {}  |  Press R to fly again",world.score),screen_width()/2.-210.,screen_height()/2.+20.,26.,WHITE);
+            let x=screen_width()/2.-210.;let y=screen_height()/2.;
+            draw_text("SHIP LOST",x,y-60.,56.,PINK);
+            draw_text(&format!("SCORE {}   BEST {}",world.score,profile.records[class.index()]),x,y,28.,WHITE);
+            draw_text("R: fly again     Esc: choose ship",x,y+50.,26.,SKYBLUE);
         }
-        world.events.clear();
-        draw_text(&format!("{} | WASD move  MOUSE aim | 240 Hz  skipped {}",world.player.class.name(),dropped_steps),24.,32.,22.,GRAY);
+        if menu {
+            let action=ui::menu(&mut profile,started,options.online);
+            if action.quit {break;}
+            if action.resume {menu=false;}
+            if action.new_run {class=ssk_sim::ShipClass::ALL[profile.class];restart=true;}
+        }
+        if restart {run_number+=1;world=World::new(options.seed+run_number,class);effects.clear();camera=V2::ZERO;accumulator=0.;weapon=0;menu=false;started=true;recorded=false;}
+        if help {ui::help();}
+        if let Some(error)=&save_error {draw_text(&format!("Profile save: {error}"),24.,screen_height()-100.,18.,PINK);}
+        if options.online {draw_text("NETWORK INITIALIZING — phase B",24.,screen_height()-100.,20.,ORANGE);}
         draw_circle_lines(mouse_position().0,mouse_position().1,8.,1.,SKYBLUE);
         next_frame().await;
-        if let Some(remaining)=std::time::Duration::from_secs_f64(1./240.).checked_sub(frame_start.elapsed()) { std::thread::sleep(remaining); }
+        if let Some(remaining)=std::time::Duration::from_secs_f64(1./240.).checked_sub(frame_start.elapsed()){std::thread::sleep(remaining);}
     }
+    if !profile.fullscreen {profile.width=screen_width() as i32;profile.height=screen_height() as i32;}
+    if let Err(error)=profile.save(){eprintln!("Profile save: {error}");}
+    show_mouse(true);
 }

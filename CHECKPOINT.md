@@ -14,13 +14,13 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - `cargo check --workspace` passed after A2; no tests/manual session.
 
 ## Live state
-- Completed A10: Bounded/reused particles and rings, render-only shake, hit flash, seven synthesized PCM sounds prepared at startup.
+- Completed A11: Menu/class selection, pause/help, complete resource/cooldown HUD, settings and atomic XDG profile/records persistence.
 - `cargo check --workspace` passed at this step. No automated tests run.
 - No manual play session yet. No public hosts for internet acceptance.
 - No active project processes. Source discussions preserved. No push.
 
 ## Next
-A11: menu, settings, help, persisted profile and complete HUD.
+A12: focused executable build, brief manual launch, resolve alpha blockers and document status.
 
 ## Constraints
 240 Hz simulation; 30–60 game PPS/link; three libraries, one binary.
