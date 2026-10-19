@@ -1,30 +1,78 @@
 use macroquad::prelude::*;
-
+use ssk_sim::{DT, InputFrame, Ship, V2, World};
 pub struct Options {
-    pub seed: u64,
-    pub class: ssk_sim::ShipClass,
-    pub play: bool,
-    pub online: bool,
-    pub connect: Option<String>,
+    pub seed: u64, pub class: ssk_sim::ShipClass, pub play: bool,
+    pub online: bool, pub connect: Option<String>,
 }
-
 pub fn launch(options: Options) {
     macroquad::Window::from_config(Conf {
-        window_title: "Syrup Space Kadet".into(),
-        window_width: 1440,
-        window_height: 900,
-        high_dpi: true,
+        window_title: "Syrup Space Kadet".into(), window_width: 1440, window_height: 900, high_dpi: true,
         platform: miniquad::conf::Platform { swap_interval: Some(0), ..Default::default() },
         ..Default::default()
     }, run(options));
 }
-
-async fn run(_options: Options) {
+fn screen(p: V2, camera: V2) -> Vec2 {
+    vec2(p.x-camera.x+screen_width()/2.,p.y-camera.y+screen_height()/2.)
+}
+fn draw_ship(ship: &Ship, camera: V2, alpha: f32, color: Color) {
+    let pos=ship.previous.lerp(ship.pos,alpha);
+    let forward=V2::from_angle(ship.angle); let side=forward.perp(); let radius=ship.class.stats().3;
+    let a=screen(pos+forward*radius*1.5,camera);
+    let b=screen(pos-forward*radius+side*radius*0.8,camera);
+    let c=screen(pos-forward*radius-side*radius*0.8,camera);
+    draw_triangle(a,b,c,Color::new(color.r*0.15,color.g*0.15,color.b*0.15,1.));
+    draw_triangle_lines(a,b,c,2.,color);
+    let p=screen(pos,camera); draw_circle(p.x,p.y,3.,WHITE);
+    if ship.velocity.length()>10. {
+        let end=screen(pos-forward*(radius+8.+(get_time() as f32*67.).sin()*4.),camera);
+        let start=screen(pos-forward*radius,camera);
+        draw_line(start.x,start.y,end.x,end.y,5.,SKYBLUE);
+    }
+}
+fn background(camera: V2) {
+    clear_background(Color::from_rgba(6,9,21,255));
+    for layer in 0..3 { for i in 0..110 {
+        let parallax=0.1+layer as f32*0.14;
+        let x=(i as f32*173.73+(i*i) as f32*2.1-camera.x*parallax).rem_euclid(screen_width());
+        let y=(i as f32*91.13+(i*i) as f32*3.3-camera.y*parallax).rem_euclid(screen_height());
+        let b=0.18+layer as f32*0.11;
+        draw_circle(x,y,0.6+layer as f32*0.3,Color::new(b,b+0.07,b+0.18,1.));
+    }}
+    let color=Color::new(0.08,0.16,0.24,0.3);
+    for x in -8..=8 {
+        let p=screen(V2::new(((camera.x/256.).floor()+x as f32)*256.,0.),camera);
+        draw_line(p.x,0.,p.x,screen_height(),1.,color);
+    }
+    for y in -6..=6 {
+        let p=screen(V2::new(0.,((camera.y/256.).floor()+y as f32)*256.),camera);
+        draw_line(0.,p.y,screen_width(),p.y,1.,color);
+    }
+}
+async fn run(options: Options) {
+    let mut world=World::new(options.seed,options.class);
+    let mut accumulator=0.; let mut camera=V2::ZERO; let mut fullscreen=false; let mut dropped_steps=0u64;
     loop {
-        clear_background(Color::from_rgba(7, 10, 24, 255));
-        draw_text("SYRUP SPACE KADET", 60., 100., 48., SKYBLUE);
-        draw_text("Flight systems starting up", 60., 150., 24., WHITE);
+        let frame_start=std::time::Instant::now();
         if is_key_pressed(KeyCode::Escape) { break; }
+        if is_key_pressed(KeyCode::F11) { fullscreen=!fullscreen; set_fullscreen(fullscreen); }
+        let dt=get_frame_time().min(0.1);
+        let mouse=V2::new(mouse_position().0-screen_width()/2.,mouse_position().1-screen_height()/2.);
+        let input=InputFrame {
+            movement: V2::new((is_key_down(KeyCode::D) as i8-is_key_down(KeyCode::A) as i8) as f32,(is_key_down(KeyCode::S) as i8-is_key_down(KeyCode::W) as i8) as f32),
+            aim:(camera+mouse-world.player.pos).angle(),
+            fire:is_mouse_button_down(MouseButton::Left)||is_key_down(KeyCode::Space),
+            ability:is_mouse_button_down(MouseButton::Right)||is_key_down(KeyCode::LeftShift)||is_key_down(KeyCode::RightShift), weapon:0,
+        };
+        accumulator+=dt; let mut steps=0;
+        while accumulator>=DT && steps<8 { world.step(input); accumulator-=DT; steps+=1; }
+        if accumulator>=DT { dropped_steps+=(accumulator/DT) as u64; accumulator=accumulator.rem_euclid(DT); }
+        let alpha=accumulator/DT;
+        let target=world.player.previous.lerp(world.player.pos,alpha)+mouse.clamp_length(200.)*0.25;
+        camera=camera.lerp(target,1.-(-12.*dt).exp());
+        background(camera); draw_ship(&world.player,camera,alpha,SKYBLUE);
+        draw_text(&format!("{} | WASD move  MOUSE aim | 240 Hz  skipped {}",world.player.class.name(),dropped_steps),24.,32.,22.,GRAY);
+        draw_circle_lines(mouse_position().0,mouse_position().1,8.,1.,SKYBLUE);
         next_frame().await;
+        if let Some(remaining)=std::time::Duration::from_secs_f64(1./240.).checked_sub(frame_start.elapsed()) { std::thread::sleep(remaining); }
     }
 }

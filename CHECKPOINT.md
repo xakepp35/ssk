@@ -10,6 +10,9 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
   baseline and 64–128-player topology/bandwidth requirements.
 - Existing source discussions IDEA.md, NET.md, PING.md preserved.
 
+- A2: 240 Hz movement, cursor aim, interpolated ship, aim lookahead camera, procedural stars.
+- `cargo check --workspace` passed after A2; no tests/manual session.
+
 ## Live state
 - A0 committed as c20b5a9. A1: 3 libraries + one CLI binary; window and headless dispatch.
 - `cargo check --workspace` passed. No tests run; no play session yet.
@@ -17,7 +20,7 @@ ordered work: PLAN.md; stable instructions: AGENTS.md.
 - A1 implementation complete; optional network commands explicitly report not implemented.
 
 ## Next
-A2: fixed 240 Hz simulation, movement, aim, camera and render interpolation.
+A3: machine gun, energy and destructible target.
 
 ## Constraints
 240 Hz sim, 30–60 game PPS/link; one ability/class; owner-authoritative ships;
