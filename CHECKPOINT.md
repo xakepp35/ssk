@@ -136,3 +136,11 @@ watchdog arming. If authorized, pkexec /usr/bin/python3 with absolute
 tools/freeze-watchdog.py arm; then status. Do not launch GUI or deliberate crash
 automatically. Next natural incident: inspect previous journal/pstore/var/crash
 before any experiment. Root cause remains unknown; never claim this was fixed.
+
+## Active observability / H
+Owner requests detailed DEBUG NDJSON simultaneously to terminal/file, immediate
+flush and unique per-callsite keys, system/subsystem/stack diagnostics. H1 design
+saved in docs/OBSERVABILITY.md; implement H2 sink/monitor, H3 instrumentation and
+independent host collector, then H4 one-job sequential Linux/Windows builds.
+No GUI/stress/tests/root changes authorized by this request. Existing watchdog
+arm question has no answer; do not infer permission from the logging request.

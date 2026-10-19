@@ -58,6 +58,11 @@ For hard-freeze diagnosis see docs/LINUX_FREEZE.md: the first graphics marker
 precedes context creation, and SSK game/network/audio start after the second.
 Do not launch GUI probes or deliberate crashes automatically. Preserve current
 and previous boot evidence; record any temporary kernel settings and rollback.
+Observability contract: docs/OBSERVABILITY.md. All new Rust log callsites use
+tracing with a unique static name "ssk.…" as stable event_id; structured fields
+with units, no keys/tickets/payloads/config dumps. The binary alone configures
+the subscriber/files. Preserve thread/async span context; aggregate hot-loop
+metrics rather than synchronous DEBUG logging each tick/frame/datagram.
 
 ## Launch and distribution
 

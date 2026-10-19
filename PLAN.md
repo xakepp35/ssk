@@ -206,3 +206,17 @@ awaits owner response; no crash or GUI was triggered. cargo check passed (2.08s)
 Linux release/package succeeded with one Cargo job (2m15s). Windows was not
 rebuilt for this Linux diagnosis. No automated tests or gameplay verification.
 Exact evidence, limits and capture procedure: docs/LINUX_FREEZE.md.
+
+## H: structured local observability
+
+- [x] H1 — Define versioned NDJSON schema, stable callsite IDs, correlation,
+  durability/rotation/privacy, subsystem coverage and limits. docs/OBSERVABILITY.md.
+- [ ] H2 — Binary-owned tracing sink, file+stderr immediate flush/sync,
+  rotation/filtering/suppression, panic backtrace and host/progress monitoring.
+- [ ] H3 — Instrument startup/client/simulation/network/audio and teardown;
+  add independent host journal/thread collector and usage/query documentation.
+- [ ] H4 — Focused compilation, sequential one-job Linux/Windows release packages;
+  record evidence without launching graphics, stress loads or automated tests.
+
+Hard-freeze root cause remains open (G4). Logging cannot guarantee recovery of
+kernel state from a total lockup; watchdog arming remains unapplied/unapproved.
