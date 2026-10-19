@@ -86,8 +86,16 @@ pub(crate) struct Worker {
 }
 impl Network {
     pub fn start(config: Config, connect: Option<String>) -> anyhow::Result<Self> {
+        let _initializing = tracing::debug_span!("ssk.net.initialize", watchdog = true).entered();
+        tracing::debug!(name:"ssk.net.config.accepted",udp_bind=%config.udp_bind,discovery_bind=%config.discovery_bind,
+            bootstrap=config.bootstrap_bind.is_some(),relay_count=config.relays.len(),seed_count=config.seeds.len(),
+            friend_count=config.friends.len(),connect_requested=connect.is_some(),"Network settings summary; keys/addresses of remote contacts omitted");
         config.validate()?;
+        let identity_span =
+            tracing::debug_span!("ssk.net.identity.load", watchdog = true).entered();
         let key = load_identity(&config.identity_file)?;
+        drop(identity_span);
+        tracing::debug!(name:"ssk.net.identity.ready","Identity loaded; key material omitted");
         let player_id = u64::from_le_bytes(key.public().as_bytes()[..8].try_into().unwrap())
             | ssk_sim::PLAYER_ID_BIT;
         let (state, state_rx) = tokio::sync::watch::channel(Vec::new());
@@ -112,19 +120,25 @@ impl Network {
             stop: stop_rx,
         };
         let error_status = worker.status.clone();
+        let worker_span = tracing::debug_span!("ssk.net.worker");
         let thread = std::thread::Builder::new()
             .name("ssk-net".into())
             .spawn(move || {
+                let _worker=worker_span.enter();
+                tracing::debug!(name:"ssk.net.worker.begin",progress_id="ssk.net.transport.sample",progress_active=true,
+                    threads=NET_WORKERS,"Network worker entered; constructing Tokio runtime");
                 let result = tokio::runtime::Builder::new_multi_thread()
                     .worker_threads(NET_WORKERS)
+                    .thread_name("ssk-io")
                     .enable_all()
                     .build()
                     .map_err(anyhow::Error::from)
                     .and_then(|rt| rt.block_on(transport::run(config, key, connect, worker)));
                 if let Err(error) = result {
                     error_status.send_modify(|s| s.phase = format!("Network stopped: {error:#}"));
-                    eprintln!("Network: {error:#}");
+                    tracing::error!(name:"ssk.net.worker.failed",error=%format!("{error:#}"),"Network worker failed");
                 }
+                tracing::debug!(name:"ssk.net.worker.end",progress_id="ssk.net.transport.sample",progress_active=false,"Network worker stopped");
             })?;
         Ok(Self {
             player_id,
@@ -173,6 +187,7 @@ impl Network {
 }
 impl Drop for Network {
     fn drop(&mut self) {
+        let _joining = tracing::debug_span!("ssk.net.worker.join", watchdog = true).entered();
         let _ = self.stop.send(true);
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
@@ -206,7 +221,7 @@ pub fn run_node(config: Config) -> anyhow::Result<()> {
                     anyhow::ensure!(!phase.starts_with("Network stopped:"), "{phase}");
                 },
                 event = network.incoming.recv() => {
-                    if let Some(NetEvent::Error(error)) = event { eprintln!("Server: {error}"); }
+                    if let Some(NetEvent::Error(error)) = event { tracing::warn!(name:"ssk.net.server.event_failed",%error,"Headless node network error"); }
                 },
             }
         }

@@ -28,15 +28,28 @@ pub struct Effects {
 }
 impl Effects {
     pub fn new(audio_enabled: bool) -> Self {
+        let _initializing = tracing::debug_span!(
+            "ssk.client.effects.initialize",
+            watchdog = true,
+            audio_enabled
+        )
+        .entered();
         // Macroquad's built-in audio feature initializes before our game starts;
         // own this context instead so disabling audio never opens ALSA/WASAPI.
-        let audio = audio_enabled.then(AudioContext::new);
+        let audio = audio_enabled.then(||{
+            let _request=tracing::debug_span!("ssk.client.audio.context.request",watchdog=true).entered();
+            let context=AudioContext::new();
+            tracing::debug!(name:"ssk.client.audio.worker.requested","Native context object returned; backend opens device asynchronously");
+            context
+        });
         let mut sounds = Vec::new();
         if let Some(context) = &audio {
-            for (frequency, duration, noise) in SOUND_PRESETS {
+            for (index, (frequency, duration, noise)) in SOUND_PRESETS.into_iter().enumerate() {
+                tracing::debug!(name:"ssk.client.audio.sound.request",index,frequency,duration,"Procedural sound load requested");
                 sounds.push(Sound::load(context, &wave(frequency, duration, noise)));
             }
         }
+        tracing::debug!(name:"ssk.client.audio.sounds.queued",count=sounds.len(),audio_enabled,"Sound loads queued; not a device-ready acknowledgement");
         Self {
             particles: Vec::with_capacity(MAX_PARTICLES),
             rings: Vec::with_capacity(MAX_RINGS),

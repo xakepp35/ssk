@@ -73,11 +73,6 @@ pub(crate) async fn start(config: &RelayServerConfig) -> anyhow::Result<Server> 
     server.relay = Some(relay);
     server.quic = config.quic_bind.map(QuicConfig::new);
     let server = Server::spawn(server).await?;
-    eprintln!(
-        "SSK relay HTTP: {:?}; HTTPS: {:?}; QUIC: {:?}",
-        server.http_addr(),
-        server.https_addr(),
-        server.quic_addr()
-    );
+    tracing::info!(name:"ssk.net.relay.ready",http_addr=?server.http_addr(),https_addr=?server.https_addr(),quic_addr=?server.quic_addr(),"Relay listeners ready; certificates/keys omitted");
     Ok(server)
 }

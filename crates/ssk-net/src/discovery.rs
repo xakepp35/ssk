@@ -9,6 +9,7 @@ use libp2p::{
     swarm::{NetworkBehaviour, SwarmEvent},
 };
 use std::time::{Duration, Instant};
+use tracing::Instrument;
 #[derive(NetworkBehaviour)]
 struct Behaviour {
     kad: kad::Behaviour<MemoryStore>,
@@ -24,6 +25,8 @@ impl Discovery {
         config: Config,
         mut stop: tokio::sync::watch::Receiver<bool>,
     ) -> anyhow::Result<Self> {
+        let _initializing =
+            tracing::debug_span!("ssk.net.discovery.initialize", watchdog = true).entered();
         let identity = identity::Keypair::ed25519_from_bytes(key.to_bytes())?;
         let peer = identity.public().to_peer_id();
         let mut swarm = libp2p::SwarmBuilder::with_existing_identity(identity)
@@ -92,7 +95,9 @@ impl Discovery {
                         let _=swarm.behaviour_mut().kad.bootstrap();
                     },
                     event=swarm.select_next_some()=>match event{
-                        SwarmEvent::NewListenAddr{address,..}=>println!("SSK discovery seed: {address}/p2p/{peer}"),
+                        SwarmEvent::NewListenAddr{address,..}=>tracing::info!(name:"ssk.net.discovery.listen",listen_addr=%format!("{address}/p2p/{peer}"),"Public DHT bootstrap address; game invitation is not logged"),
+                        SwarmEvent::ListenerError{error,..}=>tracing::warn!(name:"ssk.net.discovery.listen_failed",%error,"Discovery listener error"),
+                        SwarmEvent::OutgoingConnectionError{error,..}=>tracing::debug!(name:"ssk.net.discovery.dial_failed",%error,"Discovery dial failed"),
                         SwarmEvent::Behaviour(BehaviourEvent::Identify(libp2p::identify::Event::Received{peer_id,info,..}))=>{for addr in info.listen_addrs.into_iter().take(MAX_ENDPOINT_ADDRS){swarm.behaviour_mut().kad.add_address(&peer_id,addr);}},
                         SwarmEvent::Behaviour(BehaviourEvent::Kad(kad::Event::OutboundQueryProgressed{result,..}))=>match result{
                             kad::QueryResult::GetProviders(Ok(kad::GetProvidersOk::FoundProviders{providers,..}))=>for id in providers.into_iter().take(MAX_PEERS){if id!=peer{swarm.behaviour_mut().kad.get_record(contact_key(&config.world,&id));}},
@@ -101,7 +106,8 @@ impl Discovery {
                     }
                 }
             }
-        });
+        }.instrument(tracing::debug_span!("ssk.net.discovery.worker")));
+        tracing::debug!(name:"ssk.net.discovery.ready",bind=%config.discovery_bind,"Discovery worker created");
         Ok(Self { publish, found })
     }
 }

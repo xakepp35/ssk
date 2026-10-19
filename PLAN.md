@@ -226,3 +226,19 @@ span lifecycle/durations, bounded rotated file+stderr durable sink, panic FD,
 rate/drop/IO counters, Linux read-only host/thread/interface/pressure monitor,
 startup operation/progress ages and doctor command. Startup/probe markers migrated
 to the same sink. Focused cargo check passed; no runtime/GUI/tests executed.
+
+
+## I: modern native graphics (owner priority, H3/H4 paused)
+
+- [ ] I1 — Replace Macroquad/Miniquad/OpenGL with eframe/egui + wgpu;
+  Vulkan renderer, native Wayland on Wayland sessions, X11 compatibility on X11.
+  Preserve drawing, menus/input, window preferences, 360 Hz worker and audio.
+- [ ] I2 — Move graphics-only probe to the same wgpu path; document backend,
+  monitor/DPI behavior, startup evidence and remaining hard-freeze uncertainty.
+- [ ] I3 — Four-job focused compilation and sequential Linux/Windows static
+  release packages; update guides/config and record actual build evidence.
+
+H3 checkpoint: subsystem instrumentation compiles with four jobs. Independent
+`tools/observe.py` is an unfinished draft, not advertised for use. Its journal
+exit handling and Windows summary import need correction before H3 completion.
+No GUI, tests, crashes or system changes. More logging coverage deferred by owner.

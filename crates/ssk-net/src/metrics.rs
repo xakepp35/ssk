@@ -3,7 +3,7 @@ use std::{
     collections::VecDeque,
     time::{Duration, Instant},
 };
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize)]
 pub struct LinkStats {
     pub peer: String,
     pub rtt_ms: Option<f32>,

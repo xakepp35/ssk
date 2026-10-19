@@ -8,6 +8,7 @@ use tokio::{
     net::{TcpListener, TcpStream},
     sync::watch,
 };
+use tracing::Instrument;
 
 pub(crate) async fn resolve(connect: &str) -> anyhow::Result<String> {
     if connect.starts_with("ssk1:") {
@@ -18,6 +19,7 @@ pub(crate) async fn resolve(connect: &str) -> anyhow::Result<String> {
     let address: SocketAddr = connect
         .parse()
         .context("Expected an ssk1: invitation or IP:TCP-port")?;
+    tracing::debug!(name:"ssk.net.bootstrap.resolve.begin",%address,"Resolving LAN invitation; contents never logged");
     tokio::time::timeout(Duration::from_secs(CONNECT_SECONDS), async {
         let socket = TcpStream::connect(address).await?;
         let mut bytes = Vec::new();
@@ -51,7 +53,7 @@ pub(crate) async fn serve(
     let listener = TcpListener::bind(bind)
         .await
         .with_context(|| format!("Bind LAN server {bind}"))?;
-    println!("SSK LAN server: TCP {bind} (public invitation), game uses UDP/QUIC");
+    tracing::info!(name:"ssk.net.bootstrap.listen",%bind,"LAN invitation listener ready; game uses UDP/QUIC");
     let slots = std::sync::Arc::new(tokio::sync::Semaphore::new(MAX_HANDSHAKES));
     tokio::spawn(async move {
         loop {
@@ -74,10 +76,10 @@ pub(crate) async fn serve(
                                 if current.changed().await.is_err() { return Ok(()); }
                             }
                         }).await;
-                    });
+                    }.instrument(tracing::debug_span!("ssk.net.bootstrap.request")));
                 }
             }
         }
-    });
+    }.instrument(tracing::debug_span!("ssk.net.bootstrap.worker")));
     Ok(())
 }

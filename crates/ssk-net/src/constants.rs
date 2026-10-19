@@ -58,6 +58,7 @@ pub const METRIC_RTT_SCALE: f32 = 10.;
 pub const METRIC_AGE_SCALE: f32 = 20.;
 pub const METRIC_EWMA: f32 = 0.125;
 pub const METRIC_SAMPLE_SECONDS: f32 = 1.;
+pub const LOG_LINK_ROWS: usize = 16;
 pub const METRIC_SENT_MEMORY: usize = 256;
 pub const METRIC_LOSS_BITS: u64 = u64::BITS as u64;
 pub const ROUTE_FRESH_MS: f32 = 2000.;

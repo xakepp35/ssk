@@ -38,11 +38,18 @@ pub struct Game {
 }
 impl Game {
     pub fn start(options: &Options, class: ShipClass) -> (Self, Frame) {
+        let _starting = tracing::debug_span!(
+            "ssk.client.game.initialize",
+            watchdog = true,
+            online = options.online
+        )
+        .entered();
         let mut error = String::new();
         let mut online = if options.online {
             match Online::new(options.network.clone(), options.connect.clone()) {
                 Ok(n) => Some(n),
                 Err(e) => {
+                    tracing::error!(name:"ssk.client.network.start_failed",error=%e,"Online initialization failed");
                     error = e;
                     None
                 }
@@ -83,7 +90,11 @@ impl Game {
         let (tx, rx) = mpsc::sync_channel(crate::constants::GAME_COMMAND_CAPACITY);
         let (c, f, r) = (controls.clone(), frame.clone(), requested.clone());
         let is_online = options.online;
+        let worker_span = tracing::debug_span!("ssk.client.simulation.worker");
         let thread=std::thread::Builder::new().name("ssk-sim".into()).spawn(move || {
+            let _worker=worker_span.enter();
+            tracing::debug!(name:"ssk.client.simulation.begin",progress_id="ssk.client.simulation.sample",progress_active=true,
+                logic_hz=TICK_PER_SEC,packet_ticks=TICK_PER_PACKET,"Simulation worker entered");
             let mut world=world;
             let epoch=Instant::now();
             let mut deadline=epoch;
@@ -92,11 +103,13 @@ impl Game {
             let mut failed=is_online && online.is_none();
             let mut events=Vec::new();
             let mut shift=V2::ZERO;
+            let mut sample_at=Instant::now();let mut window_ticks=0u64;let mut max_step_us=0u64;let mut max_lag_us=0u64;
             'game: loop {
                 while let Ok(command)=rx.try_recv() {
                     match command {
                         Command::Stop=>break 'game,
                         Command::Restart {seed,class}=>{
+                            tracing::debug!(name:"ssk.client.simulation.restart",class=?class,online=is_online,"Simulation restart command");
                             if !is_online { world=World::new(seed,class); failed=false; error.clear();events.clear();shift=V2::ZERO;deadline=Instant::now(); }
                         }
                     }
@@ -104,12 +117,15 @@ impl Game {
                 let now=Instant::now();
                 if now < deadline { std::thread::park_timeout(deadline-now); continue; }
                 if now.duration_since(deadline)>MAX_LOGIC_LAG && !failed {
+                    tracing::error!(name:"ssk.client.simulation.overloaded",lag_us=now.duration_since(deadline).as_micros() as u64,
+                        limit_us=MAX_LOGIC_LAG.as_micros() as u64,logic_hz=TICK_PER_SEC,"Simulation timing contract exceeded");
                     overloads+=1; failed=true;
                     error=format!("Simulation cannot sustain {TICK_PER_SEC} Hz; session stopped. Relaunch to reconnect.");
                     if let Some(n)=online.take(){n.net.request_stop();drop(n);}
                 }
                 if failed {deadline=now;}
                 clock_tick=clock_tick.wrapping_add(1);
+                let step_at=Instant::now();max_lag_us=max_lag_us.max(now.duration_since(deadline).as_micros() as u64);
                 let control=*c.lock().unwrap();
                 let time=epoch.elapsed().as_secs_f64();
                 if !failed && (!control.paused || is_online) {
@@ -145,9 +161,19 @@ impl Game {
                         r.store(false,Ordering::Release);
                     }
                 }
+                let step_us=step_at.elapsed().as_micros() as u64;window_ticks+=1;max_step_us=max_step_us.max(step_us);
+                tracing::trace!(name:"ssk.client.simulation.tick",tick=clock_tick,world_tick=world.tick,step_us,failed,paused=control.paused,"Simulation iteration completed");
+                if clock_tick%TICK_PER_SEC==0 {
+                    tracing::debug!(name:"ssk.client.simulation.sample",kind="metric",clock_tick,world_tick=world.tick,
+                        ticks=window_ticks,window_ms=sample_at.elapsed().as_secs_f64()*crate::constants::MILLIS_PER_SECOND,
+                        max_step_us,max_lag_us,failed,paused=control.paused,npcs=world.npcs.len(),asteroids=world.asteroids.len(),
+                        bullets=world.bullets.len(),pickups=world.pickups.len(),overloads,"Simulation progress sample");
+                    sample_at=Instant::now();window_ticks=0;max_step_us=0;max_lag_us=0;
+                }
                 deadline+=TICK_DURATION;
             }
             if let Some(n)=&mut online {n.leave();}
+            tracing::debug!(name:"ssk.client.simulation.end",progress_id="ssk.client.simulation.sample",progress_active=false,"Simulation worker stopped");
         }).expect("spawn simulation worker");
         (
             Self {
@@ -174,6 +200,8 @@ impl Game {
 }
 impl Drop for Game {
     fn drop(&mut self) {
+        let _joining =
+            tracing::debug_span!("ssk.client.simulation.join", watchdog = true).entered();
         let _ = self.commands.send(Command::Stop);
         if let Some(t) = self.thread.take() {
             t.thread().unpark();

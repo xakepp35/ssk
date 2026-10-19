@@ -18,6 +18,7 @@ use tracing::{
     field::{Field, Visit},
     span::{Attributes, Id, Record},
 };
+use tracing_log::NormalizeEvent;
 use tracing_subscriber::{EnvFilter, Layer, layer::Context, prelude::*, registry::LookupSpan};
 
 pub struct Settings {
@@ -128,6 +129,7 @@ impl Fields {
             "cpu_ticks",
             "process_cpu_ticks",
             "process_io",
+            "links",
         ];
         let value = if structured.contains(&field.name()) {
             serde_json::from_str(&text).unwrap_or_else(|_| json!(text))
@@ -198,6 +200,15 @@ fn event_id(meta: &Metadata<'_>) -> String {
 fn source(meta: &Metadata<'_>) -> Value {
     json!({"file":meta.file(),"line":meta.line(),"module":meta.module_path()})
 }
+fn native_thread_id()->Option<u64> {
+    #[cfg(target_os="linux")] {Some(unsafe {libc::gettid()} as u64)}
+    #[cfg(target_os="windows")] {
+        #[link(name="kernel32")]
+        unsafe extern "system" {fn GetCurrentThreadId()->u32;}
+        Some(unsafe {GetCurrentThreadId()} as u64)
+    }
+    #[cfg(not(any(target_os="linux",target_os="windows")))] {None}
+}
 impl Sink {
     fn path(&self, part: u64) -> PathBuf {
         if let Some(path) = &self.settings.file {
@@ -219,12 +230,22 @@ impl Sink {
         json!({"schema":SCHEMA,"kind":kind,"ts_unix_ms":SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64,
             "mono_us":self.start.elapsed().as_micros() as u64,"event_id":id,"level":level,
             "run_id":self.run_id,"trace_id":self.run_id,"boot_id":self.boot_id,"pid":std::process::id(),
-            "thread_id":format!("{:?}",thread.id()),"thread_name":thread.name(),"fields":fields})
+            "thread_id":format!("{:?}",thread.id()),"os_thread_id":native_thread_id(),"thread_name":thread.name(),"fields":fields})
     }
     fn emit(&self, mut record: Value) {
         let began = Instant::now();
         let mut writer = self.writer.lock().unwrap_or_else(|p| p.into_inner());
         let id = record["event_id"].as_str().unwrap_or("unknown").to_owned();
+        if let Some(progress_id) = record["fields"]["progress_id"]
+            .as_str()
+            .filter(|id| id.starts_with("ssk."))
+        {
+            if record["fields"]["progress_active"] == true {
+                writer.progress.insert(progress_id.into(), Instant::now());
+            } else if record["fields"]["progress_active"] == false {
+                writer.progress.remove(progress_id);
+            }
+        }
         if let Some(span) = record["span_id"].as_str() {
             if record["kind"] == "span.begin" && record["fields"]["watchdog"] == true {
                 writer
@@ -454,6 +475,8 @@ impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for JsonLayer {
         }
     }
     fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
+        let normalized = event.normalized_metadata();
+        let metadata = normalized.as_ref().unwrap_or_else(|| event.metadata());
         let mut fields = Fields::default();
         event.record(&mut fields);
         let kind = fields
@@ -462,13 +485,13 @@ impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for JsonLayer {
             .and_then(|v| v.as_str().map(str::to_owned))
             .unwrap_or("log".into());
         let mut record = self.0.base(
-            &event_id(event.metadata()),
-            event.metadata().level().as_str(),
+            &event_id(metadata),
+            metadata.level().as_str(),
             &kind,
             json!(fields.0),
         );
-        record["source"] = source(event.metadata());
-        record["target"] = json!(event.metadata().target());
+        record["source"] = source(metadata);
+        record["target"] = json!(metadata.target());
         if let Some(span) = ctx.event_span(event) {
             record["span_id"] = json!(format!("{:016x}", span.id().into_u64()));
             record["parent_span_id"] =
@@ -481,6 +504,44 @@ impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for JsonLayer {
             );
         }
         self.0.emit(record);
+    }
+    fn on_enter(&self, id: &Id, ctx: Context<'_, S>) {
+        let Some(span) = ctx.span(id) else {
+            return;
+        };
+        if span
+            .extensions()
+            .get::<SpanData>()
+            .is_some_and(|s| s.fields.get("watchdog") == Some(&Value::Bool(true)))
+        {
+            self.0
+                .writer
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .operations
+                .entry(format!("{:016x}", id.into_u64()))
+                .or_insert((
+                    format!("{}.begin", event_id(span.metadata())),
+                    Instant::now(),
+                ));
+        }
+    }
+    fn on_exit(&self, id: &Id, ctx: Context<'_, S>) {
+        let Some(span) = ctx.span(id) else {
+            return;
+        };
+        if span
+            .extensions()
+            .get::<SpanData>()
+            .is_some_and(|s| s.fields.get("watchdog") == Some(&Value::Bool(true)))
+        {
+            self.0
+                .writer
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .operations
+                .remove(&format!("{:016x}", id.into_u64()));
+        }
     }
     fn on_close(&self, id: Id, ctx: Context<'_, S>) {
         let Some(span) = ctx.span(&id) else {

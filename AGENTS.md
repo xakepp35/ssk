@@ -89,3 +89,10 @@ Camera/cursor/effects and star phases must compensate coordinate rebases once.
 Keep nearby sectors active across boundaries; prefetching empty terrain must not
 multiply encounters. Do not erase known visible content just because a replacement
 image is delayed. Never claim runtime continuity from compilation alone.
+
+## Graphics migration priority
+Owner paused further observability coverage in favor of native wgpu graphics.
+Use Vulkan and native Wayland on Wayland sessions; no OpenGL/GLX fallback.
+Preserve monitor-driven rendering and independent 360 Hz simulation. Four Cargo
+build jobs are authorized; build targets sequentially. Do not launch graphics
+or stress probes automatically after the reported workstation hard freezes.

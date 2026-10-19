@@ -130,8 +130,13 @@ async fn run(options: Options, mut profile: profile::Profile) {
     let mut recorded = false;
     let mut save_error = None;
     let mut first_frame = true;
+    let mut sample_at = std::time::Instant::now();
+    let mut sample_frames = 0u64;
+    let mut max_frame_ms = 0f64;
+    tracing::debug!(name:"ssk.client.render.begin",progress_id="ssk.client.render.sample",progress_active=true,"Render loop entering");
     show_mouse(false);
     loop {
+        let frame_started = std::time::Instant::now();
         let previous_hp = world.player.hp;
         if let Some(frame) = game.take_frame() {
             view = frame;
@@ -150,6 +155,7 @@ async fn run(options: Options, mut profile: profile::Profile) {
         if is_key_pressed(KeyCode::Escape) || is_key_pressed(KeyCode::F2) {
             menu = !menu;
             help = false;
+            tracing::debug!(name:"ssk.client.menu.changed",open=menu,"Menu visibility changed");
         }
         if is_key_pressed(KeyCode::F1) {
             help = !help;
@@ -157,6 +163,7 @@ async fn run(options: Options, mut profile: profile::Profile) {
         if is_key_pressed(KeyCode::F11) {
             profile.fullscreen = !profile.fullscreen;
             set_fullscreen(profile.fullscreen);
+            tracing::debug!(name:"ssk.client.window.fullscreen",enabled=profile.fullscreen,"Fullscreen requested");
         }
         let mut restart =
             !options.online && world.player.hp <= 0. && is_key_pressed(KeyCode::R) && !menu;
@@ -336,6 +343,7 @@ async fn run(options: Options, mut profile: profile::Profile) {
             menu = false;
             started = true;
             recorded = false;
+            tracing::info!(name:"ssk.client.session.restart",run_number,class=?class,"Restart requested");
         }
         if !options.online && !view.error.is_empty() {
             draw_text(&view.error, 24., screen_height() - NOTICE_BOTTOM, 18., PINK);
@@ -405,12 +413,28 @@ async fn run(options: Options, mut profile: profile::Profile) {
         if first_frame {
             tracing::debug!(name:"ssk.client.frame.first.queued","First game frame queued; draw/present follows");
         }
+        tracing::trace!(name:"ssk.client.render.frame",frame_time_ms=get_frame_time() as f64*MILLIS_PER_SECOND,
+            simulation_tick=world.tick,width=screen_width(),height=screen_height(),"Frame commands queued");
         next_frame().await;
+        sample_frames += 1;
+        max_frame_ms = max_frame_ms.max(frame_started.elapsed().as_secs_f64() * MILLIS_PER_SECOND);
+        let elapsed = sample_at.elapsed().as_secs_f64();
+        if elapsed >= OBSERVATION_SAMPLE_SECONDS {
+            tracing::debug!(name:"ssk.client.render.sample",kind="metric",frames=sample_frames,window_ms=elapsed*MILLIS_PER_SECOND,
+                fps=sample_frames as f64/elapsed,max_frame_ms,simulation_tick=world.tick,
+                render_handoff_age_ms=view.at.elapsed().as_secs_f64()*MILLIS_PER_SECOND,
+                sector_local=view.sector.local,sector_image_age_ms=view.sector.age_ms.unwrap_or(f64::NAN),
+                peers=view.peers.len(),overloads=view.overloads,menu,help,"Render progress sample");
+            sample_at = std::time::Instant::now();
+            sample_frames = 0;
+            max_frame_ms = 0.;
+        }
         if first_frame {
             tracing::debug!(name:"ssk.client.frame.first.returned","Loop resumed after first game frame");
             first_frame = false;
         }
     }
+    tracing::debug!(name:"ssk.client.render.end",progress_id="ssk.client.render.sample",progress_active=false,"Render loop exiting");
     drop(game);
     if !profile.fullscreen {
         profile.width = screen_width() as i32;

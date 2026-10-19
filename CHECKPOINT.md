@@ -149,3 +149,16 @@ independent host collector and offline log reconstruction; then H4 sequential
 one-job Linux/Windows packages. Cargo.lock updated only for already present deps.
 No GUI/stress/tests/root changes authorized by this request. Existing watchdog
 arm question has no answer; do not infer permission from the logging request.
+
+
+## Current priority / I: graphics migration
+Owner explicitly paused observability coverage and requested wgpu/Vulkan and
+increased build parallelism. Use four Cargo jobs, sequential target builds.
+H3 instrumentation saved; cargo check -p ssk --jobs 4 passed. tools/observe.py
+is an unfinished, unexecuted draft (fcntl portability/journal-exit handling/
+bounds require follow-up); H3/H4 remain open. No runtime/GUI/tests started.
+Next: replace Macroquad/Miniquad with eframe/egui/wgpu, preserve gameplay and
+window/UI features; Vulkan on Linux, native Wayland selection. Inspect current
+crate APIs, port client and probe, build both packages. Vulkan removes the old
+OpenGL route but does not prove or guarantee a fix for the workstation freeze.
+No new authorization for watchdog arming or automatic graphics reproduction.

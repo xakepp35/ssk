@@ -7,6 +7,7 @@ use iroh::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
+use tracing::Instrument;
 #[derive(Serialize, Deserialize)]
 struct Hello {
     version: u16,
@@ -33,6 +34,7 @@ pub fn decode_ticket(ticket: &str) -> anyhow::Result<EndpointAddr> {
     Ok(serde_json::from_slice(&data)?)
 }
 async fn handshake(conn: &Connection, config: &Config) -> anyhow::Result<()> {
+    tracing::debug!(name:"ssk.net.handshake.begin",peer=%conn.remote_id(),"Handshake begin; no hello payload logged");
     let hello = Hello {
         version: PROTOCOL_VERSION,
         tick_per_sec: ssk_sim::TICK_PER_SEC,
@@ -55,6 +57,7 @@ async fn handshake(conn: &Connection, config: &Config) -> anyhow::Result<()> {
             && remote.seed == hello.seed,
         "Incompatible protocol, world, rules or seed"
     );
+    tracing::debug!(name:"ssk.net.handshake.accepted",peer=%conn.remote_id(),"Handshake protocol/world/rules accepted");
     Ok(())
 }
 enum Internal {
@@ -85,6 +88,7 @@ pub(crate) async fn run(
     connect: Option<String>,
     mut worker: Worker,
 ) -> anyhow::Result<()> {
+    tracing::debug!(name:"ssk.net.transport.begin","Transport initialization entered");
     let mut auth = crate::auth::Auth::new(key.clone(), &config);
     let discovery_id = crate::contact::discovery_id(&key.public())
         .unwrap()
@@ -102,13 +106,18 @@ pub(crate) async fn run(
                 .collect::<Result<Vec<iroh::RelayUrl>, _>>()?,
         )
     };
-    let endpoint = Endpoint::builder(presets::Minimal)
-        .secret_key(key)
-        .alpns(vec![ALPN.to_vec()])
-        .relay_mode(relay)
-        .bind_addr(config.udp_bind)?
-        .bind()
-        .await?;
+    let endpoint = async {
+        Ok::<_,anyhow::Error>(Endpoint::builder(presets::Minimal)
+            .secret_key(key)
+            .alpns(vec![ALPN.to_vec()])
+            .relay_mode(relay)
+            .bind_addr(config.udp_bind)?
+            .bind()
+            .await?)
+    }
+    .instrument(tracing::debug_span!("ssk.net.endpoint.initialize"))
+    .await?;
+    tracing::debug!(name:"ssk.net.endpoint.ready",udp_bind=%config.udp_bind,"QUIC endpoint bind returned");
     let (tx, mut rx) = tokio::sync::mpsc::channel(INCOMING_CHANNEL);
     let mut peers: HashMap<String, crate::reliable::Peer> = HashMap::new();
     let mut overlay = crate::overlay::Overlay::new(endpoint.id().to_string());
@@ -176,7 +185,7 @@ pub(crate) async fn run(
                 if peers.len()>=config.max_peers {incoming.refuse();continue;}
                 let Ok(permit)=admission.clone().try_acquire_owned() else {incoming.refuse();continue;};
                 let tx=tx.clone();let cfg=config.clone();
-                tokio::spawn(async move {let _permit=permit;match incoming.await {Ok(conn)=>admit(conn,cfg,tx).await,Err(error)=>{let _=tx.try_send(Internal::Failed(error.to_string()));}}});
+                tokio::spawn(async move {let _permit=permit;match incoming.await {Ok(conn)=>admit(conn,cfg,tx).await,Err(error)=>{let _=tx.try_send(Internal::Failed(error.to_string()));}}}.instrument(tracing::debug_span!("ssk.net.incoming.admit")));
             },
             Some(event)=rx.recv()=>match event {
                 Internal::Ready(conn)=>{
@@ -184,16 +193,18 @@ pub(crate) async fn run(
                     overlay.connected(&id);
                     if peers.contains_key(&id)||peers.len()>=config.max_peers {conn.close(0u32.into(),b"duplicate or full");continue;}
                     peers.insert(id.clone(),crate::reliable::Peer::new(conn.clone()));
+                    tracing::info!(name:"ssk.net.peer.connected",peer=%id,peers=peers.len(),"Peer admitted");
                     let _=worker.incoming.try_send(NetEvent::Connected(id.clone()));
                     worker.status.send_modify(|s|{s.phase="Connected".into();s.peers=peers.len();});
                     let tx=tx.clone();tokio::spawn(async move {
                         while let Ok(bytes)=conn.read_datagram().await {if bytes.len()<=MAX_DATAGRAM_BYTES{let _=tx.try_send(Internal::Data(id.clone(),bytes.to_vec()));}}
                         let _=tx.send(Internal::Gone(id)).await;
-                    });
+                    }.instrument(tracing::debug_span!("ssk.net.datagram.reader")));
                 },
-                Internal::Failed(error)=>{worker.status.send_modify(|s|s.phase=error.clone());let _=worker.incoming.try_send(NetEvent::Error(error));},
-                Internal::Gone(id)=>{peers.remove(&id);let _=worker.incoming.try_send(NetEvent::Disconnected(id));worker.status.send_modify(|s|{s.peers=peers.len();s.phase=if peers.is_empty(){"Waiting for peer".into()}else{"Connected".into()};});},
+                Internal::Failed(error)=>{tracing::warn!(name:"ssk.net.admission.failed",%error,"Connection/admission failed");worker.status.send_modify(|s|s.phase=error.clone());let _=worker.incoming.try_send(NetEvent::Error(error));},
+                Internal::Gone(id)=>{peers.remove(&id);tracing::info!(name:"ssk.net.peer.disconnected",peer=%id,peers=peers.len(),"Peer connection ended");let _=worker.incoming.try_send(NetEvent::Disconnected(id));worker.status.send_modify(|s|{s.peers=peers.len();s.phase=if peers.is_empty(){"Waiting for peer".into()}else{"Connected".into()};});},
                 Internal::Data(id,bytes)=>{
+                    tracing::trace!(name:"ssk.net.datagram.received",peer=%id,bytes=bytes.len(),"Game datagram received; payload omitted");
                     let frames=peers.get_mut(&id).map(|p|p.receive(&bytes)).unwrap_or_default();
                     for (kind,data) in frames{overlay.receive(&id,kind,&data,&mut peers,&mut auth,&worker,seq);}
                 }
@@ -212,6 +223,8 @@ pub(crate) async fn run(
 
             },
             _=tick.tick()=>{
+                if last_slot.elapsed()>ssk_sim::MAX_LOGIC_LAG {tracing::error!(name:"ssk.net.transport.overloaded",slot_age_us=last_slot.elapsed().as_micros() as u64,
+                    limit_us=ssk_sim::MAX_LOGIC_LAG.as_micros() as u64,packet_hz=ssk_sim::PACKET_PER_SEC,"Transport timing contract exceeded");}
                 anyhow::ensure!(last_slot.elapsed() <= ssk_sim::MAX_LOGIC_LAG,
                     "Network cannot sustain {} Hz; session disconnected", ssk_sim::PACKET_PER_SEC);
                 last_slot = std::time::Instant::now();
@@ -224,7 +237,7 @@ pub(crate) async fn run(
                     let ticket=encode_ticket(&addr)?;
                     let contact=crate::contact::Contact{addr:addr.clone(),discovery:discovery_id.clone(),expires:crate::contact::unix_time()+CONTACT_TTL_SECONDS,sector,playing:snapshot.is_some()};
                     let bytes=serde_json::to_vec(&contact)?;let signed=auth.sign(message::CONTACT,&bytes);overlay.learn(overlay.id.clone(),&bytes,&signed);worker.status.send_modify(|s|s.contact=signed.clone());discovery.publish.send_replace((signed,sector));
-                    if !published&&!addr.addrs.is_empty(){println!("SSK invite: {ticket}");published=true;}
+                    if !published&&!addr.addrs.is_empty(){tracing::info!(name:"ssk.net.invitation.ready",address_count=addr.addrs.len(),"Invitation ready; use F3 in client; contents omitted from logs");published=true;}
                     worker.status.send_modify(|s|{s.ticket=ticket;if s.phase=="Starting network"{s.phase="Waiting for peer".into();}});
                 }
                 seq+=1;
@@ -249,13 +262,22 @@ pub(crate) async fn run(
                     if limit<MIN_DATAGRAM_BYTES{continue;}
                     let control=if !contact.is_empty()&&control_budget>=contact.len() as f32&&contact.len()+METRIC_HEADER_BYTES+FRAME_HEADER_BYTES<=limit{control_budget-=contact.len() as f32;control_cursor+=usize::from(kind==message::CONTACT);contact}else{Vec::new()};
                     let packet=peer.packet(seq,kind,&control,limit);let len=packet.len();match peer.conn.send_datagram(packet.into()) {
-                        Ok(())=>{payload_budget-=len as f32;peer.metrics.sent(len);},
-                        Err(error)=>{peer.conn.close(1u32.into(),b"datagram send failed");let _=worker.incoming.try_send(NetEvent::Error(format!("Peer disconnected: {error}")));}
+                        Ok(())=>{payload_budget-=len as f32;peer.metrics.sent(len);tracing::trace!(name:"ssk.net.datagram.sent",peer=%id,bytes=len,seq,"Game datagram sent; payload omitted");},
+                        Err(error)=>{tracing::warn!(name:"ssk.net.datagram.send_failed",peer=%id,%error,"Datagram send failed");peer.conn.close(1u32.into(),b"datagram send failed");let _=worker.incoming.try_send(NetEvent::Error(format!("Peer disconnected: {error}")));}
                     }
                 }
                 if seq%ssk_sim::PACKET_PER_SEC as u64==0 {
                     for id in overlay.prune(){if let Some(p)=peers.remove(&id){p.conn.close(0u32.into(),b"presence expired");}let _=worker.incoming.try_send(NetEvent::Disconnected(id));}
-                    let links=peers.iter_mut().map(|(id,p)|{p.metrics.stats.peer=id.clone();p.metrics.stats.direct=p.conn.paths().iter().any(|path|path.is_selected()&&path.is_ip());p.metrics.sample()}).collect();
+                    let links:Vec<_>=peers.iter_mut().map(|(id,p)|{p.metrics.stats.peer=id.clone();p.metrics.stats.direct=p.conn.paths().iter().any(|path|path.is_selected()&&path.is_ip());p.metrics.sample()}).collect();
+                    tracing::debug!(name:"ssk.net.transport.sample",kind="metric",seq,peers=peers.len(),routes=overlay.routes.chosen.len(),
+                        route_changes=overlay.routes.changes,unconfirmed=overlay.routes.expired,
+                        tx_pps=links.iter().map(|s|s.tx_pps as f64).sum::<f64>(),rx_pps=links.iter().map(|s|s.rx_pps as f64).sum::<f64>(),
+                        tx_bytes_per_sec=links.iter().map(|s|s.tx_bps as f64).sum::<f64>(),rx_bytes_per_sec=links.iter().map(|s|s.rx_bps as f64).sum::<f64>(),
+                        links=%serde_json::to_value(links.iter().take(LOG_LINK_ROWS).collect::<Vec<_>>()).unwrap_or_default(),link_rows_capped=links.len()>LOG_LINK_ROWS,
+                        "Transport progress and link sample");
+                    for link in &links {tracing::trace!(name:"ssk.net.link.sample",kind="metric",peer=%link.peer,rtt_ms=link.rtt_ms.unwrap_or(f32::NAN),
+                        jitter_ms=link.jitter_ms,loss=link.loss,tx_pps=link.tx_pps,rx_pps=link.rx_pps,queued=link.queued,expired=link.expired,
+                        age_ms=link.age_ms,direct=link.direct,"Per-link sample");}
                     worker.status.send_modify(|s|{s.links=links;s.crypto=auth.stats.clone();});
                     let data=crate::routes::Routes::advertise(&peers,(seq/ssk_sim::PACKET_PER_SEC as u64 * METRIC_ROWS as u64) as usize);metric_record=auth.sign(message::METRICS,&data);
                     worker.status.send_modify(|s|{s.routes=overlay.routes.chosen.len();s.route_changes=overlay.routes.changes;s.unconfirmed=overlay.routes.expired;});
@@ -266,7 +288,7 @@ pub(crate) async fn run(
                     overlay.connecting.retain(|_,time|time.elapsed().as_secs()<CONNECTING_SECONDS);
                     for (_id,addr) in overlay.connect_tasks(&peers,&endpoint){
                         let ep=endpoint.clone();let cfg=config.clone();let tx=tx.clone();
-                        tokio::spawn(async move{match tokio::time::timeout(Duration::from_secs(CONNECT_SECONDS),ep.connect(addr,ALPN)).await{Ok(Ok(conn))=>admit(conn,cfg,tx).await,result=>{let _=tx.try_send(Internal::Failed(format!("Topology connect: {result:?}")));}}});
+                        tokio::spawn(async move{match tokio::time::timeout(Duration::from_secs(CONNECT_SECONDS),ep.connect(addr,ALPN)).await{Ok(Ok(conn))=>admit(conn,cfg,tx).await,result=>{let _=tx.try_send(Internal::Failed(format!("Topology connect: {result:?}")));}}}.instrument(tracing::debug_span!("ssk.net.outgoing.connect")));
                     }
                     // A headless seed stays connected to introduce players; it has no ship in the cover graph.
                     if snapshot.is_some()&&overlay.settled(){let desired=overlay.desired();if desired.iter().all(|id|peers.contains_key(id)){for (id,p) in &peers{if !desired.contains(id){p.conn.close(0u32.into(),b"topology epoch settled");}}}}
@@ -279,5 +301,6 @@ pub(crate) async fn run(
         conn.conn.close(0u32.into(), b"leaving");
     }
     endpoint.close().await;
+    tracing::debug!(name:"ssk.net.transport.end","Transport endpoint close returned");
     Ok(())
 }
