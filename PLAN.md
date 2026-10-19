@@ -252,3 +252,25 @@ rules unchanged. No GUI, runtime probe, automated tests or freeze reproduction.
 I2: README/LAN and freeze history distinguish new Vulkan behavior from old
 incident evidence; graphics trace wrapper matches the new probe CLI. All build
 scripts default to four jobs. Linux release build in progress; no GUI/tests.
+
+## J: freeze after the owner's Vulkan/Wayland launch (current priority)
+
+- [x] J1 — Analyze the supplied NDJSON through bounded queries, fingerprint the
+  executable, correlate journal/rsyslog/existing metrics and inspect primary
+  driver reports. Preserve evidence and distinguish hypotheses from proof.
+- [x] J2 — Prepare a bounded independent read-only kernel-stack collector and
+  document exactly which missing evidence could identify the failing subsystem.
+- [ ] J3 — Owner-approved attended kernel-stack/liveness capture; identify the
+  failure before selecting a driver/application workaround or further launches.
+
+J1 evidence: 75 records / 92,467 bytes, actual NVIDIA615.71.09 + Vulkan/Wayland,
+3.484 s until log end; 360 Hz, 128–141 FPS, no overload/panic/admitted game peers.
+GPU wait snapshots recover in subsequent records. Host memory/write metrics
+show no resource runaway; pre-existing I/O pressure is recorded separately.
+Historical metrics and journal/rsyslog/Loki have no fault stack at the incident.
+Root cause remains unproven; see docs/LINUX_FREEZE.md for exact times/hashes.
+J2 collector syntax compiled only; no collector, GPU/probe/game/tests or root
+changes executed. J3 needs evidence not present in the supplied application log.
+
+I3 status: Linux four-job release/package completed in 4m34s, then owner reported
+this freeze. Windows packaging is deferred while J is the active priority.

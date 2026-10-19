@@ -48,9 +48,28 @@ panic flags off; prepared arm/restore script never armed. Vulkan removes GLX,
 but does not establish the cause or prove freeze resolution. No GUI started.
 
 ## Active processes / exact next action
-Linux four-job release/package running (tools/build-linux.sh), output
-runtime/build-vulkan-linux.log. Poll completion before starting Windows target;
-then tools/build-windows.sh with four jobs. Fix any compilation/link issues,
-record actual packages/import evidence in I3 and commit. No push or GUI launch.
+Linux four-job release/package completed in 4m34s. No active build, game or
+diagnostic collector. Windows rebuild deferred: owner prioritizes finding the
+new freeze after launching the Vulkan dist binary. No push or GUI launch.
 Observability contract/sink remains in docs/OBSERVABILITY.md; resume extra
 coverage only after owner requests it. No independent diagnostic driver active.
+
+## Latest incident / J (current priority)
+Owner's dist launch at 11:50:11.781, log ends 11:50:15.265 after 3.484 s;
+boot52421155 -> boot92b301b4 at11:52:05. J1/J2 saved in docs/LINUX_FREEZE.md.
+75 NDJSON records queried via jq, no full dump. Actual Vulkan/Wayland/NVIDIA
+615.71.09 confirmed; revision de14d7a and current dist/target binary hashes match.
+128–141 FPS, 360 ticks/s, max step286us/lag1865us, no overload/panic/admitted
+peers/game datagrams. Discovery/control and audio were active, not exonerated.
+RSS400MiB, available83.66GiB, logger no I/O errors/max completed write4473us.
+I/O PSI full62–63% predates game. DRM main-thread waits are followed by frames,
+so they do not identify a deadlock. One optional Vulkan-extension warning only.
+Journal tail11:49:18, rsyslog11:49:49; Loki has no new fault stack. Historical
+GPU metrics last11:50:01:48/66C, memory12.5/13.8GB, no measured prior exhaustion.
+Same-driver upstream NVIDIA1392 and GNOME1289 support a graphics hypothesis,
+but no matching local stack/root cause. SSH inactive, kdump loaded, panic flags0.
+Prepared tools/freeze-stacks.py reads bounded root procfs kernel stacks, no GPU
+calls/settings/SysRq/application launch. Syntax compiled only; NOT run. Needs
+owner-approved attended capture; do not start SSK or arm panic automatically.
+Next J3: get independent liveness and KMS/nvidia-modeset/SSK stacks during an
+incident. Additional logging expansion and Windows build remain deferred.

@@ -1,5 +1,126 @@
 # Linux hard-freeze investigation — 2026-10-19
 
+## Fourth incident: Vulkan/Wayland, 11:50:11–11:50:15 MSK
+
+Owner launched `dist/ssk-linux-x64/ssk`, controlled the ship for approximately
+three seconds, then reported Ubuntu's display/input froze. The agent did not
+launch SSK, probes or reproductions. This incident establishes that migrating
+away from GLX did **not** eliminate the reported freeze.
+
+Evidence was extracted with `jq` filters/aggregates, not a full log dump:
+`dist/ssk-linux-x64/runtime/logs/ssk-ab0e7f385b74abac03b1ffe1855c81b9-0000.ndjson`.
+It contains 75 complete NDJSON records / 92,467 bytes. SHA-256:
+`14e155e6888f7adf860281a3e00632f031f3ddabd3443b0074cfb4d99a9a07bb`.
+Raw logs remain ignored; this document records a sanitized summary only.
+
+- Boot: `52421155-834a-4cfe-8e06-ac79c748ffb6`; next boot
+  `92b301b4-4303-432d-87e8-e4d144c3042e` starts at 11:52:05 MSK.
+- Run begins at 11:50:11.781; last record is 11:50:15.265, +3.484540 s.
+  The last record is not an exact timestamp or stack of the freeze.
+- Revision: `v0.1.0-alpha.1-42-gde14d7ab668d`. Dist and target executables match:
+  SHA-256 `a01e0bf3dfdf2eb0948b09a584461699d3efcfc85d97e6d5b5241c5a10f79498`;
+  ELF build ID `b2a2fe21970d047f445f6f7d10deae84b285fede`.
+- Actual renderer: **Vulkan**, actual window system: **Wayland**, adapter:
+  RTX 3090 Ti, NVIDIA **615.71.09**, FIFO / two frames in flight.
+  Graphics readiness logged at +0.443618 s, then game/network/native audio start.
+
+| Sample | Render FPS | Simulation ticks in sample | Max step | Max scheduling lag |
+| --- | ---: | ---: | ---: | ---: |
+| First second | 128.34 | 360 | 286 µs | 1,287 µs |
+| Second second | 139.13 | 360 | 235 µs | 1,819 µs |
+| Third second | 141.08 | 360 | 186 µs | 1,865 µs |
+
+All samples report zero overloads. The final simulation/render ticks are
+1080/1090. There were no admitted peers or game datagrams; transport/control
+and discovery were active, so this does **not** exclude a TUN/control-path bug.
+The final three records are simulation (+3.450157), network (+3.475474), and
+render (+3.484540), followed by no shutdown/panic record. A common logging I/O
+stall could also stop all application records; missing records alone cannot
+prove all CPUs stopped.
+
+Host samples show RSS approximately 400 MiB and 83.66 GiB available RAM;
+memory-pressure averages are zero. Logger recorded zero I/O errors and a
+maximum completed write of 4,473 µs. System I/O PSI `full.avg10` is already
+63.15% **before** graphics initialization, later 62.4%; this pre-existing storage
+pressure deserves attention, but is not evidence that SSK or ZFS caused this
+freeze. A write still blocked at failure would not be included in completed-write
+latency metrics.
+
+At +1.013 and +3.035 s the main thread is sleeping in
+`drm_syncobj_array_wait_timeout.constprop.0`; at +2.022 s it is running, and
+later frames continue after the sampled waits. These are expected possible
+GPU/presentation waits, **not a captured deadlock**. Kernel stacks were not
+available to the unprivileged logger. The two identical GPU model IDs do not
+identify which physical PCI device the game selected. GNOME selected card2
+as its primary GPU; no cross-GPU-copy fault has been demonstrated.
+
+The only WARN is `Unable to find extension: VK_EXT_physical_device_drm`.
+Installed wgpu-hal source filters unavailable requested extensions at
+`src/vulkan/instance.rs:342` and proceeds; this run successfully creates the
+device and renders afterward. The warning is not itself evidence of failure.
+
+### Additional host evidence
+
+Read-only checks of the previous journal, rsyslog and existing Loki/ClickHouse
+history recovered no contemporaneous Xid, panic, OOM or lockup stack. The local
+journal stops at 11:49:18; rsyslog extends to 11:49:49.488, still before SSK.
+Thus an empty 11:50 journal search does not establish absence of a kernel fault.
+No matching USB submission-error records occur in the preceding boot. Existing
+`/var/crash` has no vmcore; a v2rayN SIGABRT report is from 12:07 in the **next**
+boot and does not explain the 11:50 incident.
+
+Last persisted host metrics are at 11:50:01, ten seconds before SSK startup:
+GPU temperatures 48/66 °C, GPU memory approximately 12.5/13.8 GB used, sampled
+utilization zero. GPU exporter values may be older than the scrape timestamp.
+These samples show no prior VRAM exhaustion or thermal spike; they cannot
+exclude an instantaneous fault during the launch. No samples after the incident
+were recovered before the reboot. Queries were bounded to the incident interval;
+the agent did not invoke nvidia-smi, Vulkan tools or new GPU driver queries.
+
+### Working hypothesis and what would identify the fault
+
+Leading hypothesis: a failure involving NVIDIA/DRM/presentation/compositor
+synchronization, triggered by opening/presenting the application. This is an
+inference, not a diagnosed driver defect. Vulkan and OpenGL both still depend
+on the same GPU kernel/display stack. Application validation/device usage,
+audio/USB, TUN and storage remain alternatives until a fault stack or controlled
+comparison separates them.
+
+Relevant primary reports, inspected 2026-10-19:
+
+- [NVIDIA #1392](https://github.com/NVIDIA/open-gpu-kernel-modules/issues/1392):
+  reporter documents 615.71.09 DisplayPort/Wayland hangs with GSP/modeset stacks;
+  trigger/hardware differ from this workstation. Same version is a lead, not proof.
+- [NVIDIA #1289](https://github.com/NVIDIA/open-gpu-kernel-modules/issues/1289):
+  GNOME KMS/modeset deadlock with a frozen last image while SSH keeps working.
+  This illustrates why frozen input/Num Lock alone does not locate a kernel hang.
+
+Next evidence must include the GNOME `KMS thread`, `nvidia-modeset` and SSK
+kernel stacks **during** a freeze, plus an independent host heartbeat. SSH is
+currently inactive (`ssh.service` and `ssh.socket`). Kdump is loaded; soft/hard
+lockup panic flags are zero, so a detected lockup does not currently force a
+dump. Sleep-based KMS deadlocks need not trip CPU lockup detectors at all.
+Do not silently enable SSH, panic-on-lockup, install/replace drivers, disable
+GSP, change monitors/VPN, or run another reproduction without owner agreement.
+
+`tools/freeze-stacks.py` is a prepared independent, read-only Linux collector:
+up to 48 relevant threads, one-second samples, three-second procfs-worker
+timeout, 16 MiB file limit, 120 seconds by default. It reads `/proc/*/stack`
+under root and writes a private NDJSON file. It does not call GPU APIs, change
+sysctls/services, send SysRq, listen on the network or launch SSK. Only syntax
+compilation has been performed; collection has **not** run. Reviewed command
+for an owner-approved attended capture (root files need privileged reading):
+
+```sh
+pkexec /usr/bin/python3 /home/a/github.com/xakepp35/ssk/tools/freeze-stacks.py \
+  --output-dir /home/a/github.com/xakepp35/ssk/runtime/freeze-stacks
+```
+
+Continued samples while the picture is frozen would show a functioning scheduler
+and may identify the blocked kernel stack. A stopped collector is inconclusive:
+the scheduler, procfs, its output storage, or the machine may have stalled.
+The tool does not guarantee a recoverable capture from a total hard lockup.
+
 ## Current renderer after the requested migration
 
 Client now uses eframe/egui 0.33.3, winit 0.30.13 and wgpu 27.0.1, Vulkan only
