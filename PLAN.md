@@ -431,3 +431,10 @@ shorter total window only); one SIGINT if owner does not close normally.
 
 Network session prepared: host/no-audio20s, same hardware/FIFO/ICD/layers,
 60s independent stacks, no promised LAN peer. Save state before launch.
+
+L5 network/no-audio: session20261019T234020Z,32.555s,
+~141.6FPS/360Hz/no overload/ERROR, bootstrap/discovery/
+QUIC initialized. No admitted peer, not LAN match verification. Single SIGINT
+exit-2 expected. Kernel 60records/0sample errors,
+33SSK samples/0read errors.
+Next: same host with native audio enabled, no other changed setting.

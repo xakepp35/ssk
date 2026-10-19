@@ -23,6 +23,12 @@ One owned SIGINT if not manually closed; no menu-exit claim. No active game/
 collector at preparation. Prior offline renderer ran>3min, no recorded freeze,
 then exited on SIGINT. Next root capture durable-ready, one host launch.
 
+## Latest network comparison
+Session runtime/freeze-sessions/20261019T234020Z:32.555s host/no-audio,~141.6FPS,
+360Hz/no overload/ERROR, bootstrap/discovery/QUIC initialized; no admitted peer.
+SIGINT exit-2 intentional, not normal-menu verification. Kernel summary stored,
+no sampling/read errors. No freeze. Next same host+audio only.
+
 ## Latest worker comparison
 Session runtime/freeze-sessions/20261019T233145Z completed10.548s/exit0,
 1384callbacks,3603world ticks/0overloads, max step765us/max lag12082us. Same
